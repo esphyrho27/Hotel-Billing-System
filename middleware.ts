@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { COOKIE_NAME } from './lib/auth';
+import { COOKIE_NAME } from './lib/cookie';
 
 const PROTECTED = ['/dashboard', '/rooms', '/stays', '/folio', '/checkout', '/services', '/reports', '/users'];
 

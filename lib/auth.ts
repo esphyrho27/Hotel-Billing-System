@@ -6,8 +6,9 @@ import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { query, queryOne } from './db';
+import { COOKIE_NAME } from './cookie';
 
-export const COOKIE_NAME = 'hbs_session';
+export { COOKIE_NAME };
 export const SESSION_HOURS = 8;
 
 export type Role = 'admin' | 'manager' | 'frontdesk' | 'cashier' | 'service';
