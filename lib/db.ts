@@ -19,11 +19,11 @@ declare global {
 function getPool(): mysql.Pool {
   if (!globalThis.__hbs_pool) {
     globalThis.__hbs_pool = mysql.createPool({
-      host: process.env.DATABASE_HOST || 'localhost',
-      port: Number(process.env.DATABASE_PORT || 4000),
-      user: process.env.DATABASE_USER || 'root',
-      password: process.env.DATABASE_PASSWORD || '',
-      database: process.env.DATABASE_NAME || 'db_hotel_billing',
+      host: (process.env.DATABASE_HOST || 'localhost').trim(),
+      port: Number((process.env.DATABASE_PORT || '4000').trim()),
+      user: (process.env.DATABASE_USER || 'root').trim(),
+      password: (process.env.DATABASE_PASSWORD || '').trim(),
+      database: (process.env.DATABASE_NAME || 'db_hotel_billing').trim(),
       ssl: { rejectUnauthorized: true },
       connectionLimit: 3,
       enableKeepAlive: true,
