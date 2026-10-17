@@ -369,6 +369,18 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--b
 .empty .empty-ico { font-size: 30px; display: block; margin-bottom: 8px; opacity: 0.55; }
 
 /* ── Guest portal ── */
+.modal-scrim {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(8, 15, 27, 0.6);
+  display: grid; place-items: center; padding: 18px;
+  animation: fadeUp 0.2s ease;
+}
+.modal-card {
+  background: var(--surface); border-radius: 16px;
+  width: min(480px, 100%); max-height: calc(100vh - 60px); overflow-y: auto;
+  padding: 28px 26px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.4);
+  animation: fadeUp 0.25s ease;
+}
 .portal-hero {
   background: linear-gradient(135deg, #0e2a45 0%, #123a5e 55%, #0b1c30 100%);
   color: #fff; border-radius: 16px; padding: 26px 24px; margin-bottom: 22px;

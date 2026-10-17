@@ -20,6 +20,12 @@ interface PortalData {
     planned_checkout: string;
     actual_checkout: string | null;
     status: string;
+    guest_name: string | null;
+    guest_phone: string | null;
+    guest_email: string | null;
+    guest_address: string | null;
+    guest_id_type: string | null;
+    guest_id_number: string | null;
   };
   folio: {
     folio_number: string;
@@ -100,6 +106,50 @@ export default function GuestPortalPage({ params }: { params: Promise<{ token: s
     setMenuOpen(false);
   }
 
+  // ── Guest self-registration modal ──
+  const [guestOpen, setGuestOpen] = useState(false);
+  const [guestSkipped, setGuestSkipped] = useState(false);
+  const [guestBusy, setGuestBusy] = useState(false);
+  const [guestMsg, setGuestMsg] = useState('');
+  const [gfName, setGfName] = useState('');
+  const [gfPhone, setGfPhone] = useState('');
+  const [gfEmail, setGfEmail] = useState('');
+  const [gfAddress, setGfAddress] = useState('');
+  const [gfIdType, setGfIdType] = useState('');
+  const [gfIdNumber, setGfIdNumber] = useState('');
+
+  async function submitGuest(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token || guestBusy || !gfName.trim()) return;
+    setGuestBusy(true);
+    setGuestMsg('');
+    try {
+      const res = await fetch(`/api/portal/${encodeURIComponent(token)}/guest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guest_name: gfName.trim(),
+          guest_phone: gfPhone.trim(),
+          guest_email: gfEmail.trim(),
+          guest_address: gfAddress.trim(),
+          guest_id_type: gfIdType.trim(),
+          guest_id_number: gfIdNumber.trim(),
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setGuestMsg(d.error || 'Registration failed. Please try again.');
+      } else {
+        setGuestOpen(false);
+        await load();
+      }
+    } catch {
+      setGuestMsg('Network error. Please try again.');
+    } finally {
+      setGuestBusy(false);
+    }
+  }
+
   useEffect(() => {
     params.then(p => setToken(p.token)).catch(() => setError('Could not open this link.'));
   }, [params]);
@@ -123,6 +173,20 @@ export default function GuestPortalPage({ params }: { params: Promise<{ token: s
   useEffect(() => {
     load().catch(() => undefined);
   }, [load]);
+
+  // Pop the registration modal on first visit when the guest hasn't registered yet.
+  useEffect(() => {
+    if (data && data.stay.status === 'ACTIVE' && !data.stay.guest_name && !guestSkipped) {
+      setGfName('');
+      setGfPhone('');
+      setGfEmail('');
+      setGfAddress('');
+      setGfIdType('');
+      setGfIdNumber('');
+      setGuestMsg('');
+      setGuestOpen(true);
+    }
+  }, [data, guestSkipped]);
 
   async function submitMove(e: React.FormEvent) {
     e.preventDefault();
@@ -209,6 +273,62 @@ export default function GuestPortalPage({ params }: { params: Promise<{ token: s
 
   return (
     <div className="login-wrap" style={{ placeItems: 'start center' }}>
+      {guestOpen && (
+        <div className="modal-scrim" onClick={() => { setGuestOpen(false); setGuestSkipped(true); }}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Guest registration">
+            <h2 style={{ marginBottom: 4 }}>👋 Welcome!</h2>
+            <p className="page-sub">Help us serve you better — share your details below. This is <strong>optional</strong>; you can skip and enjoy your stay.</p>
+            <form onSubmit={submitGuest}>
+              <div className="field">
+                <label htmlFor="g-name">Full name *</label>
+                <input id="g-name" value={gfName} onChange={e => setGfName(e.target.value)} required maxLength={120} placeholder="e.g. Juan Dela Cruz" autoComplete="name" />
+              </div>
+              <div className="form-grid">
+                <div className="field">
+                  <label htmlFor="g-phone">Mobile number</label>
+                  <input id="g-phone" value={gfPhone} onChange={e => setGfPhone(e.target.value)} maxLength={40} placeholder="09xx xxx xxxx" autoComplete="tel" inputMode="tel" />
+                </div>
+                <div className="field">
+                  <label htmlFor="g-email">Email</label>
+                  <input id="g-email" type="email" value={gfEmail} onChange={e => setGfEmail(e.target.value)} maxLength={120} placeholder="you@example.com" autoComplete="email" />
+                </div>
+              </div>
+              <div className="field">
+                <label htmlFor="g-addr">Address</label>
+                <input id="g-addr" value={gfAddress} onChange={e => setGfAddress(e.target.value)} maxLength={255} placeholder="City / hometown" autoComplete="address-level2" />
+              </div>
+              <div className="form-grid">
+                <div className="field">
+                  <label htmlFor="g-idtype">ID type</label>
+                  <select id="g-idtype" value={gfIdType} onChange={e => setGfIdType(e.target.value)}>
+                    <option value="">Select…</option>
+                    <option value="Driver's License">Driver&apos;s License</option>
+                    <option value="Passport">Passport</option>
+                    <option value="UMID">UMID</option>
+                    <option value="PhilSys">PhilSys / National ID</option>
+                    <option value="SSS">SSS ID</option>
+                    <option value="Company ID">Company ID</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="g-idnum">ID number</label>
+                  <input id="g-idnum" value={gfIdNumber} onChange={e => setGfIdNumber(e.target.value)} maxLength={80} placeholder="ID number" />
+                </div>
+              </div>
+              {guestMsg && <div className="alert alert-error">{guestMsg}</div>}
+              <div className="btn-row" style={{ marginTop: 4 }}>
+                <button className="btn" type="submit" disabled={guestBusy || !gfName.trim()} style={{ flex: 1 }}>
+                  {guestBusy ? 'Saving…' : 'Save details'}
+                </button>
+                <button className="btn btn-secondary" type="button" disabled={guestBusy} onClick={() => { setGuestOpen(false); setGuestSkipped(true); }}>
+                  Skip for now
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       <div style={{ width: 'min(720px, 100%)', padding: '28px 16px' }}>
         <div className="portal-hero">
           <h1>🏨 Guest Portal</h1>
@@ -227,6 +347,18 @@ export default function GuestPortalPage({ params }: { params: Promise<{ token: s
               <h2 style={{ fontSize: 17, margin: '6px 0 10px', color: '#fff' }}>
                 Room {data.stay.room_number} <span style={{ color: '#a9bccd', fontWeight: 400, fontSize: 13 }}>· {data.stay.type_name}</span>
               </h2>
+              {data.stay.guest_name ? (
+                <p style={{ color: '#c9d6e4', fontSize: 13, margin: '0 0 12px' }}>
+                  Registered as <strong style={{ color: '#fff' }}>{data.stay.guest_name}</strong>
+                  {' '}(<button type="button" onClick={() => { setGuestSkipped(false); setGuestOpen(true); }} style={{ background: 'none', border: 'none', color: '#8fb4dd', textDecoration: 'underline', cursor: 'pointer', fontSize: 13, padding: 0 }}>update details</button>)
+                </p>
+              ) : (
+                <p style={{ margin: '0 0 12px' }}>
+                  <button type="button" onClick={() => { setGuestSkipped(false); setGuestOpen(true); }} className="btn btn-secondary btn-sm">
+                    📝 Register your details (optional)
+                  </button>
+                </p>
+              )}
               <div className="cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: 0 }}>
                 <div className="card"><div className="stat-label">Check-in</div><div style={{ fontWeight: 600 }}>{fmtDate(data.stay.checkin_at)}</div></div>
                 <div className="card"><div className="stat-label">Planned checkout</div><div style={{ fontWeight: 600 }}>{String(data.stay.planned_checkout).slice(0, 10)}</div></div>

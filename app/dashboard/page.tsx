@@ -96,8 +96,8 @@ export default function DashboardPage() {
       </div>
 
       <div className="info-box">
-        <strong>Privacy-first stay records.</strong>{' '}
-        Guest billing uses stay and folio references only. No guest name, contact details, email, address, or ID number is collected by this workflow.
+        <strong>Guest details are optional.</strong>{' '}
+        Guests may share their name and contact details through the portal link — it appears on their folio and stay record. Details are only collected with the guest&apos;s consent and never shared.
       </div>
 
       <h2>Recent activity</h2>

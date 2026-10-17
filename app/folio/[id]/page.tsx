@@ -7,7 +7,11 @@ import { peso } from '../../../lib/money';
 interface Totals { chargesTotal: number; discountTotal: number; paymentsTotal: number; balance: number; }
 interface Detail {
   folio: { id: number; folio_number: string; status: string; stay_id: number };
-  stay: { id: number; stay_code: string; guest_count: number; checkin_at: string; planned_checkout: string } | null;
+  stay: {
+    id: number; stay_code: string; guest_count: number; checkin_at: string; planned_checkout: string;
+    guest_name: string | null; guest_phone: string | null; guest_email: string | null;
+    guest_address: string | null; guest_id_type: string | null; guest_id_number: string | null;
+  } | null;
   room: { room_number: string; type_name: string } | null;
   charges: { id: number; category: string; description: string; quantity: string; unit_price: string; amount: string; created_at: string; created_by_name: string | null }[];
   payments: { id: number; receipt_number: string; method: string; amount: string; received_amount: string; change_amount: string; reference_note: string | null; created_at: string; received_by_name: string | null }[];
@@ -257,6 +261,17 @@ export default function FolioPage({ params }: { params: Promise<{ id: string }> 
         Planned checkout {String(d.stay?.planned_checkout).slice(0, 10)}{' '}
         <span className={`badge badge-${d.folio.status.toLowerCase()}`}>{d.folio.status}</span>
       </p>
+      {d.stay?.guest_name && (
+        <div className="panel" style={{ marginBottom: 16, padding: '14px 18px' }}>
+          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 13 }}>
+            <span><strong>Guest:</strong> {d.stay.guest_name}</span>
+            {d.stay.guest_phone && <span><strong>Mobile:</strong> {d.stay.guest_phone}</span>}
+            {d.stay.guest_email && <span><strong>Email:</strong> {d.stay.guest_email}</span>}
+            {d.stay.guest_address && <span><strong>Address:</strong> {d.stay.guest_address}</span>}
+            {d.stay.guest_id_type && <span><strong>ID:</strong> {d.stay.guest_id_type}{d.stay.guest_id_number ? ` ${d.stay.guest_id_number}` : ''}</span>}
+          </div>
+        </div>
+      )}
       {error && <div className="alert alert-error">{error}</div>}
       {notice && <div className="alert alert-ok">{notice}</div>}
 

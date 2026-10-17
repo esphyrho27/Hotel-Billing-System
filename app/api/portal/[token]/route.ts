@@ -17,8 +17,10 @@ export async function GET(_req: Request, ctx: Ctx) {
   }
   const stayId = resolved.stay_id;
 
+  // s.* keeps this working before/after the guest-registration migration;
+  // guest_* fields are simply absent until the columns exist.
   const stay = await queryOne<Record<string, unknown>>(
-    `SELECT s.id, s.stay_code, s.guest_count, s.checkin_at, s.planned_checkout, s.actual_checkout, s.status,
+    `SELECT s.*,
             r.room_number, rt.name AS type_name, rt.nightly_rate
      FROM stays s
      JOIN rooms r ON r.id = s.room_id
@@ -47,6 +49,12 @@ export async function GET(_req: Request, ctx: Ctx) {
       planned_checkout: stay.planned_checkout,
       actual_checkout: stay.actual_checkout,
       status: stay.status,
+      guest_name: (stay.guest_name as string | null) ?? null,
+      guest_phone: (stay.guest_phone as string | null) ?? null,
+      guest_email: (stay.guest_email as string | null) ?? null,
+      guest_address: (stay.guest_address as string | null) ?? null,
+      guest_id_type: (stay.guest_id_type as string | null) ?? null,
+      guest_id_number: (stay.guest_id_number as string | null) ?? null,
     },
     folio: detail
       ? {

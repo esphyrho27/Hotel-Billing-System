@@ -15,6 +15,8 @@ interface Stay {
   folio_id: number | null;
   folio_number: string | null;
   created_by_name: string | null;
+  guest_name: string | null;
+  guest_phone: string | null;
 }
 
 interface Room {
@@ -139,13 +141,14 @@ export default function StaysPage() {
       <div className="table-wrap">
         <table className="data">
           <thead>
-            <tr><th>Stay code</th><th>Room</th><th>Guests</th><th>Check-in</th><th>Planned checkout</th><th>Folio</th><th></th></tr>
+            <tr><th>Stay code</th><th>Guest</th><th>Room</th><th>Guests</th><th>Check-in</th><th>Planned checkout</th><th>Folio</th><th></th></tr>
           </thead>
           <tbody>
-            {stays.length === 0 && <tr><td colSpan={7} className="empty">No active stays.</td></tr>}
+            {stays.length === 0 && <tr><td colSpan={8} className="empty">No active stays.</td></tr>}
             {stays.map(s => (
               <tr key={s.id}>
                 <td>{s.stay_code}</td>
+                <td>{s.guest_name ?? <span style={{ color: '#98a2b3' }}>—</span>}{s.guest_phone ? <><br /><span style={{ color: '#667085', fontSize: 12 }}>{s.guest_phone}</span></> : null}</td>
                 <td>{s.room_number} <span style={{ color: '#667085' }}>({s.type_name})</span></td>
                 <td>{s.guest_count}</td>
                 <td>{String(s.checkin_at).slice(0, 16).replace('T', ' ')}</td>

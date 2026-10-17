@@ -6,7 +6,7 @@ import { peso } from '../../../lib/money';
 
 interface Totals { chargesTotal: number; discountTotal: number; paymentsTotal: number; balance: number; }
 interface StayDetail {
-  stay: { id: number; stay_code: string; guest_count: number; checkin_at: string; planned_checkout: string; status: string };
+  stay: { id: number; stay_code: string; guest_count: number; checkin_at: string; planned_checkout: string; status: string; guest_name: string | null };
   folio: { id: number; folio_number: string; status: string } | null;
   room: { room_number: string; type_name: string } | null;
   charges: { id: number; category: string; description: string; amount: string }[];
@@ -89,6 +89,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ stayId: str
       <div className="no-print">
         <h1>Checkout — {d.stay.stay_code}</h1>
         <p className="page-sub">
+          {d.stay.guest_name && <><strong style={{ color: '#17222f' }}>{d.stay.guest_name}</strong> · </>}
           Room {d.room?.room_number} ({d.room?.type_name}) · {d.stay.guest_count} guest(s) ·{' '}
           Folio {d.folio?.folio_number} · <span className={`badge badge-${(d.folio?.status ?? '').toLowerCase()}`}>{d.folio?.status}</span>
         </p>
@@ -149,6 +150,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ stayId: str
               <hr />
               <div className="r-row"><span>Folio:</span><span>{receipt.folio_number}</span></div>
               <div className="r-row"><span>Stay:</span><span>{d.stay.stay_code}</span></div>
+              {d.stay.guest_name && <div className="r-row"><span>Guest:</span><span>{d.stay.guest_name}</span></div>}
               <div className="r-row"><span>Room:</span><span>{d.room?.room_number} ({d.room?.type_name})</span></div>
               <div className="r-row"><span>Nights:</span><span>{receipt.nights}</span></div>
               <div className="r-row"><span>Date:</span><span>{new Date().toLocaleString('en-PH')}</span></div>
