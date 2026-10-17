@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { guard } from '../../../lib/auth';
 import { query, withTransaction } from '../../../lib/db';
 import { newStayCode, newFolioNumber } from '../../../lib/codes';
+import { hashPortalToken, newPortalToken, portalExpiry } from '../../../lib/portal';
 import { audit, clientIp } from '../../../lib/audit';
 import { parseBody } from '../../../lib/validate';
 
@@ -62,7 +63,13 @@ export async function POST(req: Request) {
       );
       const folioId = Number((folioRes as { insertId: number }).insertId);
       await conn.execute(`UPDATE rooms SET status = 'OCCUPIED' WHERE id = ?`, [room_id]);
-      return { stayId, folioId, stayCode, folioNumber };
+      // Guest portal token (raw token returned once so staff can share it at check-in).
+      const portalToken = newPortalToken();
+      await conn.execute(
+        `INSERT INTO portal_tokens (stay_id, token_hash, expires_at) VALUES (?, ?, ?)`,
+        [stayId, hashPortalToken(portalToken), portalExpiry(planned_checkout)],
+      );
+      return { stayId, folioId, stayCode, folioNumber, portalToken };
     });
     await audit(g.user.id, 'stay.checkin', 'stay', result.stayId, { stay_code: result.stayCode }, clientIp(req));
     return Response.json({ ok: true, ...result }, { status: 201 });

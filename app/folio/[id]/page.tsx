@@ -40,6 +40,11 @@ export default function FolioPage({ params }: { params: Promise<{ id: string }> 
   // discount form
   const [dPolicy, setDPolicy] = useState('');
   const [dReason, setDReason] = useState('');
+  // guest portal link
+  const [portal, setPortal] = useState<{ hasLink: boolean; expires_at: string | null } | null>(null);
+  const [portalToken, setPortalToken] = useState('');
+  const [portalBusy, setPortalBusy] = useState(false);
+  const [portalCopied, setPortalCopied] = useState(false);
 
   useEffect(() => {
     params.then(p => setFolioId(p.id));
@@ -55,9 +60,49 @@ export default function FolioPage({ params }: { params: Promise<{ id: string }> 
       setError('Folio not found.');
       return;
     }
-    setD(await fRes.json());
+    const detail = (await fRes.json()) as Detail;
+    setD(detail);
     if (meRes.ok) setMe((await meRes.json()).user);
     if (catRes.ok) setCatalog((await catRes.json()).items);
+    if (detail.stay?.id) loadPortal(detail.stay.id);
+  }
+
+  async function loadPortal(stayId: number) {
+    try {
+      const r = await fetch(`/api/stays/${stayId}/portal-link`);
+      if (r.ok) setPortal(await r.json());
+    } catch {
+      /* portal link optional */
+    }
+  }
+
+  async function regenPortal() {
+    if (!d?.stay?.id || portalBusy) return;
+    setPortalBusy(true);
+    setError('');
+    try {
+      const r = await fetch(`/api/stays/${d.stay.id}/portal-link`, { method: 'POST' });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) setError(j.error || 'Could not generate portal link.');
+      else {
+        setPortalToken(j.token);
+        setPortalCopied(false);
+        loadPortal(d.stay.id);
+      }
+    } finally {
+      setPortalBusy(false);
+    }
+  }
+
+  async function copyPortal() {
+    const url = portalToken ? `${window.location.origin}/portal/${portalToken}` : '';
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setPortalCopied(true);
+    } catch {
+      /* clipboard unavailable */
+    }
   }
 
   useEffect(() => {
@@ -214,6 +259,37 @@ export default function FolioPage({ params }: { params: Promise<{ id: string }> 
       </p>
       {error && <div className="alert alert-error">{error}</div>}
       {notice && <div className="alert alert-ok">{notice}</div>}
+
+      {me && ['admin', 'manager', 'frontdesk'].includes(me.role) && (
+        <div className="panel" style={{ marginBottom: 16 }}>
+          <h3>Guest portal</h3>
+          {portalToken ? (
+            <>
+              <p className="page-sub">Share this link with the guest — it shows their stay, live bill, and lets them request services. Generating a new link revokes the old one.</p>
+              <div className="btn-row" style={{ alignItems: 'center' }}>
+                <input value={`${typeof window !== 'undefined' ? window.location.origin : ''}/portal/${portalToken}`} readOnly onFocus={e => e.target.select()} style={{ flex: 1, minWidth: 240 }} />
+                <button className="btn btn-secondary btn-sm" type="button" onClick={copyPortal}>
+                  {portalCopied ? 'Copied ✓' : 'Copy link'}
+                </button>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={regenPortal} disabled={portalBusy}>
+                  {portalBusy ? '…' : 'New link'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="btn-row" style={{ alignItems: 'center' }}>
+              <span className="page-sub" style={{ margin: 0 }}>
+                {portal?.hasLink
+                  ? `Guest link is active${portal.expires_at ? ` (expires ${String(portal.expires_at).slice(0, 16).replace('T', ' ')})` : ''}. Generate a new one to re-share it.`
+                  : 'No guest link yet for this stay.'}
+              </span>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={regenPortal} disabled={portalBusy}>
+                {portalBusy ? 'Generating…' : portal?.hasLink ? 'Generate new link' : 'Generate guest link'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="cards">
         <div className="card"><div className="stat-label">Charges</div><div className="stat-value">{peso(t.chargesTotal)}</div></div>

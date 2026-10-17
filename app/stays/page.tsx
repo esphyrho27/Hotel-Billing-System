@@ -32,6 +32,8 @@ export default function StaysPage() {
   const [roomId, setRoomId] = useState('');
   const [guests, setGuests] = useState('2');
   const [checkout, setCheckout] = useState('');
+  const [portalUrl, setPortalUrl] = useState('');
+  const [copied, setCopied] = useState(false);
 
   async function load() {
     const [sRes, rRes] = await Promise.all([
@@ -56,6 +58,8 @@ export default function StaysPage() {
     e.preventDefault();
     setError('');
     setNotice('');
+    setPortalUrl('');
+    setCopied(false);
     const res = await fetch('/api/stays', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -65,8 +69,21 @@ export default function StaysPage() {
     if (!res.ok) setError(data.error || 'Check-in failed.');
     else {
       setNotice(`Checked in — stay ${data.stayCode}, folio ${data.folioNumber}.`);
+      if (data.portalToken) {
+        setPortalUrl(`${window.location.origin}/portal/${data.portalToken}`);
+      }
       setRoomId('');
       load();
+    }
+  }
+
+  async function copyPortal() {
+    if (!portalUrl) return;
+    try {
+      await navigator.clipboard.writeText(portalUrl);
+      setCopied(true);
+    } catch {
+      setCopied(false);
     }
   }
 
@@ -76,6 +93,18 @@ export default function StaysPage() {
       <p className="page-sub">Active stays. Checking in creates the stay, opens a folio, and marks the room OCCUPIED.</p>
       {error && <div className="alert alert-error">{error}</div>}
       {notice && <div className="alert alert-ok">{notice}</div>}
+      {portalUrl && (
+        <div className="panel" style={{ marginBottom: 16 }}>
+          <h3>Guest portal link — share with the guest</h3>
+          <p className="page-sub">The guest opens this link on their phone — no sign-in needed. It shows their stay, live bill, and lets them request services.</p>
+          <div className="btn-row" style={{ alignItems: 'center' }}>
+            <input value={portalUrl} readOnly onFocus={e => e.target.select()} style={{ flex: 1, minWidth: 240 }} />
+            <button className="btn btn-secondary" type="button" onClick={copyPortal}>
+              {copied ? 'Copied ✓' : 'Copy link'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="panel">
         <h3>New check-in</h3>

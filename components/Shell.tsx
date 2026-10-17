@@ -34,9 +34,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const isLogin = pathname === '/login' || pathname.startsWith('/login/');
+  const isPortal = pathname === '/portal' || pathname.startsWith('/portal/');
 
   useEffect(() => {
-    if (isLogin) {
+    if (isLogin || isPortal) {
       setMe(null);
       return;
     }
@@ -54,6 +55,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   if (isLogin) {
     return <div className="login-wrap">{children}</div>;
+  }
+
+  // Public guest portal — no staff navigation.
+  if (isPortal) {
+    return <>{children}</>;
   }
 
   const links = NAV.filter(n => me && n.roles.includes(me.role));
