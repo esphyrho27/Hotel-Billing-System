@@ -9,7 +9,15 @@ interface DashboardData {
   todayRevenue: number;
   openFolios: number;
   activeStays: number;
+  available: number;
+  openBalance: number;
+  requestsNew: number;
+  requestsActive: number;
   activity: { id: number; action: string; entity_type: string; entity_id: number | null; created_at: string; username: string | null }[];
+}
+
+function Chip({ icon, tone }: { icon: string; tone: string }) {
+  return <span className={`stat-chip ${tone}`}>{icon}</span>;
 }
 
 export default function DashboardPage() {
@@ -26,45 +34,70 @@ export default function DashboardPage() {
   if (error) return <div><h1>Dashboard</h1><div className="alert alert-error">{error}</div></div>;
   if (!data) return <div><h1>Dashboard</h1><p className="page-sub">Loading…</p></div>;
 
+  const openRequests = data.requestsNew + data.requestsActive;
+
   return (
     <div>
       <h1>Dashboard</h1>
-      <p className="page-sub">Today&apos;s operation at a glance.</p>
+      <p className="page-sub">Operations overview</p>
 
-      <div className="cards">
-        <div className="card">
-          <div className="stat-top">
-            <div className="stat-label">Occupancy</div>
-            <div className="stat-icon">🛏️</div>
-          </div>
-          <div className="stat-value">{data.occupancy.occupied}/{data.occupancy.total}</div>
-          <div className="stat-sub">{data.occupancy.rate}% occupied · {data.occupancy.cleaning} cleaning · {data.occupancy.maintenance} maintenance</div>
+      <div className="stat-grid">
+        <div className="stat-card">
+          <Chip icon="🛏️" tone="green" />
+          <div><div className="stat-card-label">Available rooms</div><div className="stat-card-value text-green">{data.available}</div></div>
         </div>
-        <div className="card">
-          <div className="stat-top">
-            <div className="stat-label">Revenue today</div>
-            <div className="stat-icon green">💰</div>
-          </div>
-          <div className="stat-value">{peso(data.todayRevenue)}</div>
-          <div className="stat-sub">Payments received today</div>
+        <div className="stat-card">
+          <Chip icon="🏢" tone="blue" />
+          <div><div className="stat-card-label">Occupied rooms</div><div className="stat-card-value text-blue">{data.occupancy.occupied}</div></div>
         </div>
-        <div className="card">
-          <div className="stat-top">
-            <div className="stat-label">Open folios</div>
-            <div className="stat-icon gold">🧾</div>
-          </div>
-          <div className="stat-value">{data.openFolios}</div>
-          <div className="stat-sub">{data.activeStays} active stays</div>
+        <div className="stat-card">
+          <Chip icon="✨" tone="amber" />
+          <div><div className="stat-card-label">Cleaning</div><div className="stat-card-value text-amber">{data.occupancy.cleaning}</div></div>
+        </div>
+        <div className="stat-card">
+          <Chip icon="🛠️" tone="gray" />
+          <div><div className="stat-card-label">Maintenance</div><div className="stat-card-value text-gray">{data.occupancy.maintenance}</div></div>
+        </div>
+        <div className="stat-card">
+          <Chip icon="👥" tone="slate" />
+          <div><div className="stat-card-label">Active stays</div><div className="stat-card-value">{data.activeStays}</div></div>
+        </div>
+        <div className="stat-card">
+          <Chip icon="🧾" tone="red" />
+          <div><div className="stat-card-label">Open balance</div><div className="stat-card-value text-red">{peso(data.openBalance)}</div></div>
+        </div>
+        <div className="stat-card">
+          <Chip icon="🔔" tone="green" />
+          <div><div className="stat-card-label">Open requests</div><div className="stat-card-value text-green">{openRequests}</div></div>
+        </div>
+        <div className="stat-card">
+          <Chip icon="💵" tone="green" />
+          <div><div className="stat-card-label">Today&apos;s collections</div><div className="stat-card-value text-green">{peso(data.todayRevenue)}</div></div>
         </div>
       </div>
 
-      <div className="toolbar">
-        <h2 style={{ margin: 0 }}>Quick actions</h2>
+      <div className="notice-card">
+        <div className="notice-left">
+          <span className="notice-bell">🔔</span>
+          <div>
+            <strong>Guest requests need attention</strong>
+            <div className="page-sub" style={{ margin: 0 }}>{data.requestsNew} new · {data.requestsActive} accepted or in progress</div>
+          </div>
+        </div>
+        <Link className="btn btn-secondary btn-sm" href="/services">Review requests</Link>
       </div>
-      <div className="btn-row" style={{ marginBottom: 24 }}>
-        <Link className="btn" href="/stays">New check-in</Link>
-        <Link className="btn btn-secondary" href="/rooms">Rooms board</Link>
-        <Link className="btn btn-secondary" href="/services">Service queue</Link>
+
+      <div className="quick-actions">
+        <Link className="btn btn-dark" href="/stays">＋ Walk-In Check-In</Link>
+        <Link className="btn btn-secondary" href="/stays">View Active Stays</Link>
+        <Link className="btn btn-secondary" href="/rooms">Room Board</Link>
+        <Link className="btn btn-secondary" href="/reports">View Reports</Link>
+        <Link className="btn btn-secondary" href="/stays">Guest Links</Link>
+      </div>
+
+      <div className="info-box">
+        <strong>Privacy-first stay records.</strong>{' '}
+        Guest billing uses stay and folio references only. No guest name, contact details, email, address, or ID number is collected by this workflow.
       </div>
 
       <h2>Recent activity</h2>
