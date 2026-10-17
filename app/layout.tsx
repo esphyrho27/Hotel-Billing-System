@@ -3,7 +3,7 @@ import './globals.css';
 import Shell from '../components/Shell';
 
 export const metadata: Metadata = {
-  title: 'Hotel Billing System',
+  title: 'Shesh Dev Hotel — Billing System',
   description: 'Back-office hotel billing: rooms, stays, folios, payments and reports.',
 };
 

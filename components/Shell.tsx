@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { LOGO_DATA_URI } from '../lib/logo';
 
 interface Me {
   id: number;
@@ -72,8 +73,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     <div className="app-shell">
       <aside className={`sidebar${menuOpen ? ' open' : ''}`}>
         <div className="brand">
-          <span className="brand-mark">H</span>
-          <span className="brand-text">Hotel Billing<small>Front Office</small></span>
+          <img src={LOGO_DATA_URI} alt="Shesh Dev Hotel" className="brand-logo" />
+          <span className="brand-text">Shesh Dev Hotel<small>Front Office</small></span>
         </div>
         <div className="nav-label">Menu</div>
         <nav className="nav">

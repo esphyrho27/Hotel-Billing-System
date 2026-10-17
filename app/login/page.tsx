@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { LOGO_DATA_URI } from '../../lib/logo';
 
 function LoginForm() {
   const router = useRouter();
@@ -37,16 +38,9 @@ function LoginForm() {
 
   return (
     <div className="login-split">
-      <div className="login-brand">
-        <span className="brand-mark">H</span>
-        <h1>Hotel Billing System</h1>
-        <p>Front-office billing for rooms, folios, payments and guest services — all in one place.</p>
-        <ul className="login-feats">
-          <li><span className="tick">✓</span>Rooms, check-in and folio management</li>
-          <li><span className="tick">✓</span>Guest self-service portal with menu ordering</li>
-          <li><span className="tick">✓</span>Payments, discounts, voids and receipts</li>
-          <li><span className="tick">✓</span>Reports and a full audit trail</li>
-        </ul>
+      <div className="login-brand login-brand-logo">
+        <img src={LOGO_DATA_URI} alt="Shesh Dev Hotel logo" className="login-logo" />
+        <p className="login-welcome">Welcome to Shesh Dev Hotel — where every stay feels like home.</p>
       </div>
       <div className="login-form-side">
         <div className="login-card">
