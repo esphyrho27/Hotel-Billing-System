@@ -68,7 +68,10 @@ export default function StaysPage() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) setError(data.error || 'Check-in failed.');
     else {
-      setNotice(`Checked in — stay ${data.stayCode}, folio ${data.folioNumber}.`);
+      const roomNote = data.roomChargesPosted > 0
+        ? ` ${data.roomChargesPosted} night(s) of room charges posted to the folio.`
+        : '';
+      setNotice(`Checked in — stay ${data.stayCode}, folio ${data.folioNumber}.${roomNote}`);
       if (data.portalToken) {
         setPortalUrl(`${window.location.origin}/portal/${data.portalToken}`);
       }

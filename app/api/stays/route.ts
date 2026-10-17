@@ -3,6 +3,7 @@ import { guard } from '../../../lib/auth';
 import { query, withTransaction } from '../../../lib/db';
 import { newStayCode, newFolioNumber } from '../../../lib/codes';
 import { hashPortalToken, newPortalToken, portalExpiry } from '../../../lib/portal';
+import { postMissingRoomCharges } from '../../../lib/folio';
 import { audit, clientIp } from '../../../lib/audit';
 import { parseBody } from '../../../lib/validate';
 
@@ -72,7 +73,11 @@ export async function POST(req: Request) {
       return { stayId, folioId, stayCode, folioNumber, portalToken };
     });
     await audit(g.user.id, 'stay.checkin', 'stay', result.stayId, { stay_code: result.stayCode }, clientIp(req));
-    return Response.json({ ok: true, ...result }, { status: 201 });
+    // The room rate hits the folio immediately: post all planned nights now
+    // (idempotent — checkout will simply find nothing left to post).
+    const roomChg = await postMissingRoomCharges(result.stayId, g.user.id);
+    await audit(g.user.id, 'folio.room_charges', 'folio', result.folioId, { nights: roomChg.nights, posted: roomChg.posted, at: 'checkin' }, clientIp(req));
+    return Response.json({ ok: true, ...result, roomChargesPosted: roomChg.posted, roomNights: roomChg.nights }, { status: 201 });
   } catch (e: unknown) {
     if (e && typeof e === 'object' && 'status' in e) {
       const err = e as { status?: unknown; message?: unknown };
