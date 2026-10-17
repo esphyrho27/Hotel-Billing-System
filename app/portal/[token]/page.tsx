@@ -209,9 +209,9 @@ export default function GuestPortalPage({ params }: { params: Promise<{ token: s
 
   return (
     <div className="login-wrap" style={{ placeItems: 'start center' }}>
-      <div style={{ width: 'min(720px, 100%)', padding: '28px 0' }}>
-        <div className="login-card" style={{ width: '100%', marginBottom: 16 }}>
-          <h1>Guest Portal</h1>
+      <div style={{ width: 'min(720px, 100%)', padding: '28px 16px' }}>
+        <div className="portal-hero">
+          <h1>🏨 Guest Portal</h1>
           <p className="page-sub">Your stay, bill and service requests — no sign-in needed.</p>
 
           {loading && <p>Loading your stay…</p>}
@@ -224,16 +224,22 @@ export default function GuestPortalPage({ params }: { params: Promise<{ token: s
 
           {!loading && !error && data && (
             <>
-              <h2 style={{ fontSize: 17, margin: '6px 0 10px' }}>
-                Room {data.stay.room_number} <span className="page-sub">· {data.stay.type_name}</span>
+              <h2 style={{ fontSize: 17, margin: '6px 0 10px', color: '#fff' }}>
+                Room {data.stay.room_number} <span style={{ color: '#a9bccd', fontWeight: 400, fontSize: 13 }}>· {data.stay.type_name}</span>
               </h2>
-              <div className="cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+              <div className="cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: 0 }}>
                 <div className="card"><div className="stat-label">Check-in</div><div style={{ fontWeight: 600 }}>{fmtDate(data.stay.checkin_at)}</div></div>
                 <div className="card"><div className="stat-label">Planned checkout</div><div style={{ fontWeight: 600 }}>{String(data.stay.planned_checkout).slice(0, 10)}</div></div>
                 <div className="card"><div className="stat-label">Guests</div><div style={{ fontWeight: 600 }}>{data.stay.guest_count}</div></div>
                 <div className="card"><div className="stat-label">Stay code</div><div style={{ fontWeight: 600 }}>{data.stay.stay_code}</div></div>
               </div>
+            </>
+          )}
+        </div>
 
+        {!loading && !error && data && (
+          <div className="panel">
+            <>
               {data.folio && (
                 <>
                   <h2 style={{ fontSize: 17, margin: '18px 0 10px' }}>Your bill <span className="page-sub">· Folio {data.folio.folio_number}</span></h2>
@@ -448,8 +454,8 @@ export default function GuestPortalPage({ params }: { params: Promise<{ token: s
                 This link expires {fmtDate(data.link_expires_at)}. For anything urgent, please call the front desk.
               </p>
             </>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -132,7 +132,7 @@ export default function RoomsPage() {
           <div className="floor-title">Floor {f}</div>
           <div className="room-grid">
             {rooms.filter(r => r.floor_number === f).map(r => (
-              <div className="room-card" key={r.id}>
+              <div className={`room-card status-${r.status}`} key={r.id}>
                 <div className="room-no">{r.room_number}</div>
                 <div className="room-meta">{r.type_name} · {peso(Number(r.nightly_rate))}/night · {r.capacity} pax</div>
                 <span className={`badge ${STATUS_CLASS[r.status] ?? ''}`}>{r.status}</span>

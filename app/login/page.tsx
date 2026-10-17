@@ -36,23 +36,38 @@ function LoginForm() {
   }
 
   return (
-    <div className="login-card">
-      <h1>Hotel Billing System</h1>
-      <p className="page-sub">Sign in to the front-office console.</p>
-      {error && <div className="alert alert-error">{error}</div>}
-      <form onSubmit={submit}>
-        <div className="field">
-          <span>Username</span>
-          <input value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" required autoFocus />
+    <div className="login-split">
+      <div className="login-brand">
+        <span className="brand-mark">H</span>
+        <h1>Hotel Billing System</h1>
+        <p>Front-office billing for rooms, folios, payments and guest services — all in one place.</p>
+        <ul className="login-feats">
+          <li><span className="tick">✓</span>Rooms, check-in and folio management</li>
+          <li><span className="tick">✓</span>Guest self-service portal with menu ordering</li>
+          <li><span className="tick">✓</span>Payments, discounts, voids and receipts</li>
+          <li><span className="tick">✓</span>Reports and a full audit trail</li>
+        </ul>
+      </div>
+      <div className="login-form-side">
+        <div className="login-card">
+          <h1>Welcome back</h1>
+          <p className="page-sub">Sign in to the front-office console.</p>
+          {error && <div className="alert alert-error">{error}</div>}
+          <form onSubmit={submit}>
+            <div className="field">
+              <span>Username</span>
+              <input value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" required autoFocus />
+            </div>
+            <div className="field">
+              <span>Password</span>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required />
+            </div>
+            <button className="btn btn-block" disabled={busy} type="submit">
+              {busy ? 'Signing in…' : 'Sign in'}
+            </button>
+          </form>
         </div>
-        <div className="field">
-          <span>Password</span>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required />
-        </div>
-        <button className="btn btn-block" disabled={busy} type="submit">
-          {busy ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
+      </div>
     </div>
   );
 }

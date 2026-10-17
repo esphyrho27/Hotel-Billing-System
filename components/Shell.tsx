@@ -10,14 +10,14 @@ interface Me {
   role: string;
 }
 
-const NAV: { href: string; label: string; roles: string[] }[] = [
-  { href: '/dashboard', label: 'Dashboard', roles: ['admin', 'manager', 'frontdesk', 'cashier', 'service'] },
-  { href: '/rooms', label: 'Rooms', roles: ['admin', 'manager', 'frontdesk'] },
-  { href: '/stays', label: 'Stays & Check-in', roles: ['admin', 'manager', 'frontdesk'] },
-  { href: '/services', label: 'Services', roles: ['admin', 'manager', 'frontdesk', 'service'] },
-  { href: '/reports', label: 'Reports', roles: ['admin', 'manager', 'cashier'] },
-  { href: '/transactions', label: 'Transactions', roles: ['admin', 'manager', 'cashier'] },
-  { href: '/users', label: 'Users', roles: ['admin'] },
+const NAV: { href: string; label: string; icon: string; roles: string[] }[] = [
+  { href: '/dashboard', label: 'Dashboard', icon: '📊', roles: ['admin', 'manager', 'frontdesk', 'cashier', 'service'] },
+  { href: '/rooms', label: 'Rooms', icon: '🛏️', roles: ['admin', 'manager', 'frontdesk'] },
+  { href: '/stays', label: 'Stays & Check-in', icon: '🔑', roles: ['admin', 'manager', 'frontdesk'] },
+  { href: '/services', label: 'Services', icon: '🛎️', roles: ['admin', 'manager', 'frontdesk', 'service'] },
+  { href: '/reports', label: 'Reports', icon: '📈', roles: ['admin', 'manager', 'cashier'] },
+  { href: '/transactions', label: 'Transactions', icon: '🧾', roles: ['admin', 'manager', 'cashier'] },
+  { href: '/users', label: 'Users', icon: '👥', roles: ['admin'] },
 ];
 
 const ROLE_LABEL: Record<string, string> = {
@@ -64,14 +64,18 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   }
 
   const links = NAV.filter(n => me && n.roles.includes(me.role));
+  const active = NAV.find(n => pathname === n.href || pathname.startsWith(n.href + '/'));
+  const pageTitle = active ? active.label : 'Front Office';
+  const today = new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
   return (
     <div className="app-shell">
       <aside className={`sidebar${menuOpen ? ' open' : ''}`}>
         <div className="brand">
           <span className="brand-mark">H</span>
-          <span className="brand-text">Hotel Billing</span>
+          <span className="brand-text">Hotel Billing<small>Front Office</small></span>
         </div>
+        <div className="nav-label">Menu</div>
         <nav className="nav">
           {links.map(l => (
             <Link
@@ -80,6 +84,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               className={pathname === l.href || pathname.startsWith(l.href + '/') ? 'active' : ''}
               onClick={() => setMenuOpen(false)}
             >
+              <span className="nav-ico">{l.icon}</span>
               {l.label}
             </Link>
           ))}
@@ -88,8 +93,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           {me && (
             <>
               <div className="user-chip">
-                <strong>{me.username}</strong>
-                <span>{ROLE_LABEL[me.role] ?? me.role}</span>
+                <span className="user-avatar">{me.username.slice(0, 1).toUpperCase()}</span>
+                <div>
+                  <strong>{me.username}</strong>
+                  <span>{ROLE_LABEL[me.role] ?? me.role}</span>
+                </div>
               </div>
               <button className="btn btn-ghost btn-block" onClick={logout}>
                 Log out
@@ -98,12 +106,15 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           )}
         </div>
       </aside>
+      {menuOpen && <div className="scrim" onClick={() => setMenuOpen(false)} />}
       <div className="main">
         <header className="topbar no-print">
           <button className="btn btn-ghost menu-btn" onClick={() => setMenuOpen(o => !o)} aria-label="Toggle menu">
             ☰
           </button>
-          <span className="topbar-title">Front Office</span>
+          <span className="topbar-title">{pageTitle}</span>
+          <span className="spacer" />
+          <span className="topbar-date">{today}</span>
         </header>
         <main className="content">{children}</main>
       </div>

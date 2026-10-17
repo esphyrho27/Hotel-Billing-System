@@ -33,17 +33,26 @@ export default function DashboardPage() {
 
       <div className="cards">
         <div className="card">
-          <div className="stat-label">Occupancy</div>
+          <div className="stat-top">
+            <div className="stat-label">Occupancy</div>
+            <div className="stat-icon">🛏️</div>
+          </div>
           <div className="stat-value">{data.occupancy.occupied}/{data.occupancy.total}</div>
           <div className="stat-sub">{data.occupancy.rate}% occupied · {data.occupancy.cleaning} cleaning · {data.occupancy.maintenance} maintenance</div>
         </div>
         <div className="card">
-          <div className="stat-label">Revenue today</div>
+          <div className="stat-top">
+            <div className="stat-label">Revenue today</div>
+            <div className="stat-icon green">💰</div>
+          </div>
           <div className="stat-value">{peso(data.todayRevenue)}</div>
           <div className="stat-sub">Payments received today</div>
         </div>
         <div className="card">
-          <div className="stat-label">Open folios</div>
+          <div className="stat-top">
+            <div className="stat-label">Open folios</div>
+            <div className="stat-icon gold">🧾</div>
+          </div>
           <div className="stat-value">{data.openFolios}</div>
           <div className="stat-sub">{data.activeStays} active stays</div>
         </div>
