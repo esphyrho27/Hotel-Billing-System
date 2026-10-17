@@ -15,6 +15,8 @@ const schema = z.object({
   // …or describe a custom request.
   service_type: z.enum(SERVICE_TYPES).default('OTHER'),
   description: z.string().min(1).max(500),
+  // Guests can also ask for a room change; staff assigns the target room.
+  request_kind: z.enum(['SERVICE', 'ROOM_TRANSFER']).default('SERVICE'),
 });
 
 /**
@@ -36,7 +38,21 @@ export async function POST(req: Request, ctx: Ctx) {
 
   const parsed = parseBody(schema, await req.json().catch(() => null));
   if (!parsed.ok) return parsed.response;
-  const { catalog_id, service_type, description } = parsed.data;
+  const { catalog_id, service_type, description, request_kind } = parsed.data;
+
+  if (request_kind === 'ROOM_TRANSFER') {
+    // Room change: guest gives a reason; staff picks the target room later.
+    const reason = description.trim();
+    if (!reason) return Response.json({ error: 'Please tell us why you would like to change rooms.' }, { status: 400 });
+    const code = newRequestCode();
+    const { insertId } = await exec(
+      `INSERT INTO service_requests
+         (stay_id, request_code, service_type, request_kind, description, status, chargeable, price)
+       VALUES (?, ?, 'FRONT_DESK', 'ROOM_TRANSFER', ?, 'NEW', 0, 0)`,
+      [resolved.stay_id, code, reason],
+    );
+    return Response.json({ ok: true, id: insertId, request_code: code, request_kind: 'ROOM_TRANSFER' }, { status: 201 });
+  }
 
   let finalType: string = service_type ?? 'OTHER';
   let finalDesc = description.trim();

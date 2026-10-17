@@ -16,6 +16,7 @@ const NAV: { href: string; label: string; roles: string[] }[] = [
   { href: '/stays', label: 'Stays & Check-in', roles: ['admin', 'manager', 'frontdesk'] },
   { href: '/services', label: 'Services', roles: ['admin', 'manager', 'frontdesk', 'service'] },
   { href: '/reports', label: 'Reports', roles: ['admin', 'manager', 'cashier'] },
+  { href: '/transactions', label: 'Transactions', roles: ['admin', 'manager', 'cashier'] },
   { href: '/users', label: 'Users', roles: ['admin'] },
 ];
 

@@ -13,10 +13,11 @@ export async function GET(req: Request) {
   const where = status ? `WHERE sr.status = ?` : '';
   const params = status ? [status] : [];
   const items = await query(
-    `SELECT sr.*, s.stay_code, r.room_number, u.username AS completed_by_name
+    `SELECT sr.*, s.stay_code, r.room_number, rr.room_number AS requested_room_number, u.username AS completed_by_name
      FROM service_requests sr
      JOIN stays s ON s.id = sr.stay_id
      JOIN rooms r ON r.id = s.room_id
+     LEFT JOIN rooms rr ON rr.id = sr.requested_room_id
      LEFT JOIN users u ON u.id = sr.completed_by
      ${where}
      ORDER BY sr.created_at DESC, sr.id DESC`,

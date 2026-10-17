@@ -72,6 +72,13 @@ export default function GuestPortalPage({ params }: { params: Promise<{ token: s
   const [reqBusy, setReqBusy] = useState(false);
   const [reqMsg, setReqMsg] = useState('');
 
+  const [moveReason, setMoveReason] = useState('');
+  const [moveBusy, setMoveBusy] = useState(false);
+  const [moveMsg, setMoveMsg] = useState('');
+
+  const foodItems = (data?.catalog ?? []).filter(i => i.category === 'FOOD_BEVERAGE');
+  const otherItems = (data?.catalog ?? []).filter(i => i.category !== 'FOOD_BEVERAGE');
+
   useEffect(() => {
     params.then(p => setToken(p.token)).catch(() => setError('Could not open this link.'));
   }, [params]);
@@ -95,6 +102,52 @@ export default function GuestPortalPage({ params }: { params: Promise<{ token: s
   useEffect(() => {
     load().catch(() => undefined);
   }, [load]);
+
+  async function submitMove(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token || moveBusy || !moveReason.trim()) return;
+    setMoveBusy(true);
+    setMoveMsg('');
+    try {
+      const res = await fetch(`/api/portal/${encodeURIComponent(token)}/requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ request_kind: 'ROOM_TRANSFER', description: moveReason.trim() }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMoveMsg(d.error || 'Request failed.');
+      } else {
+        setMoveMsg(`Room change requested ✓ (${d.request_code}). The front desk will arrange it and confirm with you.`);
+        setMoveReason('');
+        await load();
+      }
+    } catch {
+      setMoveMsg('Network error. Please try again.');
+    } finally {
+      setMoveBusy(false);
+    }
+  }
+
+  function catalogCard(item: { id: number; name: string; description: string | null; category: string; price: unknown }) {
+    return (
+      <div className="card" key={item.id}>
+        <div style={{ fontWeight: 600 }}>{item.name}</div>
+        <div className="stat-sub">{item.description || String(item.category).replace(/_/g, ' ')}</div>
+        <div style={{ fontWeight: 700, margin: '6px 0' }}>{money(item.price)}</div>
+        <button
+          className="btn btn-secondary btn-sm btn-block"
+          disabled={reqBusy}
+          onClick={() => {
+            setReqDesc(`1x ${item.name}`);
+            submitRequest({ preventDefault() {} } as React.FormEvent, item.id);
+          }}
+        >
+          Request
+        </button>
+      </div>
+    );
+  }
 
   async function submitRequest(e: React.FormEvent, catalogId?: number) {
     e.preventDefault();
@@ -195,27 +248,25 @@ export default function GuestPortalPage({ params }: { params: Promise<{ token: s
 
               {data.stay.status === 'ACTIVE' && (
                 <>
-                  <h2 style={{ fontSize: 17, margin: '18px 0 10px' }}>Request a service</h2>
-                  {data.catalog.length > 0 && (
-                    <div className="cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-                      {data.catalog.map(item => (
-                        <div className="card" key={item.id}>
-                          <div style={{ fontWeight: 600 }}>{item.name}</div>
-                          <div className="stat-sub">{item.description || String(item.category).replace(/_/g, ' ')}</div>
-                          <div style={{ fontWeight: 700, margin: '6px 0' }}>{money(item.price)}</div>
-                          <button
-                            className="btn btn-secondary btn-sm btn-block"
-                            disabled={reqBusy}
-                            onClick={() => {
-                              setReqDesc(`1x ${item.name}`);
-                              submitRequest({ preventDefault() {} } as React.FormEvent, item.id);
-                            }}
-                          >
-                            Request
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+                  {foodItems.length > 0 && (
+                    <>
+                      <h2 style={{ fontSize: 17, margin: '18px 0 10px' }}>🍽️ Order food & drinks</h2>
+                      <p className="page-sub">Ordered items are prepared by our team and charged to your room bill.</p>
+                      <div className="cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+                        {foodItems.map(catalogCard)}
+                      </div>
+                    </>
+                  )}
+                  {otherItems.length > 0 && (
+                    <>
+                      <h2 style={{ fontSize: 17, margin: '18px 0 10px' }}>Request a service</h2>
+                      <div className="cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+                        {otherItems.map(catalogCard)}
+                      </div>
+                    </>
+                  )}
+                  {data.catalog.length === 0 && (
+                    <h2 style={{ fontSize: 17, margin: '18px 0 10px' }}>Request a service</h2>
                   )}
                   <form onSubmit={submitRequest} style={{ marginTop: 12 }}>
                     <div className="field">
@@ -242,6 +293,26 @@ export default function GuestPortalPage({ params }: { params: Promise<{ token: s
                     </button>
                   </form>
                   {reqMsg && <p style={{ marginTop: 10 }}>{reqMsg}</p>}
+
+                  <h2 style={{ fontSize: 17, margin: '18px 0 10px' }}>Request a room change</h2>
+                  <p className="page-sub">Tell us why — the front desk will arrange a new room and confirm with you.</p>
+                  <form onSubmit={submitMove}>
+                    <div className="field">
+                      <label htmlFor="gp-move">Reason for the change</label>
+                      <textarea
+                        id="gp-move"
+                        rows={2}
+                        value={moveReason}
+                        onChange={e => setMoveReason(e.target.value)}
+                        placeholder="e.g. Too noisy — would like a quieter room."
+                        maxLength={500}
+                      />
+                    </div>
+                    <button className="btn btn-secondary btn-block" type="submit" disabled={moveBusy || !moveReason.trim()}>
+                      {moveBusy ? 'Sending…' : 'Request room change'}
+                    </button>
+                  </form>
+                  {moveMsg && <p style={{ marginTop: 10 }}>{moveMsg}</p>}
                 </>
               )}
 

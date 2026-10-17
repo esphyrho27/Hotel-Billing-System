@@ -11,6 +11,7 @@ interface SvcReq {
   service_type: string;
   request_kind: string;
   requested_room_id: number | null;
+  requested_room_number: string | null;
   description: string;
   status: string;
   chargeable: number;
@@ -45,6 +46,7 @@ export default function ServicesPage() {
   const [chargeable, setChargeable] = useState(false);
   const [price, setPrice] = useState('0');
   const [reqRoomId, setReqRoomId] = useState('');
+  const [assignRoom, setAssignRoom] = useState<Record<number, string>>({});
 
   async function load(status: string) {
     const q = status ? `?status=${status}` : '';
@@ -78,6 +80,29 @@ export default function ServicesPage() {
     if (!res.ok) setError(data.error || 'Could not update request.');
     else {
       if (data.notes?.length) setNotice(data.notes.join(' '));
+      load(filter);
+    }
+  }
+
+  async function assignTransferRoom(id: number) {
+    const roomId = assignRoom[id];
+    if (!roomId) {
+      setError('Select a room first.');
+      return;
+    }
+    setError('');
+    setNotice('');
+    const res = await fetch(`/api/service-requests/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requested_room_id: Number(roomId) }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) setError(data.error || 'Could not assign room.');
+    else {
+      if (data.notes?.length) setNotice(data.notes.join(' '));
+      else setNotice('Target room assigned.');
+      setAssignRoom(prev => ({ ...prev, [id]: '' }));
       load(filter);
     }
   }
@@ -136,7 +161,18 @@ export default function ServicesPage() {
                 <td>{r.request_code}</td>
                 <td>{r.stay_code}<br /><span style={{ color: '#667085' }}>Rm {r.room_number}</span></td>
                 <td>{r.service_type}<br /><span style={{ color: '#667085' }}>{r.request_kind}</span></td>
-                <td style={{ whiteSpace: 'normal', maxWidth: 260 }}>{r.description}</td>
+                <td style={{ whiteSpace: 'normal', maxWidth: 260 }}>
+                  {r.description}
+                  {r.request_kind === 'ROOM_TRANSFER' && (
+                    <div style={{ marginTop: 6 }}>
+                      {r.requested_room_number ? (
+                        <span className="badge badge-accepted">→ Room {r.requested_room_number}</span>
+                      ) : (
+                        <span className="badge badge-pending">No target room yet</span>
+                      )}
+                    </div>
+                  )}
+                </td>
                 <td><span className={`badge badge-${r.status.toLowerCase()}`}>{r.status}</span></td>
                 <td>{r.chargeable ? `₱${Number(r.price).toFixed(2)}` : '—'}</td>
                 <td>
@@ -147,6 +183,20 @@ export default function ServicesPage() {
                       </button>
                     ))}
                   </div>
+                  {r.request_kind === 'ROOM_TRANSFER' && !r.requested_room_id && r.status !== 'COMPLETED' && r.status !== 'CANCELLED' && (
+                    <div className="btn-row" style={{ marginTop: 6 }}>
+                      <select
+                        value={assignRoom[r.id] ?? ''}
+                        onChange={e => setAssignRoom(prev => ({ ...prev, [r.id]: e.target.value }))}
+                        aria-label="Target room"
+                        style={{ maxWidth: 110 }}
+                      >
+                        <option value="">Room…</option>
+                        {rooms.map(rm => <option key={rm.id} value={rm.id}>{rm.room_number}</option>)}
+                      </select>
+                      <button className="btn btn-sm" onClick={() => assignTransferRoom(r.id)}>Assign</button>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
