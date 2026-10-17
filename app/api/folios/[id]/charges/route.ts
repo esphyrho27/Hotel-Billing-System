@@ -45,7 +45,7 @@ export async function POST(req: Request, ctx: RouteCtx) {
     const { insertId } = await exec(
       `INSERT INTO charges (folio_id, category, description, quantity, unit_price, amount, service_request_id, idempotency_key, created_by)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, description.trim(), quantity, unit_price, amount, service_request_id ?? null, idemKey, g.user.id],
+      [id, category, description.trim(), quantity, unit_price, amount, service_request_id ?? null, idemKey, g.user.id],
     );
     await audit(g.user.id, 'charge.create', 'charge', insertId, { folio_id: id, category, amount }, clientIp(req));
     return Response.json({ ok: true, id: insertId, amount }, { status: 201 });
