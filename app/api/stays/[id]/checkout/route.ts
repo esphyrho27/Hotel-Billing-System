@@ -1,12 +1,15 @@
 import { guard } from '../../../../../lib/auth';
 import { queryOne, withTransaction, toNum, round2 } from '../../../../../lib/db';
-import { getFolioDetail, getVatRate, vatInclusivePortion } from '../../../../../lib/folio';
+import { getFolioDetail, getVatRate, postMissingRoomCharges, vatInclusivePortion } from '../../../../../lib/folio';
 import { audit, clientIp } from '../../../../../lib/audit';
 import { routeId, type RouteCtx } from '../../../../../lib/validate';
 
 /**
  * Finalize checkout. Requires zero balance. In a transaction:
  * folio → PAID, stay → CHECKED_OUT, room → CLEANING, checkout_records row.
+ *
+ * Room charges are auto-posted first (idempotent), so checkout can never
+ * finalize a bill that is missing the room amount.
  */
 export async function POST(req: Request, ctx: RouteCtx) {
   const g = await guard(['admin', 'manager', 'cashier']);
@@ -30,6 +33,10 @@ export async function POST(req: Request, ctx: RouteCtx) {
   );
   if (!folioRow) return Response.json({ error: 'Folio not found.' }, { status: 404 });
   if (folioRow.status !== 'OPEN') return Response.json({ error: 'Folio is not open.' }, { status: 409 });
+
+  // Never finalize without the room amount: post any missing nightly charges first.
+  // Idempotent — nights already charged are skipped.
+  const roomChg = await postMissingRoomCharges(id, g.user.id);
 
   const detail = await getFolioDetail(folioRow.id);
   if (!detail) return Response.json({ error: 'Folio not found.' }, { status: 404 });
@@ -81,6 +88,7 @@ export async function POST(req: Request, ctx: RouteCtx) {
     nights,
     vatRate,
     vatAmount,
+    roomChargesPosted: roomChg.posted,
     totals: fresh?.totals ?? t,
     charges: fresh?.charges ?? [],
     payments: fresh?.payments ?? [],

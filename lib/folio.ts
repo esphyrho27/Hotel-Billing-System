@@ -9,7 +9,7 @@
  * VAT (billing_policies.VAT_RATE, default 12) is shown as an informational
  * "VAT-inclusive" line on the receipt; it does not change the balance.
  */
-import { query, queryOne, toNum, round2 } from './db';
+import { query, queryOne, exec, toNum, round2 } from './db';
 
 export interface FolioTotals {
   chargesTotal: number;
@@ -84,4 +84,49 @@ export async function getVatRate(): Promise<number> {
 /** VAT shown as an informational VAT-inclusive portion of the net amount. */
 export function vatInclusivePortion(netAmount: number, vatRate: number): number {
   return round2((netAmount * vatRate) / (100 + vatRate));
+}
+
+/**
+ * Post missing nightly ROOM charges for a stay (one per night at the room's
+ * nightly rate). Idempotent: each night uses key `roomchg:{stayId}:{YYYY-MM-DD}`,
+ * so already-posted nights are skipped. Only runs on ACTIVE stays / OPEN folios.
+ * Returns { nights, posted }.
+ */
+export async function postMissingRoomCharges(
+  stayId: number,
+  userId: number | null,
+): Promise<{ nights: number; posted: number }> {
+  const stay = await queryOne<{
+    id: number; status: string; checkin_at: string; planned_checkout: string; room_id: number;
+  }>(`SELECT id, status, checkin_at, planned_checkout, room_id FROM stays WHERE id = ?`, [stayId]);
+  if (!stay || stay.status !== 'ACTIVE') return { nights: 0, posted: 0 };
+  const folio = await queryOne<{ id: number; status: string }>(`SELECT id, status FROM folios WHERE stay_id = ?`, [stayId]);
+  if (!folio || folio.status !== 'OPEN') return { nights: 0, posted: 0 };
+  const room = await queryOne<{ room_number: string; nightly_rate: unknown }>(
+    `SELECT r.room_number, rt.nightly_rate FROM rooms r JOIN room_types rt ON rt.id = r.room_type_id WHERE r.id = ?`,
+    [stay.room_id],
+  );
+  if (!room) return { nights: 0, posted: 0 };
+  const rate = toNum(room.nightly_rate);
+
+  const checkinDate = new Date(String(stay.checkin_at).slice(0, 10) + 'T00:00:00');
+  const plannedDate = new Date(String(stay.planned_checkout).slice(0, 10) + 'T00:00:00');
+  const nights = Math.max(1, Math.round((plannedDate.getTime() - checkinDate.getTime()) / 86400000));
+
+  let posted = 0;
+  for (let i = 0; i < nights; i++) {
+    const d = new Date(checkinDate);
+    d.setDate(d.getDate() + i);
+    const ds = d.toISOString().slice(0, 10);
+    const key = `roomchg:${stayId}:${ds}`;
+    const dup = await queryOne<{ n: number }>(`SELECT COUNT(*) AS n FROM charges WHERE idempotency_key = ?`, [key]);
+    if (dup && Number(dup.n) > 0) continue;
+    await exec(
+      `INSERT INTO charges (folio_id, category, description, quantity, unit_price, amount, idempotency_key, created_by)
+       VALUES (?, 'ROOM', ?, 1, ?, ?, ?, ?)`,
+      [folio.id, `Room charge — ${ds} (Room ${room.room_number} @ ₱${rate.toFixed(2)}/night)`, rate, round2(rate), key, userId],
+    );
+    posted++;
+  }
+  return { nights, posted };
 }

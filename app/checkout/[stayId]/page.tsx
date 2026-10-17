@@ -98,7 +98,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ stayId: str
           <>
             <div className="panel">
               <h3>1. Post nightly room charges</h3>
-              <p className="page-sub">Posts one ROOM charge per night at the room&apos;s nightly rate. Safe to run twice — nights already charged are skipped.</p>
+              <p className="page-sub">Posts one ROOM charge per night at the room&apos;s nightly rate. Safe to run twice — nights already charged are skipped. (Checkout also posts any missing room charges automatically, so the room amount can never be left off the bill.)</p>
               <button className="btn btn-secondary" onClick={postRoomCharges} disabled={busy}>
                 {busy ? 'Working…' : 'Post room charges'}
               </button>
