@@ -76,8 +76,29 @@ export default function GuestPortalPage({ params }: { params: Promise<{ token: s
   const [moveBusy, setMoveBusy] = useState(false);
   const [moveMsg, setMoveMsg] = useState('');
 
-  const foodItems = (data?.catalog ?? []).filter(i => i.category === 'FOOD_BEVERAGE');
-  const otherItems = (data?.catalog ?? []).filter(i => i.category !== 'FOOD_BEVERAGE');
+  const [menuItem, setMenuItem] = useState('');
+  const [menuQty, setMenuQty] = useState('1');
+  const [menuBusy, setMenuBusy] = useState(false);
+  const [menuMsg, setMenuMsg] = useState('');
+  const [menuQuery, setMenuQuery] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const menuMatches = (data?.catalog ?? []).filter(i => {
+    const q = menuQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      i.name.toLowerCase().includes(q) ||
+      (i.description ?? '').toLowerCase().includes(q) ||
+      i.category.toLowerCase().replace(/_/g, ' ').includes(q)
+    );
+  }).slice(0, 12);
+  const menuSelected = (data?.catalog ?? []).find(i => String(i.id) === menuItem) ?? null;
+
+  function pickMenuItem(id: number, name: string) {
+    setMenuItem(String(id));
+    setMenuQuery(name);
+    setMenuOpen(false);
+  }
 
   useEffect(() => {
     params.then(p => setToken(p.token)).catch(() => setError('Could not open this link.'));
@@ -129,24 +150,35 @@ export default function GuestPortalPage({ params }: { params: Promise<{ token: s
     }
   }
 
-  function catalogCard(item: { id: number; name: string; description: string | null; category: string; price: unknown }) {
-    return (
-      <div className="card" key={item.id}>
-        <div style={{ fontWeight: 600 }}>{item.name}</div>
-        <div className="stat-sub">{item.description || String(item.category).replace(/_/g, ' ')}</div>
-        <div style={{ fontWeight: 700, margin: '6px 0' }}>{money(item.price)}</div>
-        <button
-          className="btn btn-secondary btn-sm btn-block"
-          disabled={reqBusy}
-          onClick={() => {
-            setReqDesc(`1x ${item.name}`);
-            submitRequest({ preventDefault() {} } as React.FormEvent, item.id);
-          }}
-        >
-          Request
-        </button>
-      </div>
-    );
+  async function submitMenuOrder(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token || menuBusy || !menuItem) return;
+    const item = (data?.catalog ?? []).find(i => String(i.id) === menuItem);
+    if (!item) return;
+    const qty = Math.max(1, Math.min(99, Number(menuQty) || 1));
+    setMenuBusy(true);
+    setMenuMsg('');
+    try {
+      const res = await fetch(`/api/portal/${encodeURIComponent(token)}/requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ catalog_id: item.id, description: `${qty}x ${item.name}` }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMenuMsg(d.error || 'Order failed.');
+      } else {
+        const total = Number(item.price) * qty;
+        setMenuMsg(`Order sent ✓ (${d.request_code}) — ${qty}x ${item.name}${total > 0 ? ` · ${money(total)} will be added to your bill.` : ''}`);
+        setMenuItem('');
+        setMenuQty('1');
+        await load();
+      }
+    } catch {
+      setMenuMsg('Network error. Please try again.');
+    } finally {
+      setMenuBusy(false);
+    }
   }
 
   async function submitRequest(e: React.FormEvent, catalogId?: number) {
@@ -248,26 +280,102 @@ export default function GuestPortalPage({ params }: { params: Promise<{ token: s
 
               {data.stay.status === 'ACTIVE' && (
                 <>
-                  {foodItems.length > 0 && (
+                  {data.catalog.length > 0 && (
                     <>
-                      <h2 style={{ fontSize: 17, margin: '18px 0 10px' }}>🍽️ Order food & drinks</h2>
-                      <p className="page-sub">Ordered items are prepared by our team and charged to your room bill.</p>
-                      <div className="cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-                        {foodItems.map(catalogCard)}
-                      </div>
+                      <h2 style={{ fontSize: 17, margin: '18px 0 10px' }}>🍽️ Order food, drinks & services</h2>
+                      <p className="page-sub">Pick an item from the list — ordered items are prepared by our team and charged to your room bill.</p>
+                      <form onSubmit={submitMenuOrder}>
+                        <div className="form-grid" style={{ gridTemplateColumns: '1fr 110px' }}>
+                          <div className="field" style={{ position: 'relative' }}>
+                            <label htmlFor="gp-menu">Search the menu</label>
+                            <input
+                              id="gp-menu"
+                              type="text"
+                              value={menuQuery}
+                              onChange={e => {
+                                setMenuQuery(e.target.value);
+                                setMenuItem('');
+                                setMenuOpen(true);
+                              }}
+                              onFocus={() => setMenuOpen(true)}
+                              onBlur={() => setTimeout(() => setMenuOpen(false), 150)}
+                              placeholder="Type to search — e.g. coffee, towel…"
+                              autoComplete="off"
+                            />
+                            {menuOpen && menuMatches.length > 0 && (
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  top: '100%',
+                                  left: 0,
+                                  right: 0,
+                                  zIndex: 20,
+                                  background: 'var(--surface, #fff)',
+                                  border: '1px solid var(--line, #d9dee5)',
+                                  borderRadius: 8,
+                                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                                  maxHeight: 240,
+                                  overflowY: 'auto',
+                                }}
+                              >
+                                {menuMatches.map(item => (
+                                  <button
+                                    key={item.id}
+                                    type="button"
+                                    onMouseDown={e => e.preventDefault()}
+                                    onClick={() => pickMenuItem(item.id, item.name)}
+                                    style={{
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      width: '100%',
+                                      padding: '10px 12px',
+                                      background: 'none',
+                                      border: 'none',
+                                      borderBottom: '1px solid var(--line, #eee)',
+                                      textAlign: 'left',
+                                      cursor: 'pointer',
+                                      fontSize: 14,
+                                    }}
+                                  >
+                                    <span>
+                                      <strong>{item.name}</strong>
+                                      <br />
+                                      <span className="page-sub" style={{ margin: 0 }}>{String(item.category).replace(/_/g, ' ')}</span>
+                                    </span>
+                                    <span style={{ fontWeight: 700 }}>{money(item.price)}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {menuOpen && menuQuery.trim() && menuMatches.length === 0 && (
+                              <div className="page-sub" style={{ marginTop: 6 }}>No matches — try another word, or use the custom request form below.</div>
+                            )}
+                          </div>
+                          <div className="field">
+                            <label htmlFor="gp-qty">Qty</label>
+                            <input
+                              id="gp-qty"
+                              type="number"
+                              min={1}
+                              max={99}
+                              value={menuQty}
+                              onChange={e => setMenuQty(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        {menuSelected && (
+                          <p className="page-sub" style={{ marginTop: 0 }}>
+                            Selected: <strong>{menuSelected.name}</strong> — {money(menuSelected.price)} each
+                          </p>
+                        )}
+                        <button className="btn btn-block" type="submit" disabled={menuBusy || !menuSelected}>
+                          {menuBusy ? 'Sending…' : 'Place order'}
+                        </button>
+                      </form>
+                      {menuMsg && <p style={{ marginTop: 10 }}>{menuMsg}</p>}
                     </>
                   )}
-                  {otherItems.length > 0 && (
-                    <>
-                      <h2 style={{ fontSize: 17, margin: '18px 0 10px' }}>Request a service</h2>
-                      <div className="cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-                        {otherItems.map(catalogCard)}
-                      </div>
-                    </>
-                  )}
-                  {data.catalog.length === 0 && (
-                    <h2 style={{ fontSize: 17, margin: '18px 0 10px' }}>Request a service</h2>
-                  )}
+                  <h2 style={{ fontSize: 17, margin: '18px 0 10px' }}>Something else?</h2>
                   <form onSubmit={submitRequest} style={{ marginTop: 12 }}>
                     <div className="field">
                       <label htmlFor="gp-type">Type of request</label>
