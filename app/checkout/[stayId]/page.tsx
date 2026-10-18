@@ -20,6 +20,7 @@ interface ReceiptData {
   nights: number;
   vatRate: number;
   vatAmount: number;
+  earlyCheckoutAdjustment: { nights: string[]; amount: number } | null;
   totals: Totals;
   charges: StayDetail['charges'];
   payments: StayDetail['payments'];
@@ -143,6 +144,12 @@ export default function CheckoutPage({ params }: { params: Promise<{ stayId: str
             <button className="btn" onClick={() => window.print()}>Print receipt</button>
             <Link className="btn btn-secondary" href="/stays">Back to stays</Link>
           </div>
+          {receipt.earlyCheckoutAdjustment && (
+            <div className="alert alert-info no-print">
+              Early checkout: removed {receipt.earlyCheckoutAdjustment.nights.length} unused night(s)
+              ({receipt.earlyCheckoutAdjustment.nights.join(', ')}) — adjusted −{peso(receipt.earlyCheckoutAdjustment.amount)}.
+            </div>
+          )}
           <div className="print-area">
             <div className="receipt">
               <h2>HOTEL BILLING</h2>

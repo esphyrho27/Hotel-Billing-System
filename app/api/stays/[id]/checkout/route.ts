@@ -1,6 +1,6 @@
 import { guard } from '../../../../../lib/auth';
 import { queryOne, withTransaction, toNum, round2 } from '../../../../../lib/db';
-import { getFolioDetail, getVatRate, postMissingRoomCharges, vatInclusivePortion } from '../../../../../lib/folio';
+import { getFolioDetail, getVatRate, postMissingRoomCharges, reconcileEarlyCheckout, vatInclusivePortion } from '../../../../../lib/folio';
 import { audit, clientIp } from '../../../../../lib/audit';
 import { routeId, type RouteCtx } from '../../../../../lib/validate';
 
@@ -9,7 +9,9 @@ import { routeId, type RouteCtx } from '../../../../../lib/validate';
  * folio → PAID, stay → CHECKED_OUT, room → CLEANING, checkout_records row.
  *
  * Room charges are auto-posted first (idempotent), so checkout can never
- * finalize a bill that is missing the room amount.
+ * finalize a bill that is missing the room amount. On early checkout, nightly
+ * charges for un-stayed nights are auto-reconciled via a negative ADJUSTMENT
+ * before the zero-balance check.
  */
 export async function POST(req: Request, ctx: RouteCtx) {
   const g = await guard(['admin', 'manager', 'cashier']);
@@ -38,6 +40,10 @@ export async function POST(req: Request, ctx: RouteCtx) {
   // Idempotent — nights already charged are skipped.
   const roomChg = await postMissingRoomCharges(id, g.user.id);
 
+  // Early checkout: offset nightly charges for nights the guest never stayed.
+  // Idempotent — posts at most one adjustment per stay per checkout date.
+  const earlyAdj = await reconcileEarlyCheckout(id, g.user.id);
+
   const detail = await getFolioDetail(folioRow.id);
   if (!detail) return Response.json({ error: 'Folio not found.' }, { status: 404 });
   const t = detail.totals;
@@ -60,7 +66,11 @@ export async function POST(req: Request, ctx: RouteCtx) {
 
   const checkinDate = new Date(String(stay.checkin_at).slice(0, 10) + 'T00:00:00');
   const plannedDate = new Date(String(stay.planned_checkout).slice(0, 10) + 'T00:00:00');
-  const nights = Math.max(1, Math.round((plannedDate.getTime() - checkinDate.getTime()) / 86400000));
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayDate = new Date(todayStr + 'T00:00:00');
+  const plannedNights = Math.max(1, Math.round((plannedDate.getTime() - checkinDate.getTime()) / 86400000));
+  const nights = Math.max(1, Math.round((todayDate.getTime() - checkinDate.getTime()) / 86400000));
+  const unusedNights = Math.max(0, plannedNights - nights);
 
   const nowSql = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
@@ -73,12 +83,20 @@ export async function POST(req: Request, ctx: RouteCtx) {
         (stay_id, folio_id, scheduled_checkout_at, actual_checkout_at, nights_stayed, unused_nights,
          charges_total, discount_total, vat_amount, final_amount, payments_received, refunds_completed, finalized_by)
        VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 0, ?)`,
-      [id, folioRow.id, stay.planned_checkout, nowSql, nights, t.chargesTotal, t.discountTotal, vatAmount, net, t.paymentsTotal, g.user.id],
+      [id, folioRow.id, stay.planned_checkout, nowSql, nights, unusedNights, t.chargesTotal, t.discountTotal, vatAmount, net, t.paymentsTotal, g.user.id],
     );
     return { checkoutRecordId: Number((cr as { insertId: number }).insertId) };
   });
 
-  await audit(g.user.id, 'stay.checkout', 'stay', id, { folio_number: folioRow.folio_number, final_amount: net }, clientIp(req));
+  await audit(g.user.id, 'stay.checkout', 'stay', id, {
+    folio_number: folioRow.folio_number,
+    final_amount: net,
+    nights_stayed: nights,
+    unused_nights: unusedNights,
+    early_checkout_adjustment: earlyAdj.adjusted
+      ? { nights: earlyAdj.unusedNights, amount: earlyAdj.adjustedAmount }
+      : null,
+  }, clientIp(req));
 
   const fresh = await getFolioDetail(folioRow.id);
   return Response.json({
@@ -89,6 +107,9 @@ export async function POST(req: Request, ctx: RouteCtx) {
     vatRate,
     vatAmount,
     roomChargesPosted: roomChg.posted,
+    earlyCheckoutAdjustment: earlyAdj.adjusted
+      ? { nights: earlyAdj.unusedNights, amount: earlyAdj.adjustedAmount }
+      : null,
     totals: fresh?.totals ?? t,
     charges: fresh?.charges ?? [],
     payments: fresh?.payments ?? [],

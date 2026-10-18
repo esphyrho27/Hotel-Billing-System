@@ -130,3 +130,74 @@ export async function postMissingRoomCharges(
   }
   return { nights, posted };
 }
+
+/**
+ * Auto-reconcile nightly ROOM charges on early checkout.
+ *
+ * Check-in posts ALL planned nights up front (idempotent keys
+ * `roomchg:{stayId}:{YYYY-MM-DD}`). When a guest leaves before the planned
+ * checkout date, nights on/after the actual checkout date were never stayed,
+ * so this posts a single negative ADJUSTMENT offsetting them. The original
+ * charges are kept for the audit trail; the adjustment is idempotent via
+ * `roomadj:{stayId}:{YYYY-MM-DD}` (the actual checkout date).
+ *
+ * Only touches auto-posted nightly charges (category ROOM with a matching
+ * idempotency key) — manually posted charges are left for staff to handle.
+ * Returns { adjusted, unusedNights, adjustedAmount, actualNights, plannedNights }.
+ */
+export async function reconcileEarlyCheckout(
+  stayId: number,
+  userId: number | null,
+): Promise<{
+  adjusted: boolean;
+  unusedNights: string[];
+  adjustedAmount: number;
+  actualNights: number;
+  plannedNights: number;
+}> {
+  const stay = await queryOne<{
+    id: number; status: string; checkin_at: string; planned_checkout: string; room_id: number;
+  }>(`SELECT id, status, checkin_at, planned_checkout, room_id FROM stays WHERE id = ?`, [stayId]);
+  const empty = { adjusted: false, unusedNights: [] as string[], adjustedAmount: 0, actualNights: 0, plannedNights: 0 };
+  if (!stay || stay.status !== 'ACTIVE') return empty;
+  const folio = await queryOne<{ id: number; status: string }>(`SELECT id, status FROM folios WHERE stay_id = ?`, [stayId]);
+  if (!folio || folio.status !== 'OPEN') return empty;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const checkinDate = new Date(String(stay.checkin_at).slice(0, 10) + 'T00:00:00');
+  const plannedDate = new Date(String(stay.planned_checkout).slice(0, 10) + 'T00:00:00');
+  const todayDate = new Date(todayStr + 'T00:00:00');
+  const plannedNights = Math.max(1, Math.round((plannedDate.getTime() - checkinDate.getTime()) / 86400000));
+  const actualNights = Math.max(1, Math.round((todayDate.getTime() - checkinDate.getTime()) / 86400000));
+  const base = { ...empty, actualNights, plannedNights };
+  if (actualNights >= plannedNights) return base;
+
+  // Idempotency: one adjustment per stay per actual checkout date.
+  const adjKey = `roomadj:${stayId}:${todayStr}`;
+  const adjDup = await queryOne<{ n: number }>(`SELECT COUNT(*) AS n FROM charges WHERE idempotency_key = ?`, [adjKey]);
+  if (adjDup && Number(adjDup.n) > 0) return base;
+
+  const prefix = `roomchg:${stayId}:`;
+  const posted = await query<{ idempotency_key: string; amount: unknown }>(
+    `SELECT idempotency_key, amount FROM charges WHERE folio_id = ? AND category = 'ROOM' AND idempotency_key LIKE ?`,
+    [folio.id, `${prefix}%`],
+  );
+  const unused = posted.filter(c => String(c.idempotency_key).slice(prefix.length) >= todayStr);
+  const adjustedAmount = round2(unused.reduce((s, c) => s + toNum(c.amount), 0));
+  if (adjustedAmount <= 0) return base;
+
+  const unusedNights = unused.map(c => String(c.idempotency_key).slice(prefix.length)).sort();
+  await exec(
+    `INSERT INTO charges (folio_id, category, description, quantity, unit_price, amount, idempotency_key, created_by)
+     VALUES (?, 'ADJUSTMENT', ?, 1, ?, ?, ?, ?)`,
+    [
+      folio.id,
+      `Early checkout adjustment — removed ${unusedNights.length} unused night(s): ${unusedNights.join(', ')}`,
+      -adjustedAmount,
+      -adjustedAmount,
+      adjKey,
+      userId,
+    ],
+  );
+  return { ...base, adjusted: true, unusedNights, adjustedAmount };
+}
