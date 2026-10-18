@@ -182,7 +182,9 @@ export async function reconcileEarlyCheckout(
     `SELECT idempotency_key, amount FROM charges WHERE folio_id = ? AND category = 'ROOM' AND idempotency_key LIKE ?`,
     [folio.id, `${prefix}%`],
   );
-  const unused = posted.filter(c => String(c.idempotency_key).slice(prefix.length) >= todayStr);
+  // Nights are keyed by date; the checkout day's own night was stayed, so only
+  // nights strictly after the checkout date are unused.
+  const unused = posted.filter(c => String(c.idempotency_key).slice(prefix.length) > todayStr);
   const adjustedAmount = round2(unused.reduce((s, c) => s + toNum(c.amount), 0));
   if (adjustedAmount <= 0) return base;
 

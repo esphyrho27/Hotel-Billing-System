@@ -82,7 +82,7 @@ export async function POST(req: Request, ctx: RouteCtx) {
       `INSERT INTO checkout_records
         (stay_id, folio_id, scheduled_checkout_at, actual_checkout_at, nights_stayed, unused_nights,
          charges_total, discount_total, vat_amount, final_amount, payments_received, refunds_completed, finalized_by)
-       VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 0, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
       [id, folioRow.id, stay.planned_checkout, nowSql, nights, unusedNights, t.chargesTotal, t.discountTotal, vatAmount, net, t.paymentsTotal, g.user.id],
     );
     return { checkoutRecordId: Number((cr as { insertId: number }).insertId) };
