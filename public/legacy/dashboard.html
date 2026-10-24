@@ -1,0 +1,1793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shesh Dev Hotel — Billing System</title>
+    <!-- Google Fonts: Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        if (!window.HotelApi && typeof axios !== 'undefined') {
+            window.HotelApi = axios.create({
+                baseURL: '/api/index.php',
+                timeout: 15000,
+                headers: { 'Content-Type': 'application/json' },
+                withCredentials: true
+            });
+            window.HotelApi.interceptors.response.use(
+                function(r) { return r; },
+                function(e) { return Promise.reject(new Error(e.response && e.response.data && e.response.data.error || e.message || 'Network request failed')); }
+            );
+        }
+    </script>
+    <style>
+        /* Compact SweetAlert2 Dialog Styling */
+        .swal2-popup:not(.swal2-toast) {
+            width: 23em !important;
+            max-width: 90vw !important;
+            padding: 1.25rem 1.25rem 1.1rem !important;
+            border-radius: 12px !important;
+            box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.1) !important;
+        }
+
+        .swal2-popup:not(.swal2-toast) .swal2-icon {
+            font-size: 0.65rem !important;
+            width: 5em !important;
+            height: 5em !important;
+            margin: 0.4rem auto 0.75rem !important;
+            border-width: 0.25em !important;
+            box-sizing: content-box !important;
+        }
+
+        .swal2-popup:not(.swal2-toast) .swal2-icon .swal2-icon-content {
+            font-size: 3.75em !important;
+        }
+
+        /* Properly scale and center error 'X' mark lines */
+        .swal2-popup:not(.swal2-toast) .swal2-icon.swal2-error {
+            border-color: #f27474 !important;
+        }
+
+        .swal2-popup:not(.swal2-toast) .swal2-icon.swal2-error .swal2-x-mark {
+            position: relative !important;
+            display: block !important;
+            flex-grow: 1 !important;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .swal2-popup:not(.swal2-toast) .swal2-icon.swal2-error [class^="swal2-x-mark-line"] {
+            display: block !important;
+            position: absolute !important;
+            top: 2.3125em !important;
+            width: 2.9375em !important;
+            height: 0.3125em !important;
+            border-radius: 0.125em !important;
+            background-color: #f27474 !important;
+        }
+
+        .swal2-popup:not(.swal2-toast) .swal2-icon.swal2-error [class^="swal2-x-mark-line"][class$="left"] {
+            left: 1.0625em !important;
+            transform: rotate(45deg) !important;
+        }
+
+        .swal2-popup:not(.swal2-toast) .swal2-icon.swal2-error [class^="swal2-x-mark-line"][class$="right"] {
+            right: 1em !important;
+            transform: rotate(-45deg) !important;
+        }
+
+        /* Modal close button ('×') */
+        .swal2-popup .swal2-close {
+            position: absolute !important;
+            top: 14px !important;
+            right: 14px !important;
+            margin: 0 !important;
+            z-index: 100 !important;
+            font-family: inherit !important;
+            font-size: 1.4rem !important;
+            line-height: 1 !important;
+            color: #94a3b8 !important;
+            box-shadow: none !important;
+            border: none !important;
+            background: transparent !important;
+        }
+
+        .swal2-popup .swal2-close:hover {
+            color: #ef4444 !important;
+        }
+
+        .swal2-popup:not(.swal2-toast) .swal2-title {
+            font-size: 1.2rem !important;
+            font-weight: 600 !important;
+            padding: 0 0.5rem !important;
+            margin-bottom: 0.35rem !important;
+            color: #1e293b !important;
+        }
+
+        .swal2-popup:not(.swal2-toast) .swal2-html-container {
+            font-size: 0.88rem !important;
+            line-height: 1.45 !important;
+            padding: 0 0.5rem !important;
+            margin: 0.25rem 0 0 !important;
+            color: #475569 !important;
+        }
+
+        .swal2-popup:not(.swal2-toast) .swal2-input,
+        .swal2-popup:not(.swal2-toast) .swal2-textarea {
+            font-size: 0.88rem !important;
+            margin: 0.75rem auto 0 !important;
+            height: auto !important;
+            padding: 0.45rem 0.75rem !important;
+            border-radius: 6px !important;
+            border: 1px solid #cbd5e1 !important;
+        }
+
+        .swal2-popup:not(.swal2-toast) .swal2-actions {
+            margin: 1.1rem auto 0 !important;
+            gap: 0.5rem !important;
+        }
+
+        .swal2-popup:not(.swal2-toast) .swal2-styled {
+            font-size: 0.85rem !important;
+            padding: 0.42rem 1.2rem !important;
+            border-radius: 6px !important;
+            font-weight: 500 !important;
+        }
+        :root {
+            --brand-primary: #1e293b;
+            --brand-primary-hover: #0f172a;
+            --brand-primary-light: #f1f5f9;
+            --brand-accent: #2563eb;
+            --brand-accent-hover: #1d4ed8;
+            --brand-accent-light: #eff6ff;
+            --bg-body: #f6f7f9;
+            --bg-card: #ffffff;
+            --border-color: #e6e8ee;
+            --border-subtle: #eef0f4;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --text-light: #94a3b8;
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 14px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            font-size: 0.88rem;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── Navbar (approved design v20261022) ── */
+        .navbar-custom {
+            background: var(--brand-primary) !important;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            padding: 0 20px;
+            min-height: 56px;
+        }
+        .navbar-brand {
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            font-size: 1.05rem;
+            color: #ffffff !important;
+        }
+        .navbar-badge {
+            background: rgba(255,255,255,0.12);
+            color: #e2e8f0;
+            font-weight: 500;
+            font-size: 0.72rem;
+            padding: 4px 8px;
+            border-radius: 6px;
+            letter-spacing: 0.02em;
+        }
+        .brand-mark {
+            width: 28px; height: 28px; border-radius: 8px;
+            background: rgba(255,255,255,0.14);
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 0.85rem; flex-shrink: 0;
+        }
+        .brand-lines { line-height: 1.15; }
+        .brand-lines .brand-name { font-weight: 800; font-size: 0.95rem; letter-spacing: -0.01em; display: block; }
+        .brand-lines .brand-sub { font-weight: 500; font-size: 0.64rem; color: #cbd5e1; letter-spacing: 0.02em; display: block; }
+        .topbar-crumb { color: #cbd5e1; font-size: 0.8rem; display: flex; align-items: center; gap: 8px; margin-left: 10px; }
+        .topbar-crumb b { color: #ffffff; font-weight: 600; }
+        .topbar-crumb .bi { font-size: 0.6rem; }
+        .topbar-date { color: #cbd5e1; font-size: 0.78rem; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+        .user-chip {
+            display: flex; align-items: center; gap: 9px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.12);
+            padding: 4px 12px 4px 4px; border-radius: 999px;
+        }
+        .user-avatar {
+            width: 28px; height: 28px; border-radius: 50%;
+            background: #e2e8f0; color: var(--brand-primary);
+            font-weight: 800; font-size: 0.7rem;
+            display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .user-chip .user-lines { line-height: 1.15; text-align: left; }
+        #user-display-name { color: #ffffff; font-size: 0.76rem; font-weight: 700; }
+        #user-display-role {
+            background: transparent !important; color: #cbd5e1 !important;
+            font-size: 0.62rem !important; padding: 0; font-weight: 600;
+            letter-spacing: 0.06em; display: block; text-align: left;
+        }
+        #btn-logout {
+            background: transparent !important; border: 1px solid rgba(255,255,255,0.16) !important;
+            color: #e2e8f0 !important; border-radius: 8px !important; font-weight: 600;
+        }
+        #btn-logout:hover { background: rgba(255,255,255,0.12) !important; }
+
+
+        .sidebar-icon-wrap { position: relative; display: inline-flex; width: 1.65rem; align-items: center; justify-content: flex-start; flex-shrink: 0; }
+        .request-count-badge { position: absolute; top: -9px; left: 10px; min-width: 18px; height: 18px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; border: 2px solid var(--bg-body, #f6f7f9); border-radius: 999px; background: #dc2626; color: #fff; font-size: .65rem; font-weight: 800; line-height: 1; box-shadow: 0 2px 6px rgba(0,0,0,.18); }
+        .dashboard-stat { transition: border-color .15s ease; border-radius: var(--radius-md); }
+        .dashboard-stat:hover { border-color: #cbd5e1 !important; }
+        .dashboard-stat-icon { width: 38px; height: 38px; border-radius: 10px; background: #f1f5f9; display: inline-flex; align-items: center; justify-content: center; font-size: 1.05rem; flex-shrink: 0; }
+        .dashboard-stat-icon.text-success { background: #f0fdf4; }
+        .dashboard-stat-icon.text-primary { background: #eff6ff; }
+        .dashboard-stat-icon.text-warning { background: #fffbeb; }
+        .dashboard-stat-icon.text-danger { background: #fef2f2; }
+        .dashboard-stat-icon.text-info { background: #f0f9ff; }
+        .dashboard-stat-icon.text-secondary, .dashboard-stat-icon.text-dark { background: #f1f5f9; }
+        .dashboard-stat-label { font-size: 0.68rem !important; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-light) !important; }
+        .dashboard-stat .dashboard-stat-value, .dashboard-stat-value { color: var(--text-main); font-weight: 800; letter-spacing: -0.02em; }
+
+        /* ── Users & Permissions Tab & Card Styling ── */
+        #users-nav-tabs .nav-link {
+            font-weight: 600;
+            font-size: 0.90rem;
+            padding: 0.55rem 1.15rem;
+            border-radius: 8px;
+            color: #475569;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            transition: all 0.16s ease;
+        }
+        #users-nav-tabs .nav-link:hover {
+            color: #1e293b;
+            background: #e2e8f0;
+        }
+        #users-nav-tabs .nav-link.active {
+            background: #20394e !important;
+            color: #ffffff !important;
+            border-color: #20394e !important;
+            box-shadow: 0 4px 10px rgba(32, 57, 78, 0.18);
+        }
+        .perm-card {
+            transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+            cursor: pointer;
+        }
+        .perm-card:hover {
+            border-color: #93c5fd !important;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+        }
+
+        /* ── Sidebar ── */
+        .sidebar-card {
+            border: none;
+            background: transparent;
+            min-height: calc(100vh - 110px);
+            padding: 4px 2px;
+            box-shadow: none;
+        }
+        .sidebar-heading {
+            font-size: 0.64rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-light);
+            padding: 14px 10px 6px;
+        }
+        .sidebar-heading:first-child { padding-top: 2px; }
+        .sidebar-item {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.855rem;
+            font-weight: 500;
+            color: #334155;
+            padding: 8px 10px;
+            border-radius: 9px;
+            transition: all 0.15s ease;
+            text-decoration: none !important;
+            margin-bottom: 2px;
+            border-left: none;
+        }
+        .sidebar-item:hover {
+            background: #eceef2;
+            color: var(--brand-primary);
+        }
+        .sidebar-item.active {
+            background: #f1f5f9;
+            color: #000000 !important;
+            font-weight: 700 !important;
+            border-left: 3px solid #000000;
+            letter-spacing: -0.01em;
+        }
+        .sidebar-item.active:hover {
+            background: #e2e8f0;
+            color: #000000 !important;
+        }
+        .sidebar-item.active i {
+            color: #000000 !important;
+            font-weight: bold;
+        }
+        .sidebar-item i {
+            width: 18px;
+            text-align: center;
+            font-size: 1rem;
+        }
+        .sidebar-separator {
+            border-top: 1px solid var(--border-color);
+            margin: 8px 6px;
+        }
+
+        /* ── Minimalist Cards ── */
+        .card {
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--bg-card);
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+        }
+        .card-header {
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-card) !important;
+            padding: 14px 18px;
+            font-weight: 600;
+        }
+
+        /* ── Stat Cards ── */
+        .stat-card {
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--bg-card);
+            padding: 16px 18px;
+            transition: all 0.15s ease;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+        }
+        .stat-card:hover {
+            border-color: #cbd5e1;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.05);
+        }
+        .stat-card.clickable {
+            cursor: pointer;
+        }
+        .stat-card .stat-label {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .stat-card .stat-value {
+            font-size: 1.65rem;
+            font-weight: 700;
+            color: var(--text-main);
+            letter-spacing: -0.02em;
+            margin: 4px 0 2px;
+        }
+        .stat-card .stat-desc {
+            font-size: 0.78rem;
+            color: var(--text-light);
+        }
+        .stat-card .stat-footer {
+            border-top: 1px solid var(--border-subtle);
+            padding-top: 8px;
+            margin-top: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--brand-primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* ── Status Badges (Minimalist Aesthetic) ── */
+        .status-badge {
+            font-size: 0.72rem;
+            padding: 3px 9px;
+            border-radius: 9999px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            letter-spacing: 0.02em;
+            white-space: nowrap;
+        }
+        .badge-available   { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+        .badge-occupied    { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+        .badge-cleaning    { background: #fefce8; color: #a16207; border: 1px solid #fde047; }
+        .badge-maintenance { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+        .badge-open        { background: #f0fdfa; color: #0f766e; border: 1px solid #99f6e4; }
+        .badge-pending     { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+        .badge-paid        { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+        .badge-void        { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+
+        /* ── Unified Minimalist Buttons ── */
+        .btn {
+            font-family: inherit;
+            font-size: 0.82rem;
+            border-radius: var(--radius-sm);
+            font-weight: 500;
+            padding: 6px 12px;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            line-height: 1.35;
+        }
+        .btn-sm {
+            padding: 4px 9px;
+            font-size: 0.76rem;
+            line-height: 1.25;
+            border-radius: 5px;
+            gap: 4px;
+        }
+
+        /* ── Standardized Action Button Color System ── */
+        /* 1. Primary Action (Blue) - Save, Submit, Assign, Add, Folio */
+        .btn-primary {
+            background-color: var(--brand-primary);
+            border-color: var(--brand-primary);
+            color: #ffffff !important;
+            font-weight: 600;
+        }
+        .btn-primary:hover, .btn-primary:focus {
+            background-color: var(--brand-primary-hover);
+            border-color: var(--brand-primary-hover);
+            color: #ffffff !important;
+        }
+        .btn-outline-primary {
+            color: #2563eb !important;
+            border-color: #bfdbfe !important;
+            background-color: #eff6ff !important;
+            font-weight: 500;
+        }
+        .btn-outline-primary:hover, .btn-outline-primary:focus {
+            background-color: #2563eb !important;
+            border-color: #2563eb !important;
+            color: #ffffff !important;
+        }
+
+        /* 2. Confirm / Approve / Complete (Green) - Checkout, Complete, Approve, Confirm */
+        .btn-success {
+            background-color: #16a34a !important;
+            border-color: #16a34a !important;
+            color: #ffffff !important;
+            font-weight: 600;
+        }
+        .btn-success:hover, .btn-success:focus {
+            background-color: #166534 !important;
+            border-color: #166534 !important;
+            color: #ffffff !important;
+        }
+        .btn-outline-success {
+            color: #15803d !important;
+            border-color: #86efac !important;
+            background-color: #f0fdf4 !important;
+            font-weight: 600;
+        }
+        .btn-outline-success:hover, .btn-outline-success:focus {
+            background-color: #16a34a !important;
+            border-color: #16a34a !important;
+            color: #ffffff !important;
+        }
+
+        /* 3. View / Details / QR (Dark / Neutral) - View Details, QR Pass, Print */
+        .btn-dark {
+            background-color: var(--brand-primary);
+            border-color: var(--brand-primary);
+            color: #ffffff !important;
+            font-weight: 600;
+        }
+        .btn-dark:hover, .btn-dark:focus {
+            background-color: var(--brand-primary-hover);
+            border-color: var(--brand-primary-hover);
+            color: #ffffff !important;
+        }
+        .btn-outline-dark {
+            color: #334155 !important;
+            border-color: #cbd5e1 !important;
+            background-color: #ffffff !important;
+            font-weight: 500;
+        }
+        .btn-outline-dark:hover, .btn-outline-dark:focus {
+            background-color: #1e293b !important;
+            border-color: #1e293b !important;
+            color: #ffffff !important;
+        }
+
+        /* 4. Cancel / Close / Secondary (Gray) - Cancel, Close, Transfer, Back */
+        .btn-secondary {
+            background-color: #64748b !important;
+            border-color: #64748b !important;
+            color: #ffffff !important;
+            font-weight: 500;
+        }
+        .btn-secondary:hover, .btn-secondary:focus {
+            background-color: #475569 !important;
+            border-color: #475569 !important;
+            color: #ffffff !important;
+        }
+        .btn-outline-secondary {
+            border-color: #cbd5e1 !important;
+            color: #475569 !important;
+            background-color: #f8fafc !important;
+            font-weight: 500;
+        }
+        .btn-outline-secondary:hover, .btn-outline-secondary:focus {
+            background-color: #e2e8f0 !important;
+            border-color: #94a3b8 !important;
+            color: #0f172a !important;
+        }
+
+        /* 5. Warning / On Hold (Amber) - Early checkout, Hold, Pending Review, Reset */
+        .btn-warning {
+            background-color: #d97706 !important;
+            border-color: #d97706 !important;
+            color: #ffffff !important;
+            font-weight: 600;
+        }
+        .btn-warning:hover, .btn-warning:focus {
+            background-color: #b45309 !important;
+            border-color: #b45309 !important;
+            color: #ffffff !important;
+        }
+        .btn-outline-warning {
+            color: #b45309 !important;
+            border-color: #fde68a !important;
+            background-color: #fffbeb !important;
+            font-weight: 600;
+        }
+        .btn-outline-warning:hover, .btn-outline-warning:focus {
+            background-color: #d97706 !important;
+            border-color: #d97706 !important;
+            color: #ffffff !important;
+        }
+
+        /* 6. Delete / Reject / Destructive (Red strictly for destructive actions) */
+        .btn-danger {
+            background-color: #dc2626 !important;
+            border-color: #dc2626 !important;
+            color: #ffffff !important;
+            font-weight: 600;
+        }
+        .btn-danger:hover, .btn-danger:focus {
+            background-color: #b91c1c !important;
+            border-color: #b91c1c !important;
+            color: #ffffff !important;
+        }
+        .btn-outline-danger {
+            color: #dc2626 !important;
+            border-color: #fca5a5 !important;
+            background-color: #fef2f2 !important;
+            font-weight: 600;
+        }
+        .btn-outline-danger:hover, .btn-outline-danger:focus {
+            background-color: #dc2626 !important;
+            border-color: #dc2626 !important;
+            color: #ffffff !important;
+        }
+
+        /* ── Minimalist Tables ── */
+        .table {
+            color: var(--text-main);
+            margin-bottom: 0;
+            font-size: 0.86rem;
+        }
+        .table > thead {
+            background: #f8fafc;
+        }
+        .table > thead > tr > th {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-color);
+            padding: 10px 14px;
+        }
+        .table > tbody > tr > td {
+            padding: 12px 14px;
+            vertical-align: middle;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .table > tbody > tr:hover {
+            background-color: #f8fafc;
+        }
+
+        /* ── Forms & Compact Dropdowns ── */
+        .form-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 4px;
+        }
+        .form-label.required::after {
+            content: ' *';
+            color: #dc2626;
+        }
+        .form-control {
+            font-size: 0.84rem;
+            border-radius: var(--radius-sm);
+            border: 1px solid #cbd5e1;
+            padding: 6px 11px;
+            color: var(--text-main);
+        }
+        select,
+        .form-select,
+        select.form-select {
+            font-size: 0.83rem !important;
+            border-radius: var(--radius-sm) !important;
+            border: 1px solid #cbd5e1 !important;
+            padding: 0.32rem 1.85rem 0.32rem 0.65rem !important;
+            min-height: 32px !important;
+            height: auto !important;
+            line-height: 1.35 !important;
+            color: var(--text-main) !important;
+            background-color: #ffffff !important;
+            background-size: 13px 9px !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            cursor: pointer;
+        }
+        select.form-select-sm,
+        .form-select-sm {
+            font-size: 0.76rem !important;
+            padding: 0.22rem 1.6rem 0.22rem 0.5rem !important;
+            min-height: 27px !important;
+            height: auto !important;
+            line-height: 1.3 !important;
+            border-radius: 5px !important;
+            background-size: 11px 7px !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        select option,
+        select optgroup,
+        .form-select option,
+        .form-select optgroup {
+            font-size: 0.82rem !important;
+            padding: 5px 9px !important;
+            line-height: 1.35 !important;
+            color: #0f172a !important;
+            background-color: #ffffff !important;
+        }
+        select.form-select-sm option,
+        select.form-select-sm optgroup,
+        .form-select-sm option,
+        .form-select-sm optgroup {
+            font-size: 0.76rem !important;
+            padding: 4px 7px !important;
+            line-height: 1.3 !important;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: var(--brand-primary);
+            box-shadow: 0 0 0 3px rgba(30, 41, 59, 0.08);
+            outline: none;
+        }
+
+        /* ── Dashboard Stats Alignment & Responsive Values ── */
+        .dashboard-stat .card-body {
+            padding: 12px 14px;
+        }
+        .dashboard-stat-icon {
+            width: 38px;
+            height: 38px;
+            min-width: 38px;
+            border-radius: 10px;
+            background: #f1f5f9;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.15rem;
+            flex-shrink: 0;
+        }
+        .dashboard-stat-label {
+            font-size: 0.76rem;
+            color: var(--text-muted, #64748b);
+            line-height: 1.25;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .dashboard-stat-value {
+            font-size: 1.32rem;
+            font-weight: 700;
+            line-height: 1.15;
+            letter-spacing: -0.01em;
+            white-space: nowrap;
+        }
+        .dashboard-stat-value.is-currency {
+            font-size: clamp(0.88rem, 3.2vw, 1.22rem);
+            letter-spacing: -0.02em;
+        }
+
+        /* ── Unified Modals ── */
+        .modal-content {
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        .modal-header {
+            background: var(--brand-primary);
+            color: #ffffff;
+            border-bottom: none;
+            padding: 16px 22px;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            position: relative !important;
+        }
+        .modal-header .btn-close,
+        .modal-header button.close {
+            filter: invert(1);
+            opacity: 0.8;
+            margin-left: auto !important;
+            margin-right: 0 !important;
+            order: 999 !important;
+        }
+        .modal-header .btn-close:hover,
+        .modal-header button.close:hover {
+            opacity: 1;
+        }
+        .modal-title {
+            font-weight: 700;
+            font-size: 0.98rem;
+            letter-spacing: -0.01em;
+        }
+        .modal-body {
+            padding: 22px;
+            background: #ffffff;
+        }
+        .modal-footer {
+            border-top: 1px solid var(--border-color);
+            background: #f8fafc;
+            padding: 12px 22px;
+        }
+
+
+        /* Wide folio bill-review workspace */
+        .folio-modal .modal-dialog{max-width:1080px}.folio-modal .modal-content{border-radius:6px}.folio-modal .modal-header{padding:13px 20px;background:#172c45;display:flex!important;justify-content:space-between!important;align-items:center!important;position:relative!important}.folio-modal .modal-header .btn-close{margin-left:auto!important;margin-right:0!important;order:999!important}.folio-modal .modal-body{padding:0;background:#f7f9fc}.folio-hotel{font-size:.9rem;font-weight:800;line-height:1.25}.folio-address{font-size:.68rem;opacity:.82}.folio-status{font-size:.62rem;font-weight:800;color:#15803d;background:#d1fae5;padding:3px 6px;border-radius:3px}.folio-identity{display:flex;justify-content:space-between;gap:20px;align-items:end;padding:10px 20px;background:#172c45;color:#fff;border-top:1px solid rgba(255,255,255,.18)}.folio-identity-label,.folio-meta-label{font-size:.61rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}.folio-identity-value{font-size:.8rem;font-weight:800;margin-top:2px}.folio-sheet{padding:20px}.folio-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.85fr);gap:18px;align-items:start}.folio-section{margin-bottom:16px}.folio-section-title{color:#0f172a;margin-bottom:8px;font-size:.78rem;font-weight:800}.folio-dates{display:grid;grid-template-columns:1fr 1fr;gap:14px}.folio-meta-label{color:#64748b;font-weight:600;text-transform:none;letter-spacing:0}.folio-meta-value{font-size:.76rem;font-weight:700;margin-top:3px}.folio-card{background:#fff;border:1px solid #d7dee7;border-radius:4px;overflow:hidden}.folio-line{display:flex;justify-content:space-between;gap:14px;padding:9px 11px;font-size:.74rem;border-bottom:1px solid #e8edf2}.folio-line:last-child{border-bottom:0}.folio-line strong{white-space:nowrap}.folio-line-note{color:#64748b;font-size:.63rem;margin-top:2px}.folio-totals{border-top:1px solid #cbd5e1}.folio-final{font-weight:800;background:#f8fafc}.folio-positive{color:#15803d}.folio-payment-total{color:#15803d;font-size:.9rem;font-weight:800}.folio-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.folio-actions .btn{font-size:.72rem;padding:5px 9px}.folio-settlement{padding:11px}.folio-settlement .form-select,.folio-settlement .form-control{font-size:.72rem;padding:5px 8px}.folio-settlement .form-label{font-size:.66rem}.folio-empty{padding:12px;color:#64748b;font-size:.72rem}.folio-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:12px}.folio-summary div{background:#eef4f8;border:1px solid #d7e0e9;border-radius:4px;padding:9px;font-size:.66rem;color:#64748b}.folio-summary strong{display:block;color:#172c45;font-size:.84rem;margin-top:3px}@media(max-width:767px){.folio-modal .modal-dialog{margin:.5rem}.folio-sheet{padding:12px}.folio-grid{grid-template-columns:1fr}.folio-summary{grid-template-columns:1fr 1fr}}
+        /* ── Panels ── */
+        .panel-section { display: none; }
+        .panel-section.active { display: block; }
+
+        /* ── Receipt & Invoice Printing ── */
+        .receipt-area {
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            font-size: 0.85rem;
+            background: #ffffff;
+            padding: 24px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            color: #1e293b;
+        }
+        .receipt-header {
+            text-align: center;
+            border-bottom: 1px dashed var(--border-color);
+            padding-bottom: 14px;
+            margin-bottom: 14px;
+        }
+        .receipt-section-title {
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin: 12px 0 6px;
+        }
+        .receipt-divider {
+            border-top: 1px dashed var(--border-color);
+            margin: 10px 0;
+        }
+        .receipt-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+            font-size: 0.84rem;
+        }
+        .receipt-total {
+            font-weight: 700;
+            border-top: 1px solid #1e293b;
+            border-bottom: 1px solid #1e293b;
+            padding: 8px 0;
+            margin: 10px 0;
+            font-size: 0.98rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* ── Room Selection Card ── */
+        .room-select-card {
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            transition: all 0.15s ease;
+            background: #ffffff;
+        }
+        .room-select-card:hover {
+            border-color: var(--brand-primary);
+            background: var(--brand-primary-light);
+        }
+        .room-select-card.selected {
+            border-color: var(--brand-primary) !important;
+            background: var(--brand-primary-light) !important;
+        }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* ── Print Styles ── */
+        @media print {
+            .no-print { display: none !important; }
+            body { background: #ffffff !important; font-size: 11pt; color: #000000 !important; }
+            .receipt-area { border: none !important; padding: 0 !important; }
+        }
+
+        /* ── Floating Scroll-Up Helper ── */
+        .scroll-top-btn {
+            position: fixed;
+            bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+            right: calc(20px + env(safe-area-inset-right, 0px));
+            width: 44px;
+            height: 44px;
+            min-width: 44px;
+            min-height: 44px;
+            border-radius: 50%;
+            background: #1e293b;
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.15rem;
+            cursor: pointer;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(14px) scale(0.9);
+            transition: opacity 0.25s ease, transform 0.25s ease, visibility 0.25s ease, background 0.15s ease, box-shadow 0.15s ease;
+            z-index: 1040;
+            -webkit-tap-highlight-color: transparent;
+            padding: 0 !important;
+            margin: 0 !important;
+            line-height: 1 !important;
+        }
+        .scroll-top-btn i,
+        .scroll-top-btn svg {
+            color: #ffffff !important;
+            stroke: #ffffff !important;
+            font-size: 1.25rem !important;
+            line-height: 1 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            margin: auto !important;
+            pointer-events: none !important;
+        }
+        .scroll-top-btn.visible {
+            opacity: 0.94;
+            visibility: visible;
+            transform: translateY(0) scale(1);
+        }
+        .scroll-top-btn:hover {
+            opacity: 1;
+            background: #0f172a;
+            transform: translateY(-2px) scale(1.06);
+            box-shadow: 0 6px 20px rgba(15, 23, 42, 0.35);
+            color: #ffffff;
+        }
+        .scroll-top-btn:active {
+            transform: translateY(0) scale(0.95);
+        }
+
+        /* ── Responsive Mobile Navigation & Sidebar Offcanvas ── */
+        @media (max-width: 991.98px) {
+            #sidebar-col {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                bottom: 0 !important;
+                width: 280px !important;
+                max-width: 85vw !important;
+                height: 100vh !important;
+                z-index: 1060 !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                transform: translateX(-100%);
+                transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+                background: var(--bg-card) !important;
+                box-shadow: 4px 0 24px rgba(15, 23, 42, 0.2) !important;
+                overflow-y: auto !important;
+            }
+            #sidebar-col.show {
+                transform: translateX(0) !important;
+            }
+            .sidebar-card {
+                border: none !important;
+                border-radius: 0 !important;
+                min-height: 100% !important;
+                height: 100% !important;
+                box-shadow: none !important;
+                padding: 16px 14px !important;
+            }
+            .sidebar-backdrop {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(15, 23, 42, 0.5);
+                backdrop-filter: blur(2px);
+                z-index: 1055;
+                opacity: 0;
+                visibility: hidden;
+                transition: opacity 0.22s ease, visibility 0.22s ease;
+            }
+            .sidebar-backdrop.show {
+                opacity: 1;
+                visibility: visible;
+            }
+            .sidebar-mobile-header {
+                display: flex !important;
+                align-items: center;
+                justify-content: space-between;
+                padding: 4px 8px 12px;
+                border-bottom: 1px solid var(--border-color);
+                margin-bottom: 8px;
+            }
+            .scroll-top-btn {
+                bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+                right: calc(16px + env(safe-area-inset-right, 0px));
+                width: 42px;
+                height: 42px;
+                min-width: 42px;
+                min-height: 42px;
+            }
+        }
+        @media (min-width: 992px) {
+            .sidebar-mobile-header {
+                display: none !important;
+            }
+            .sidebar-backdrop {
+                display: none !important;
+            }
+        }
+
+        /* ── Mobile Layout, Buttons, Dropdowns & Overflow Prevention ── */
+        @media (max-width: 767.98px) {
+            html, body {
+                overflow-x: hidden !important;
+                max-width: 100vw !important;
+            }
+            .container-fluid, #main-col, .main-content, .panel-section {
+                max-width: 100% !important;
+                overflow-x: hidden !important;
+                padding-left: 8px !important;
+                padding-right: 8px !important;
+            }
+            .card {
+                max-width: 100% !important;
+                overflow-wrap: break-word !important;
+                word-wrap: break-word !important;
+            }
+            .btn {
+                font-size: 0.77rem !important;
+                padding: 5px 10px !important;
+                line-height: 1.3 !important;
+            }
+            .btn-sm {
+                font-size: 0.73rem !important;
+                padding: 3px 8px !important;
+                line-height: 1.25 !important;
+            }
+            select,
+            .form-select,
+            select.form-select {
+                font-size: 0.79rem !important;
+                padding: 0.28rem 1.65rem 0.28rem 0.55rem !important;
+                min-height: 30px !important;
+            }
+            select.form-select-sm,
+            .form-select-sm {
+                font-size: 0.74rem !important;
+                padding: 0.2rem 1.45rem 0.2rem 0.45rem !important;
+                min-height: 26px !important;
+            }
+            select option,
+            select optgroup,
+            .form-select option,
+            .form-select optgroup {
+                font-size: 0.80rem !important;
+                padding: 5px 8px !important;
+            }
+            .dashboard-stat .card-body {
+                padding: 10px 8px !important;
+                gap: 8px !important;
+            }
+            .dashboard-stat-icon {
+                width: 32px !important;
+                height: 32px !important;
+                min-width: 32px !important;
+                font-size: 0.95rem !important;
+                border-radius: 8px !important;
+            }
+            .dashboard-stat-label {
+                font-size: 0.69rem !important;
+                line-height: 1.2 !important;
+            }
+            .dashboard-stat-value {
+                font-size: 1.15rem !important;
+            }
+            .dashboard-stat-value.is-currency {
+                font-size: 0.92rem !important;
+                letter-spacing: -0.03em !important;
+            }
+        }
+
+        @media (max-width: 380px) {
+            .dashboard-stat .card-body {
+                padding: 8px 6px !important;
+                gap: 6px !important;
+            }
+            .dashboard-stat-icon {
+                width: 28px !important;
+                height: 28px !important;
+                min-width: 28px !important;
+                font-size: 0.85rem !important;
+            }
+            .dashboard-stat-value.is-currency {
+                font-size: 0.84rem !important;
+            }
+            .btn {
+                font-size: 0.74rem !important;
+                padding: 4px 8px !important;
+            }
+            .btn-sm {
+                font-size: 0.71rem !important;
+                padding: 3px 6px !important;
+            }
+        }
+
+        /* ── Approved design v2 overrides (2026-10-22) ── */
+        .card {
+            box-shadow: 0 1px 2px rgba(16,24,40,.04) !important;
+        }
+        .module-header-flush {
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+        .module-header-flush .card-body { padding: 2px 2px 6px !important; }
+        .module-header-flush #module-title-text { font-size: 1.3rem; letter-spacing: -0.02em; color: var(--text-main) !important; }
+        .table {
+            --bs-table-border-color: var(--border-subtle);
+        }
+        .table > thead th {
+            font-size: 0.64rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            color: var(--text-light);
+            border-bottom: 1px solid var(--border-subtle);
+            background: #fbfcfd;
+        }
+        .table > tbody td { border-color: var(--border-subtle); vertical-align: middle; }
+        .form-control, .form-select {
+            border-color: var(--border-color);
+            border-radius: var(--radius-sm);
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: #93c5fd;
+            box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+        }
+        .alert { border-radius: var(--radius-md); }
+        .modal-content { border-radius: 16px; border: 1px solid var(--border-color); }
+        /* Rooms board — same layout, approved styling */
+        #rooms-content .card {
+            border: 1px solid var(--border-color) !important;
+            border-radius: var(--radius-md) !important;
+            box-shadow: 0 1px 2px rgba(16,24,40,.04) !important;
+        }
+        #rooms-content .card.border-warning { border-color: #fde68a !important; }
+        #login-container, #register-container { border-radius: 16px !important; }
+    </style>
+</head>
+<body>
+
+<!-- =========================================================
+     LOGIN / REGISTER SCREEN
+     ========================================================= -->
+<div id="login-wrapper" class="container d-flex justify-content-center align-items-center min-vh-100 py-5">
+
+    <!-- Login Card -->
+    <div id="login-container" class="card border-0 shadow-sm" style="max-width: 380px; width: 100%;">
+        <div class="card-body p-4 p-md-4">
+            <div class="text-center mb-4">
+                <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3" style="width: 48px; height: 48px; background: var(--brand-primary-light); color: var(--brand-primary);">
+                    <i class="bi bi-building fs-4"></i>
+                </div>
+                <h5 class="fw-bold text-dark mb-1">Shesh Dev Hotel</h5><div class="small text-muted">Agora, Lapasan, Cagayan de Oro</div>
+                <p class="text-muted small mb-0">Walk-In Guest Management &amp; Billing</p>
+            </div>
+            <form onsubmit="return false;">
+                <div class="mb-3">
+                    <label for="login-username" class="form-label">Username</label>
+                    <input type="text" id="login-username" class="form-control" placeholder="Enter username" value="" required>
+                </div>
+                <div class="mb-4">
+                    <label for="login-password" class="form-label">Password</label>
+                    <div class="input-group">
+                        <input type="password" id="login-password" class="form-control" placeholder="Enter password" value="" required>
+                        <button class="btn btn-outline-secondary" type="button" id="btn-toggle-login-pwd" title="Show/Hide Password">
+                            <i class="bi bi-eye" id="login-pwd-icon"></i>
+                        </button>
+                    </div>
+                </div>
+                <button type="button" id="btn-login" class="btn btn-primary w-100 py-2">
+                    <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
+                </button>
+            </form>
+            <div class="text-center mt-4 small text-muted">
+                Staff accounts are provisioned by the administrator.
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Card -->
+    <div id="register-container" class="card border-0 shadow-sm" style="max-width: 420px; width: 100%; display: none;">
+        <div class="card-body p-4 p-md-4">
+            <div class="text-center mb-4">
+                <h5 class="fw-bold text-dark mb-1">Staff Registration</h5>
+                <p class="text-muted small mb-0">Create a front desk user account</p>
+            </div>
+            <form onsubmit="return false;">
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label for="reg-firstname" class="form-label">First Name</label>
+                        <input type="text" id="reg-firstname" class="form-control" required>
+                    </div>
+                    <div class="col-6">
+                        <label for="reg-lastname" class="form-label">Last Name</label>
+                        <input type="text" id="reg-lastname" class="form-control" required>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="reg-mi" class="form-label">Middle Initial</label>
+                    <input type="text" id="reg-mi" class="form-control" maxlength="5">
+                </div>
+                <div class="mb-3">
+                    <label for="reg-username" class="form-label">Username</label>
+                    <input type="text" id="reg-username" class="form-control" required>
+                </div>
+                <div class="mb-4">
+                    <label for="reg-password" class="form-label">Password</label>
+                    <div class="input-group">
+                        <input type="password" id="reg-password" class="form-control" required>
+                        <button class="btn btn-outline-secondary" type="button" id="btn-toggle-reg-pwd" title="Show/Hide Password">
+                            <i class="bi bi-eye" id="reg-pwd-icon"></i>
+                        </button>
+                    </div>
+                </div>
+                <button type="button" id="btn-register" class="btn btn-primary w-100 py-2">Create Account</button>
+            </form>
+            <div class="text-center mt-4 small text-muted">
+                Already registered? <a href="#" id="link-to-login" class="text-dark fw-semibold text-decoration-none">Back to Sign In</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
+     MAIN DASHBOARD
+     ========================================================= -->
+<div id="dashboard-container" class="d-none">
+
+    <!-- Top Navigation Bar -->
+    <nav class="navbar navbar-custom sticky-top">
+        <div class="container-fluid px-2 px-md-3">
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-outline-light btn-sm d-lg-none" type="button" id="btn-toggle-sidebar" aria-label="Toggle navigation menu" title="Menu">
+                    <i class="bi bi-list fs-5"></i>
+                </button>
+                <a class="navbar-brand d-flex align-items-center gap-2" href="#">
+                    <span class="brand-mark"><i class="bi bi-building"></i></span>
+                    <span class="brand-lines">
+                        <span class="brand-name">Shesh Dev Hotel</span>
+                        <span class="brand-sub d-none d-md-block">Agora, Lapasan, Cagayan de Oro</span>
+                    </span>
+                </a>
+                <div class="topbar-crumb d-none d-lg-flex">
+                    <span>Home</span>
+                    <i class="bi bi-chevron-right"></i>
+                    <b id="crumb-current">Dashboard</b>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2 gap-sm-3">
+                <div class="topbar-date d-none d-xl-flex">
+                    <i class="bi bi-calendar3"></i>
+                    <span id="topbar-date"></span>
+                </div>
+                <div class="user-chip d-none d-sm-flex">
+                    <span class="user-avatar" id="user-avatar">AD</span>
+                    <span class="user-lines">
+                        <span id="user-display-name">Administrator</span>
+                        <span id="user-display-role" class="text-uppercase">ADMIN</span>
+                    </span>
+                </div>
+                <button id="btn-logout" class="btn btn-sm px-2 px-sm-3">
+                    <i class="bi bi-box-arrow-right me-1"></i> Sign Out
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Mobile Sidebar Backdrop -->
+    <div id="sidebar-backdrop" class="sidebar-backdrop d-lg-none"></div>
+
+    <!-- Main Workspace -->
+    <div class="container-fluid px-2 px-md-4 py-3 py-md-4">
+        <div class="row g-3 g-md-4">
+
+            <!-- Sidebar Navigation -->
+            <div class="col-lg-3 col-xl-2" id="sidebar-col">
+                <div class="sidebar-card">
+                    <div class="sidebar-mobile-header d-lg-none">
+                        <span class="fw-bold fs-6"><i class="bi bi-building me-2"></i>Shesh Dev Hotel</span>
+                        <button type="button" class="btn-close" id="btn-close-sidebar" aria-label="Close navigation"></button>
+                    </div>
+                    <div class="d-flex flex-column" id="sidebar-nav">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content Area -->
+            <div class="col-lg-9 col-xl-10">
+
+                <!-- Module Header Card -->
+                <div class="card border-0 module-header-flush mb-3">
+                    <div class="card-body p-3 p-md-4">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+                            <div>
+                                <h5 id="module-title-text" class="fw-bold mb-1" style="color: #000000;">Dashboard</h5>
+                                <p id="module-sub-text" class="text-muted small mb-0">Overview of hotel operations and walk-in billing.</p>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <div id="search-bar-area" style="width: 220px;" class="d-none">
+                                    <input type="text" id="search-master" class="form-control form-control-sm" placeholder="Search records...">
+                                </div>
+                                <div id="archived-toggle-area" class="form-check form-switch mb-0 d-none">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="toggle-archived">
+                                    <label class="form-check-label small fw-semibold" for="toggle-archived">Archived</label>
+                                </div>
+                                <button id="btn-add-master" class="btn btn-primary btn-sm d-none">
+                                    <i class="bi bi-plus-lg me-1"></i> Add Record
+                                </button>
+                                
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 1. DASHBOARD PANEL -->
+                <div id="panel-dashboard" class="panel-section active">
+                    <div id="dashboard-content">
+                        <div class="text-center py-5 text-muted">
+                            <div class="spinner-border spinner-border-sm text-dark mb-3" role="status"></div>
+                            <div>Loading dashboard overview...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. ACTIVE STAYS PANEL (In-House Guests) -->
+                <div id="panel-active-stays" class="panel-section">
+                    <div id="active-stays-content"></div>
+                </div>
+
+                <!-- 3. ROOMS & AVAILABILITY PANEL -->
+                <div id="panel-rooms" class="panel-section">
+                    <div id="rooms-content"></div>
+                </div>
+
+                <!-- 4. WALK-IN TRANSACTIONS PANEL -->
+                <div id="panel-transactions" class="panel-section">
+                    <div id="all-transactions-content"></div>
+                </div>
+
+                <!-- 5. BILLING PANEL (Folios & Bills) -->
+                <div id="panel-billing" class="panel-section">
+                    <div id="billing-content"></div>
+                </div>
+
+                <!-- 6. PAYMENTS PANEL -->
+                <div id="panel-payments" class="panel-section">
+                    <div id="payments-content"></div>
+                </div>
+
+                <!-- 7. MASTER FILES PANEL -->
+                <div id="panel-master" class="panel-section">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead id="master-table-head"></thead>
+                                    <tbody id="master-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 8. REPORTS PANEL -->
+                <div id="panel-reports" class="panel-section">
+                    <div id="reports-content"></div>
+                </div>
+
+                <!-- 9. AUDIT LOGS PANEL -->
+                <div id="panel-audit-logs" class="panel-section">
+                    <div id="audit-logs-content"></div>
+                </div>
+
+                <!-- 10. SYSTEM SETTINGS PANEL -->
+                <div id="panel-settings" class="panel-section">
+                    <div id="settings-content"></div>
+                </div>
+
+                <!-- Discount policy management panel -->
+                <div id="panel-discounts" class="panel-section">
+                    <div id="discounts-content"></div>
+                </div>
+
+                <div id="panel-dept-reports" class="panel-section">
+                    <div id="dept-reports-content"></div>
+                </div>
+                <div id="panel-dept-inventory" class="panel-section">
+                    <div id="dept-inventory-content"></div>
+                </div>
+                <div id="panel-service-requests" class="panel-section">
+                    <div id="service-requests-content"></div>
+                </div>
+
+                <!-- Room rates and priced service menu -->
+                <div id="panel-catalog" class="panel-section">
+                    <div id="catalog-content"></div>
+                </div>
+
+                <!-- 11. STAFF ACCOUNTS & ROLE PERMISSIONS PANEL -->
+                <div id="panel-users" class="panel-section">
+                    <div id="users-content"></div>
+                </div>
+
+                <!-- 12. EARLY CHECKOUT APPROVALS PANEL -->
+                <div id="panel-early-checkouts" class="panel-section">
+                    <div id="early-checkouts-content"></div>
+                </div>
+
+                <!-- 13. DISCOUNT APPROVALS PANEL -->
+                <div id="panel-discount-approvals" class="panel-section">
+                    <div id="discount-approvals-content"></div>
+                </div>
+
+                <!-- 14. WALK-IN & CHECK-IN DASHBOARD PANEL -->
+                <div id="panel-walkin-checkin" class="panel-section">
+                    <div id="walkin-checkin-content"></div>
+                </div>
+
+                <!-- 15. CHECK-OUT DASHBOARD PANEL -->
+                <div id="panel-checkout" class="panel-section">
+                    <div id="checkout-content"></div>
+                </div>
+
+                <!-- 16. EARLY CHECKOUT REQUESTS PANEL -->
+                <div id="panel-early-checkout-requests" class="panel-section">
+                    <div id="early-checkout-requests-content"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
+     UNIFIED MODALS
+     ========================================================= -->
+
+<!-- Walk-In Check-In Modal -->
+<div class="modal fade" id="walkInModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title"><i class="bi bi-person-plus me-2"></i>Walk-In Guest Registration &amp; Check-In</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="walkin-form">
+                    <div class="row g-3">
+                        
+                        <!-- Optional Guest Registration at Check-in -->
+                        <div class="col-12">
+                            <div class="card border bg-light p-3">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                                    <h6 class="fw-bold mb-0 text-dark" style="font-size: 0.88rem;">
+                                        <i class="bi bi-person-badge me-2 text-primary"></i>Guest Profile <span class="badge text-bg-secondary ms-1">Name Required</span>
+                                    </h6>
+                                    <span class="small text-muted">Contact and email are optional. Guests can complete other details anytime via the Guest Portal QR pass</span>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">First Name <span class="text-danger">*</span></label>
+                                        <input type="text" id="wi-first-name" class="form-control form-control-sm" placeholder="e.g. Juan" maxlength="100" required>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">Last Name <span class="text-danger">*</span></label>
+                                        <input type="text" id="wi-last-name" class="form-control form-control-sm" placeholder="e.g. Dela Cruz" maxlength="100" required>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">Contact / Mobile (Optional)</label>
+                                        <input type="tel" id="wi-contact" class="form-control form-control-sm" placeholder="e.g. 0917 123 4567" maxlength="30">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">Email (Optional)</label>
+                                        <input type="email" id="wi-email" class="form-control form-control-sm" placeholder="e.g. juan@example.com">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 2: Available Room Selection -->
+                        <div class="col-12 mt-3">
+                            <h6 class="fw-bold text-dark border-bottom pb-2 mb-2" style="font-size: 0.88rem;">
+                                <i class="bi bi-door-open me-2 text-muted"></i>Step 1: Room Selection &amp; Capacity
+                            </h6>
+                            <p class="text-muted small mb-2">Select an available room for this walk-in guest:</p>
+                        </div>
+                        <div class="col-12">
+                            <div id="available-rooms-grid" class="row g-2">
+                                <div class="col-12 text-center text-muted py-3">Loading available rooms...</div>
+                            </div>
+                        </div>
+
+                        <!-- Step 3: Stay Details -->
+                        <div class="col-12 mt-3">
+                            <h6 class="fw-bold text-dark border-bottom pb-2 mb-2" style="font-size: 0.88rem;">
+                                <i class="bi bi-calendar-check me-2 text-muted"></i>Step 2: Stay Details &amp; Cost Estimation
+                            </h6>
+                        </div>
+                        <input type="hidden" id="wi-selected-room-id" value="">
+                        <input type="hidden" id="wi-selected-room-rate" value="0">
+                        <input type="hidden" id="wi-num-nights" value="1">
+                        <div class="col-md-3">
+                            <label class="form-label required">Selected Room</label>
+                            <input type="text" id="wi-selected-room-display" class="form-control bg-light" readonly placeholder="Click a room above">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label required">Room Capacity</label>
+                            <input type="text" id="wi-capacity-display" class="form-control bg-light fw-semibold" readonly placeholder="Select room above">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label required">Number of Guests</label>
+                            <input type="number" id="wi-num-guests" class="form-control" value="1" min="1" max="10">
+                            <div class="form-text small" id="wi-guests-help">Select room above</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label required">Expected Check-Out</label>
+                            <input type="datetime-local" id="wi-expected-checkout" class="form-control" required>
+                        </div>
+                        <div class="col-12">
+                            <div id="wi-cost-preview" class="p-3 bg-light rounded border small d-none">
+                                <span class="text-muted">Room Rate:</span> <strong><span id="wi-rate-display">₱0.00</span></strong> / night
+                                × <span id="wi-nights-display">1</span> night(s) =
+                                <span class="text-muted ms-2">Estimated Room Total:</span> <strong class="fs-6 text-dark">₱<span id="wi-total-display">0.00</span></strong>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="btn-confirm-walkin" class="btn btn-primary px-4">
+                    <i class="bi bi-check-circle me-1"></i> Confirm &amp; Check In
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Guest Folio & Bill Details Modal -->
+<div class="modal fade" id="billDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title"><i class="bi bi-receipt me-2"></i>Guest Folio &amp; Bill Statement</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="bill-details-body">
+                <div class="text-center py-5"><div class="spinner-border spinner-border-sm text-dark"></div></div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <div>
+                    <button type="button" class="btn btn-outline-secondary" onclick="window.print()">
+                        <i class="bi bi-printer me-1"></i> Print Bill
+                    </button>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Charge Modal -->
+<div class="modal fade" id="addChargeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-md">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title" id="add-charge-modal-title">
+                    <i class="bi bi-plus-circle me-2"></i>Add Charge
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="chg-bill-id" value="">
+                <input type="hidden" id="chg-stay-id" value="">
+                
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label required fw-semibold">Charge Category / Account</label>
+                        <select id="chg-category-select" class="form-select" onchange="onChargeCategoryChange()" oninput="onChargeCategoryChange()" required>
+                            <option value="">-- Select Charge Category / Account --</option>
+                        </select>
+                    </div>
+
+                    <div class="col-12 d-none" id="chg-custom-category-group">
+                        <label class="form-label required fw-semibold">Custom Category / Account Name</label>
+                        <input type="text" id="chg-custom-category" class="form-control" placeholder="e.g. Canteen Specials, Minibar Extra, Spa Services">
+                    </div>
+
+                    <div class="col-12" id="chg-item-group">
+                        <label class="form-label required fw-semibold">Charges Item</label>
+                        <select id="chg-item-select" class="form-select" onchange="onChargeItemChange()" oninput="onChargeItemChange()" required>
+                            <option value="">-- Select Category First --</option>
+                        </select>
+                    </div>
+
+                    <div class="col-12 d-none" id="chg-custom-item-group">
+                        <label class="form-label required fw-semibold">Custom Item Name</label>
+                        <input type="text" id="chg-description" class="form-control" placeholder="Enter custom item name">
+                    </div>
+
+                    <div class="col-6">
+                        <label class="form-label required fw-semibold">Quantity</label>
+                        <input type="number" id="chg-quantity" class="form-control" value="1" min="1" step="1" oninput="updateChargeTotalCalculations()" onchange="updateChargeTotalCalculations()">
+                    </div>
+
+                    <div class="col-6">
+                        <label class="form-label required fw-semibold">Price per Item (₱)</label>
+                        <input type="number" id="chg-unit-price" class="form-control" value="0.00" min="0" step="0.01" oninput="updateChargeTotalCalculations()" onchange="updateChargeTotalCalculations()">
+                    </div>
+
+                    <div class="col-12">
+                        <div class="p-3 bg-light rounded border">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-semibold text-muted small">Calculated Total Charge:</span>
+                                <span class="fw-bold fs-5 text-dark" id="chg-calc-total">₱0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="btn-save-charge" onclick="submitSaveChargeModal()" class="btn btn-primary px-4">
+                    <i class="bi bi-check-circle me-1"></i> Save Charge
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Room Transfer Modal -->
+<div class="modal fade" id="roomTransferModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title"><i class="bi bi-arrow-left-right me-2"></i>Transfer Guest Room</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="trans-stay-id" value="">
+                
+                <div class="p-3 bg-light rounded border mb-3 small text-muted">
+                    <i class="bi bi-info-circle me-1 text-dark"></i>
+                    The guest's active bill and folio will continue uninterrupted. The previous room will be set to <strong>AVAILABLE</strong> and the new room will become <strong>OCCUPIED</strong>.
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Guest</label>
+                        <input type="text" id="trans-guest-display" class="form-control bg-light" readonly>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Current Room</label>
+                        <input type="text" id="trans-current-room-display" class="form-control bg-light" readonly>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label required">New Target Room</label>
+                        <select id="trans-new-room-select" class="form-select" required>
+                            <option value="">-- Select Available Room --</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">New Nightly Rate</label>
+                        <input type="text" id="trans-new-rate-display" class="form-control bg-light fw-semibold" readonly placeholder="₱0.00 / night">
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">Room Capacity</label>
+                        <input type="text" id="trans-new-capacity-display" class="form-control bg-light fw-semibold" readonly placeholder="—">
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label required">Transfer Reason</label>
+                        <select id="trans-reason" class="form-select">
+                            <option value="Guest Request">Guest Request</option>
+                            <option value="Room Upgrade">Room Upgrade</option>
+                            <option value="Room Downgrade">Room Downgrade</option>
+                            <option value="Maintenance Issue">Maintenance Issue</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="btn-confirm-room-transfer" class="btn btn-primary px-4">
+                    <i class="bi bi-check-circle me-1"></i> Confirm Transfer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Process Payment Modal -->
+<div class="modal fade" id="processPaymentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title"><i class="bi bi-cash-coin me-2"></i>Process Payment</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="payment-form-body">
+                <div class="text-center py-4"><div class="spinner-border spinner-border-sm text-dark"></div></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="btn-confirm-payment" class="btn btn-primary px-4">
+                    <i class="bi bi-check-circle me-1"></i> Save Payment
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Receipt Modal -->
+<div class="modal fade" id="receiptModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-md">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title"><i class="bi bi-receipt me-2"></i>Payment Receipt</h6>
+                <button type="button" class="btn-close no-print" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="receipt-body">
+                <div class="text-center py-4"><div class="spinner-border spinner-border-sm text-dark"></div></div>
+            </div>
+            <div class="modal-footer no-print">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="window.print()">
+                    <i class="bi bi-printer me-1"></i> Print Receipt
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Room Status Update Modal -->
+<div class="modal fade" id="roomStatusModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title" id="room-status-title">Room Status</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="room-status-form">
+                <div class="modal-body">
+                    <input type="hidden" id="status-room-id" value="">
+                    <div class="mb-3">
+                        <label class="form-label small">Room Number</label>
+                        <input type="text" id="status-room-number" class="form-control bg-light" readonly>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">Operational Status</label>
+                        <select id="status-select" class="form-select">
+                            <option value="AVAILABLE">Available</option>
+                            <option value="OCCUPIED">Occupied</option>
+                            <option value="CLEANING">Cleaning</option>
+                            <option value="MAINTENANCE">Maintenance</option>
+                            <option value="OUT_OF_SERVICE">Out of Service</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Save Status</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Master Files Modal -->
+<div class="modal fade" id="bootstrapMasterModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title" id="modal-title">Add Record</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="modal-form">
+                <div class="modal-body">
+                    <input type="hidden" id="modal-edit-id" value="">
+                    <div id="modal-fields-container" class="row g-3"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4">Save Record</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script src="./js/qrcode.min.js"></script>
+<script src="./js/hotel_billing_dialogs.js?v=20261022_22"></script>
+<script src="./js/hotel_billing_master_files.js?v=20261022_22"></script>
+<script src="./js/hotel_billing_walkin.js?v=20261023_1159"></script>
+<script src="./js/hotel_billing_users.js?v=20261022_22"></script>
+<script src="./js/hotel_billing_approvals.js?v=20261022_22"></script>
+<script src="./js/hotel_billing_department.js?v=20261022_22"></script>
+<script src="./js/hotel_billing_restaurant.js?v=20261022_22"></script>
+<script src="./js/hotel_billing_auth.js?v=20261022_22"></script>
+<script src="./js/hotel_billing_realtime.js?v=20261023_1146"></script>
+
+</body>
+</html>
