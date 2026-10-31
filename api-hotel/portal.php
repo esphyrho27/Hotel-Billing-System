@@ -1371,12 +1371,13 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
 
 
     /* Guest portal background music — opt-in only, no autoplay. */
-    .portal-music{position:fixed;left:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:90;width:44px;height:44px;display:grid;place-items:center;border:1px solid rgba(233,182,95,.55);border-radius:50%;background:#102a43;box-shadow:0 10px 30px rgba(3,14,28,.35)}
-    .portal-music.playing{border-color:#e9b65f;box-shadow:0 0 0 3px rgba(233,182,95,.25),0 10px 30px rgba(3,14,28,.35)}
+    .hero-top-right{display:flex;align-items:center;gap:10px}
+    .portal-music{flex:none;width:44px;height:44px;display:grid;place-items:center;border:1px solid rgba(233,182,95,.55);border-radius:50%;background:rgba(16,42,67,.55);backdrop-filter:blur(8px)}
+    .portal-music.playing{border-color:#e9b65f;box-shadow:0 0 0 3px rgba(233,182,95,.25)}
     .portal-music .music-btn{width:100%;height:100%;border:0;border-radius:50%;background:transparent;color:#e9b65f;font-size:20px;line-height:1;cursor:pointer}
     .portal-music.playing .music-btn{background:#e9b65f;color:#102a43}
     .portal-music .music-btn:disabled{cursor:not-allowed;opacity:.45}
-    @media(max-width:420px){.portal-music{left:12px;bottom:calc(12px + env(safe-area-inset-bottom))}}
+    @media(max-width:420px){.hero-top-right{gap:8px}}
     @media print{.portal-music{display:none!important}}
 
   </style>
@@ -1396,7 +1397,13 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     <header class="hero">
       <div class="hero-top">
         <div class="hero-brand"><span class="hero-brand-mark" aria-hidden="true">✳</span><span>Shesh Dev<small>Hotel &amp; Resort</small></span></div>
-        <span class="stay-badge" data-live-stay-status><?= $isActive ? '● Active stay' : portal_escape(str_replace('_', ' ', $stay['status'])) ?></span>
+        <div class="hero-top-right">
+          <span class="stay-badge" data-live-stay-status><?= $isActive ? '● Active stay' : portal_escape(str_replace('_', ' ', $stay['status'])) ?></span>
+          <div class="portal-music" id="portal-music">
+            <button type="button" class="music-btn" id="portal-music-toggle" aria-label="Play background music" aria-pressed="false" title="Play background music">♪</button>
+            <audio id="portal-music-audio" loop preload="none"><source src="/assets/music.mp3" type="audio/mpeg"></audio>
+          </div>
+        </div>
       </div>
       <div class="hero-copy">
         <p class="eyebrow">Welcome to your stay</p>
@@ -1744,10 +1751,6 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
   </dialog>
 
 
-  <div class="portal-music" id="portal-music">
-    <button type="button" class="music-btn" id="portal-music-toggle" aria-label="Play background music" aria-pressed="false" title="Play background music">♪</button>
-    <audio id="portal-music-audio" loop preload="none"><source src="/assets/music.mp3" type="audio/mpeg"></audio>
-  </div>
   <script>
     (() => {
       const container = document.getElementById("portal-music");
