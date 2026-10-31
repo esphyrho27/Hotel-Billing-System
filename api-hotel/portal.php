@@ -1597,6 +1597,10 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
               <img src="/assets/amenities/spa.webp" alt="Spa and massage" loading="lazy">
               <figcaption><strong>Spa &amp; Massage</strong><span>Slow down and relax.</span></figcaption>
             </figure>
+            <figure class="amenities-slide">
+              <img src="/assets/amenities/bar.webp" alt="Bar and lounge" loading="lazy">
+              <figcaption><strong>Bar &amp; Lounge</strong><span>Unwind with a drink in the evening.</span></figcaption>
+            </figure>
           </div>
           <button type="button" class="amenities-arrow amenities-prev" id="amenities-prev" aria-label="Previous amenity">&#8249;</button>
           <button type="button" class="amenities-arrow amenities-next" id="amenities-next" aria-label="Next amenity">&#8250;</button>
