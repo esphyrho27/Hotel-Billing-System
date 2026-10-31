@@ -142,7 +142,7 @@
 
     activeModule=id;
 
-    const map={'dashboard':'panel-dashboard','walkin-checkin':'panel-walkin-checkin','active-stays':'panel-active-stays','checkout-history':'panel-checkout-history','checkout':'panel-checkout','early-checkout-requests':'panel-early-checkout-requests','rooms':'panel-rooms','catalog':'panel-catalog','transactions':'panel-transactions','billing':'panel-billing','payments':'panel-payments','service-requests':'panel-service-requests','early-checkouts':'panel-early-checkouts','reports':'panel-reports','audit-logs':'panel-audit-logs','users':'panel-users','discount-approvals':'panel-discount-approvals','settings':'panel-settings','dept-reports':'panel-dept-reports','dept-inventory':'panel-dept-inventory'};
+    const map={'dashboard':'panel-dashboard','walkin-checkin':'panel-walkin-checkin','active-stays':'panel-active-stays','checkout-history':'panel-checkout-history','checkout':'panel-checkout','early-checkout-requests':'panel-early-checkout-requests','rooms':'panel-rooms','catalog':'panel-catalog','transactions':'panel-transactions','billing':'panel-billing','payments':'panel-payments','service-requests':'panel-service-requests','early-checkouts':'panel-early-checkouts','guest-chats':'panel-guest-chats','reports':'panel-reports','audit-logs':'panel-audit-logs','users':'panel-users','discount-approvals':'panel-discount-approvals','settings':'panel-settings','dept-reports':'panel-dept-reports','dept-inventory':'panel-dept-inventory'};
 
     document.querySelectorAll('.panel-section').forEach(p=>p.classList.remove('active'));
 
@@ -156,7 +156,7 @@
 
     if (!target && id==='early-checkout-requests') { target=document.createElement('div'); target.id=map[id]; target.className='panel-section'; target.innerHTML='<div id="early-checkout-requests-content"></div>'; $('panel-settings')?.parentElement?.appendChild(target); }
 
-    if (!target && id==='service-requests') { target=document.createElement('div'); target.id=map[id]; target.className='panel-section'; target.innerHTML='<div id="service-requests-content"></div>'; $('panel-settings')?.parentElement?.appendChild(target); } if (!target && id==='early-checkouts') { target=document.createElement('div'); target.id=map[id]; target.className='panel-section'; target.innerHTML='<div id="early-checkouts-content"></div>'; $('panel-settings')?.parentElement?.appendChild(target); } if (!target && id==='users') { target=document.createElement('div'); target.id=map[id]; target.className='panel-section'; target.innerHTML='<div id="users-content"></div>'; $('panel-settings')?.parentElement?.appendChild(target); } if (!target && id==='discount-approvals') { target=document.createElement('div'); target.id=map[id]; target.className='panel-section'; target.innerHTML='<div id="discount-approvals-content"></div>'; $('panel-settings')?.parentElement?.appendChild(target); }
+    if (!target && id==='service-requests') { target=document.createElement('div'); target.id=map[id]; target.className='panel-section'; target.innerHTML='<div id="service-requests-content"></div>'; $('panel-settings')?.parentElement?.appendChild(target); } if (!target && id==='guest-chats') { target=document.createElement('div'); target.id=map[id]; target.className='panel-section'; target.innerHTML='<div id="guest-chats-content"></div>'; $('panel-settings')?.parentElement?.appendChild(target); } if (!target && id==='early-checkouts') { target=document.createElement('div'); target.id=map[id]; target.className='panel-section'; target.innerHTML='<div id="early-checkouts-content"></div>'; $('panel-settings')?.parentElement?.appendChild(target); } if (!target && id==='users') { target=document.createElement('div'); target.id=map[id]; target.className='panel-section'; target.innerHTML='<div id="users-content"></div>'; $('panel-settings')?.parentElement?.appendChild(target); } if (!target && id==='discount-approvals') { target=document.createElement('div'); target.id=map[id]; target.className='panel-section'; target.innerHTML='<div id="discount-approvals-content"></div>'; $('panel-settings')?.parentElement?.appendChild(target); }
 
     target?.classList.add('active');
 
@@ -2487,6 +2487,10 @@
 
       await renderEarlyCheckoutRequests('early-checkouts-content');
 
+    } else if (id==='guest-chats') {
+
+      await renderGuestChats();
+
     } else if (id==='settings') {
 
       const u=window.HotelAuth.getUser(); $('settings-content').innerHTML=`<div class="card border-0 shadow-sm mb-4"><div class="card-body"><h6 class="fw-bold">Account & system settings</h6><p>Signed in as <strong>${esc(u?.username)}</strong> (${esc(u?.role)}).</p><p>Hotel billing stores stay and folio references, not a guest directory. The guest portal token is private and should be shared directly with the guest.</p><hr><form id="pw-form" class="row g-3"><div class="col-md-4"><label class="form-label">Current password</label><input class="form-control" name="old_password" type="password" required></div><div class="col-md-4"><label class="form-label">New password (minimum 6 characters)</label><input class="form-control" name="new_password" type="password" minlength="6" required></div><div class="col-md-4 d-flex align-items-end"><button class="btn btn-primary">Change Password</button></div></form></div></div><div id="policy-admin"><div class="text-muted p-3">Loading policy lookups…</div></div>`; $('pw-form').onsubmit=async e=>{e.preventDefault();try{await api('change_password',Object.fromEntries(new FormData(e.target)));notify('Password updated.');e.target.reset()}catch(err){notify(err.message,true)}}; if(u?.role==='admin') await renderPolicyAdmin(); else $('policy-admin').textContent='Policy configuration is managed by an administrator.';
@@ -4360,6 +4364,69 @@ async function confirmCheckinPayment(cpId) {
 
   }
 
+  let chatPollTimer = null;
+  let chatOpenStayId = null;
+  async function refreshChatBadge() {
+    try {
+      const perms = window.HotelAuth.getUser()?.permissions || [];
+      if (perms.length && !perms.includes('*') && !perms.includes('chat.view')) {
+        document.querySelectorAll('[data-chat-badge]').forEach(el => { el.textContent = '0'; el.classList.add('d-none'); });
+        return;
+      }
+      const d = await api('chat_conversations', {}, 'GET');
+      const total = (d.conversations || []).reduce((sum, c) => sum + (Number(c.unread) || 0), 0);
+      document.querySelectorAll('[data-chat-badge]').forEach(el => { el.textContent = String(total); el.classList.toggle('d-none', total <= 0); });
+    } catch (_) {}
+  }
+  function chatMessageHtml(m) {
+    const isStaff = String(m.sender_type || '').toUpperCase() === 'STAFF';
+    return `<div class="d-flex mb-2 ${isStaff ? 'justify-content-end' : 'justify-content-start'}"><div class="p-2 rounded" style="max-width:85%;background:${isStaff ? '#e9eef5' : '#fdf3d7'}"><div class="small text-muted">${esc(isStaff ? 'Front desk' : (m.sender_name || 'Guest'))} · ${esc(m.created_at || '')}</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(m.body || '')}</div></div></div>`;
+  }
+  async function renderChatList() {
+    const host = $('guest-chats-content'); if (!host) return;
+    const listEl = host.querySelector('#guest-chat-list'); if (!listEl) return;
+    try {
+      const data = await api('chat_conversations', {}, 'GET');
+      if (data.migrated === false) { listEl.innerHTML = '<div class="alert alert-warning">Guest chat is not available yet. Import database/migrations/20261031_chat_messages.sql and refresh.</div>'; return; }
+      const conversations = data.conversations || [];
+      if (!conversations.length) { listEl.innerHTML = '<div class="text-muted py-4">No guest chats yet. Messages from guests appear here.</div>'; return; }
+      listEl.innerHTML = conversations.map(c => `<div class="card border-0 shadow-sm mb-2"><div class="card-body d-flex justify-content-between align-items-center gap-2"><div><strong>Room ${esc(c.room_number)}</strong><span class="text-muted"> · ${esc(c.guest_name || 'Guest')} · ${esc(c.stay_code)}</span>${Number(c.unread) > 0 ? ` <span class="badge text-bg-danger">${esc(c.unread)} unread</span>` : ''}<div class="text-muted small">${esc(c.last_sender === 'STAFF' ? 'Front desk: ' : '')}${esc((c.last_body || '').slice(0, 100))}</div><div class="text-muted small">${esc(c.last_at || '')}</div></div><button type="button" class="btn btn-primary btn-sm" data-chat-open="${esc(c.stay_id)}">Open chat</button></div></div>`).join('');
+      listEl.querySelectorAll('[data-chat-open]').forEach(btn => btn.addEventListener('click', () => openChatThread(Number(btn.dataset.chatOpen))));
+    } catch (e) { listEl.innerHTML = `<div class="alert alert-danger">${esc(e.message)}</div>`; }
+  }
+  async function openChatThread(stayId) {
+    chatOpenStayId = stayId;
+    const host = $('guest-chats-content'); if (!host) return;
+    const threadEl = host.querySelector('#guest-chat-thread'); if (!threadEl) return;
+    threadEl.innerHTML = '<div class="text-muted py-3">Loading conversation…</div>';
+    try {
+      const data = await api('chat_messages', {stay_id: stayId}, 'GET');
+      const stay = data.stay || {};
+      const messages = data.messages || [];
+      threadEl.innerHTML = `<div class="card border-0 shadow-sm mt-3"><div class="card-body"><h6 class="fw-bold">Room ${esc(stay.room_number)} · ${esc(stay.stay_code)}</h6><div id="guest-chat-thread-messages">${messages.length ? messages.map(chatMessageHtml).join('') : '<div class="text-muted">No messages yet.</div>'}</div><form id="guest-chat-reply-form" class="mt-3"><div class="mb-2"><textarea class="form-control" name="body" rows="3" maxlength="1000" placeholder="Write a reply…" required></textarea></div><button class="btn btn-primary btn-sm" type="submit">Send reply</button></form></div></div>`;
+      const form = threadEl.querySelector('#guest-chat-reply-form');
+      form.onsubmit = async e => { e.preventDefault(); const body = new FormData(form).get('body').toString().trim(); if (!body) return; try { await api('chat_send', {stay_id: stayId, body}); form.reset(); notify('Message sent to the guest.'); await openChatThread(stayId); await renderChatList(); await refreshChatBadge(); } catch (err) { notify(err.message, true); } };
+      await refreshChatBadge();
+    } catch (e) { threadEl.innerHTML = `<div class="alert alert-danger">${esc(e.message)}</div>`; }
+  }
+  async function renderGuestChats() {
+    const host = $('guest-chats-content'); if (!host) return;
+    host.innerHTML = `<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3"><div><h3 class="h4 fw-bold mb-1">Guest Chats</h3><p class="text-muted mb-0">Text chats from guests to the front desk. Opening a chat marks the guest's messages read.</p></div><button type="button" class="btn btn-outline-secondary btn-sm" id="guest-chats-refresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button></div><div id="guest-chat-list"></div><div id="guest-chat-thread"></div>`;
+    host.querySelector('#guest-chats-refresh').addEventListener('click', async () => { await renderChatList(); if (chatOpenStayId) await openChatThread(chatOpenStayId); });
+    await renderChatList();
+    if (chatPollTimer) clearInterval(chatPollTimer);
+    chatPollTimer = setInterval(async () => {
+      if (window.HotelBilling?.getActiveModule?.() !== 'guest-chats') return;
+      await renderChatList();
+      if (chatOpenStayId) {
+        try {
+          const data = await api('chat_messages', {stay_id: chatOpenStayId}, 'GET');
+          const box = document.querySelector('#guest-chat-thread-messages');
+          if (box) box.innerHTML = (data.messages || []).length ? data.messages.map(chatMessageHtml).join('') : '<div class="text-muted">No messages yet.</div>';
+        } catch (_) {}
+      }
+    }, 30000);
+  }
   async function renderEarlyCheckoutRequests(targetContainerId = 'early-checkouts-content'){
 
     const host=$(targetContainerId) || $('early-checkout-requests-content') || $('early-checkouts-content'); if(!host)return;
@@ -7403,7 +7470,7 @@ async function transfer(id) {
     }
   }
 
-  window.HotelBilling={api,open,getActiveModule:()=>activeModule,notify,refreshRequestBadge,checkin,guestDetails,approveCheckinPayment,approveGroupCheckinPayment,confirmCheckinPayment,cancelPendingCheckin,renderWalkinCheckin,renderCheckoutDashboard,renderEarlyCheckoutRequests,selectRoomForWalkin:(roomId)=>{const sel=document.getElementById('wkd-room-id');if(sel){sel.value=String(roomId);sel.dispatchEvent(new Event('change'));sel.scrollIntoView({behavior:'smooth',block:'center'});sel.focus();}},folio,addCharge,pay,earlyCheckout,decideEarlyCheckout,finalizeEarlyCheckout,decideStayExtension,editEarlyPolicy,editDiscountPolicy,deleteDiscountPolicy,transfer,checkout,roomStatus,requestStatus,assignRequest,handleRequestAction,viewHistory,addRoom,editRoom,addRoomType,editRoomType,addMenuItem,editMenuItem,toggleMenuItem,reportDetails,savedGuestLinks,showCheckinComplete,showStayQr,showReceiptModal};
+  window.HotelBilling={api,open,getActiveModule:()=>activeModule,notify,refreshRequestBadge,checkin,guestDetails,approveCheckinPayment,approveGroupCheckinPayment,confirmCheckinPayment,cancelPendingCheckin,renderWalkinCheckin,renderCheckoutDashboard,renderEarlyCheckoutRequests,selectRoomForWalkin:(roomId)=>{const sel=document.getElementById('wkd-room-id');if(sel){sel.value=String(roomId);sel.dispatchEvent(new Event('change'));sel.scrollIntoView({behavior:'smooth',block:'center'});sel.focus();}},folio,addCharge,pay,earlyCheckout,decideEarlyCheckout,finalizeEarlyCheckout,decideStayExtension,editEarlyPolicy,editDiscountPolicy,deleteDiscountPolicy,transfer,checkout,roomStatus,requestStatus,assignRequest,handleRequestAction,viewHistory,addRoom,editRoom,addRoomType,editRoomType,addMenuItem,editMenuItem,toggleMenuItem,reportDetails,savedGuestLinks,showCheckinComplete,showStayQr,showReceiptModal,refreshChatBadge};
 
   document.addEventListener('hotel:authenticated',(event)=>{
 
@@ -7428,6 +7495,12 @@ async function transfer(id) {
     if(window.hotelRequestBadgeTimer)clearInterval(window.hotelRequestBadgeTimer);
 
     window.hotelRequestBadgeTimer=setInterval(refreshRequestBadge,30000);
+
+    refreshChatBadge();
+
+    if(window.hotelChatBadgeTimer)clearInterval(window.hotelChatBadgeTimer);
+
+    window.hotelChatBadgeTimer=setInterval(refreshChatBadge,30000);
 
   });
 

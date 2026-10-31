@@ -288,6 +288,18 @@ try {
                 // Stay-extension table not migrated yet: live updates still work.
                 $liveExtensions = [];
             }
+            $liveChat = [];
+            try {
+                $liveChatQuery = $pdo->prepare(
+                    "SELECT id, sender_type, sender_name, body, created_at
+                     FROM chat_messages WHERE stay_id=? ORDER BY created_at ASC, id ASC LIMIT 100"
+                );
+                $liveChatQuery->execute([(int)$stay['id']]);
+                $liveChat = $liveChatQuery->fetchAll();
+            } catch (Throwable $liveChatError) {
+                // Chat table not migrated yet: live updates still work.
+                $liveChat = [];
+            }
             $liveFolioQuery = $pdo->prepare('SELECT id FROM folios WHERE stay_id=? LIMIT 1');
             $liveFolioQuery->execute([(int)$stay['id']]);
             $liveFolioId = (int)$liveFolioQuery->fetchColumn();
@@ -338,6 +350,7 @@ try {
                 'orders' => $liveOrders,
                 'requests' => $liveRequestsQuery->fetchAll(),
                 'extensions' => $liveExtensions,
+                'chat' => $liveChat,
             ], JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
         } catch (Throwable $liveError) {
             error_log('[guest-portal-live] ' . $liveError->getMessage());
@@ -882,6 +895,46 @@ try {
                         }
                     }
                 }
+            } elseif ($action === 'chat_send') {
+                // Guest chat: the stay comes from the validated portal token
+                // above, never from a client-supplied stay id. Sending is
+                // limited to active stays by the gate above, like every other
+                // portal action; reading history works while the token is valid.
+                $chatBody = trim((string)($_POST['message'] ?? ''));
+                if ($chatBody === '' || mb_strlen($chatBody) > 1000) {
+                    http_response_code(422);
+                    $pageError = 'Write a message of 1 to 1000 characters.';
+                } else {
+                    $chatThrottleQuery = $pdo->prepare(
+                        "SELECT COUNT(*) FROM chat_messages WHERE stay_id=? AND created_at >= (NOW() - INTERVAL 1 MINUTE)"
+                    );
+                    $chatThrottleQuery->execute([(int)$stay['id']]);
+                    if ((int)$chatThrottleQuery->fetchColumn() >= 10) {
+                        http_response_code(429);
+                        $pageError = 'You are sending messages too quickly. Please wait a moment and try again.';
+                    } else {
+                        $chatGuestName = trim((string)($stay['first_name'] ?? '') . ' ' . (string)($stay['last_name'] ?? ''));
+                        if ($chatGuestName === '') {
+                            $chatGuestName = 'Guest';
+                        }
+                        $chatInsert = $pdo->prepare(
+                            "INSERT INTO chat_messages (stay_id, sender_type, sender_id, sender_name, body)
+                             VALUES (?, 'GUEST', NULL, ?, ?)"
+                        );
+                        $chatInsert->execute([(int)$stay['id'], $chatGuestName, $chatBody]);
+                        $chatMessageId = (int)$pdo->lastInsertId();
+                        portal_broadcast('CHAT_MESSAGE', [
+                            'message_id' => $chatMessageId,
+                            'stay_id' => (int)$stay['id'],
+                            'stay_code' => $stay['stay_code'],
+                            'room_number' => $stay['room_number'],
+                            'sender_type' => 'GUEST',
+                            'sender_name' => $chatGuestName,
+                            'preview' => mb_substr($chatBody, 0, 100),
+                        ], 'frontdesk', null);
+                        portal_redirect($token, 'chat');
+                    }
+                }
             } else {
                 http_response_code(400);
                 $pageError = 'That request could not be processed.';
@@ -1027,6 +1080,18 @@ try {
         } catch (Throwable $extensionListError) {
             // Stay-extension table not migrated yet: the portal still loads.
             $extensionRequests = [];
+        }
+        $chatMessages = [];
+        try {
+            $chatListQuery = $pdo->prepare(
+                "SELECT id, sender_type, sender_name, body, created_at
+                 FROM chat_messages WHERE stay_id=? ORDER BY created_at ASC, id ASC LIMIT 100"
+            );
+            $chatListQuery->execute([(int)$stay['id']]);
+            $chatMessages = $chatListQuery->fetchAll();
+        } catch (Throwable $chatListError) {
+            // Chat table not migrated yet: the portal still loads.
+            $chatMessages = [];
         }
         $recentActivity = [];
         foreach ($requests as $request) {
@@ -1188,6 +1253,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     .service-intro{display:flex;align-items:center;gap:12px;margin:0 0 2px}.service-intro p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}.service-room-chip{flex:none;padding:8px 10px;border:1px solid #e5d7b5;border-radius:999px;background:#fbf7ed;color:#765c26;font-size:11px;font-weight:800;white-space:nowrap}
     .service-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.service-choice{display:grid;grid-template-columns:38px 1fr;align-items:center;gap:2px 10px;min-height:88px;padding:12px;text-align:left;border:1px solid #dce4eb;border-radius:13px;background:#fff;color:var(--ink);cursor:pointer;transition:border-color .16s,background .16s,box-shadow .16s}.service-choice:hover{border-color:#b8a16a;background:#fdfbf6}.service-choice.is-selected{border-color:#b08b3c;background:#fbf7ed;box-shadow:inset 0 0 0 1px #b08b3c}.service-choice-icon{grid-row:1 / span 2;display:grid;width:38px;height:38px;place-items:center;border-radius:11px;background:#edf2f6;color:#17344e;font-size:20px}.service-choice.is-selected .service-choice-icon{background:#e9dfc8;color:#765c26}.service-choice strong{font-size:13px}.service-choice>span:last-child{color:var(--muted);font-size:11px;line-height:1.4}.service-type-fallback{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}.service-assurance{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid #e7e2d5;border-radius:12px;background:#faf8f2;color:#4e5b65}.service-assurance>span{display:grid;flex:none;width:23px;height:23px;place-items:center;border-radius:50%;background:#e7ddc3;color:#6f5625;font-weight:800}.service-assurance p{margin:0;font-size:11px;line-height:1.55}.service-assurance strong{color:var(--ink);font-size:12px}.service-dialog-footer .button{gap:9px;background:#17344e}.service-dialog-footer .button:hover{background:#244a69}
     .stay-activity-intro{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px;padding:13px 14px;border:1px solid #e6dcc5;border-radius:13px;background:linear-gradient(120deg,#fbf7ed,#fff)}.stay-activity-intro strong{display:block;color:var(--ink);font:600 17px Georgia,"Times New Roman",serif}.stay-activity-intro p{margin:4px 0 0;color:var(--muted);font-size:11px}.stay-room-tag{flex:none;padding:7px 10px;border-radius:999px;background:#e9dfc8;color:#705723;font-size:10px;font-weight:800}.activity-tabs{display:flex;gap:7px;margin:0 0 16px;padding:4px;overflow-x:auto;border:1px solid #e6ebf0;border-radius:12px;background:#edf1f5}.activity-tab{flex:1;min-height:38px;padding:8px 10px;border:1px solid transparent;border-radius:9px;background:transparent;color:#52657a;font-size:11px;font-weight:750;white-space:nowrap;cursor:pointer}.activity-tab[aria-pressed="true"]{border-color:#e8dfca;background:#fff;color:#17344e;box-shadow:0 2px 5px rgba(23,43,69,.06)}.activity-section{margin-top:18px}.activity-section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}.activity-section-heading h3{margin:0;color:var(--ink);font-size:13px;font-weight:800}.activity-count{display:inline-grid;min-width:25px;height:25px;place-items:center;padding:0 7px;border-radius:999px;background:#eef2f6;color:#53677c;font-size:10px;font-weight:800}.activity-record{border-color:#e1e7ed;box-shadow:0 3px 10px rgba(23,43,69,.025)}.activity-record .record-top{align-items:center}.activity-record .status{flex:none;max-width:45%;white-space:normal;text-align:center;line-height:1.4}.activity-record .record-title{font-size:13px;line-height:1.45}.activity-record[data-kind="order"]{border-left:3px solid #b08b3c}.activity-record[data-kind="request"]{border-left:3px solid #b8c7d5}.activity-record[data-kind="extension"],.record[data-kind="extension"]{border-left:3px solid #16734b}.activity-empty{padding:24px 16px;border:1px dashed #d6dfe7;border-radius:13px;background:#fff;text-align:center}.activity-empty-icon{display:grid;width:42px;height:42px;place-items:center;margin:0 auto 10px;border-radius:13px;background:#f2f5f8;color:#765c26;font-size:20px}.activity-empty strong{display:block;color:var(--ink);font-size:13px}.activity-empty p{margin:5px 0 0;color:var(--muted);font-size:11px;line-height:1.5}
+    .chat-card{padding:14px}.chat-list{display:flex;flex-direction:column;gap:10px;max-height:320px;overflow-y:auto;padding:2px}.chat-empty{padding:18px;border:1px dashed #d6dfe7;border-radius:11px;background:#fff;text-align:center;color:var(--muted);font-size:13px}.chat-msg{max-width:85%;padding:10px 12px;border-radius:12px;background:#eef2f6}.chat-msg.staff{align-self:flex-start;background:#e9eef5;border-left:3px solid #17344e}.chat-msg.guest{align-self:flex-end;background:#fdf3d7;border-right:3px solid #b08b3c}.chat-msg-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:4px;font-size:11px;color:var(--muted)}.chat-msg-head strong{color:var(--ink)}.chat-msg-body{margin:0;font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}.chat-form{margin-top:14px}.chat-form textarea{width:100%}
     .folio-intro{margin-bottom:15px}.folio-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:17px}.folio-metric{min-width:0;padding:13px;border:1px solid #e3e9ef;border-radius:13px;background:#fff}.folio-metric-label{display:block;color:var(--muted);font-size:10px;font-weight:750;letter-spacing:.04em;text-transform:uppercase}.folio-metric-value{display:block;margin-top:7px;color:var(--ink);font-size:18px;font-weight:850;overflow-wrap:anywhere}.folio-metric.balance-due{grid-column:1/-1;padding:18px;border-color:#e4d7b7;background:linear-gradient(125deg,#142d46,#1c3b57);color:#fff}.folio-metric.balance-due .folio-metric-label{color:#e3d2a7}.folio-metric.balance-due .folio-metric-value{margin-top:5px;color:#fff;font-size:clamp(27px,6vw,35px);letter-spacing:-.03em}.folio-settled-note{display:flex;align-items:center;gap:7px;margin-top:10px;color:#d9e9df;font-size:11px}.folio-settled-note.is-due{color:#f2ddb0}.folio-section{margin-top:19px}.folio-section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}.folio-section-heading h3{margin:0;color:var(--ink);font-size:13px;font-weight:800}.folio-section-heading span{color:var(--muted);font-size:10px}.folio-record{padding:13px;border-color:#e1e7ed}.folio-record .record-top{align-items:center}.folio-record .record-title{font-size:12px;line-height:1.45}.folio-record .record-price{font-size:13px;white-space:nowrap}.folio-record.payment-record{border-left:3px solid #7da68e}.folio-record.charge-record{border-left:3px solid #b08b3c}.folio-note{margin-top:16px;padding:12px;border:1px solid #e4eaf0;border-radius:11px;background:#f1f5f8;color:#53677c;font-size:11px;line-height:1.55}.folio-note strong{color:var(--ink)}
     .field{display:grid;gap:7px;color:#3b5066;font-size:12px;font-weight:700}
     .field input,.field select,.field textarea{width:100%;min-height:46px;padding:11px 12px;border:1px solid #d6e0e9;border-radius:10px;background:#fff;color:var(--ink);font-size:16px}
@@ -1430,6 +1496,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
       <?php if ($notice === 'service'): ?><div class="notice" role="status">Your request has been sent to the hotel team.</div><?php endif; ?>
       <?php if ($notice === 'order'): ?><div class="notice" role="status">Your room-service order has been submitted to the restaurant.</div><?php endif; ?>
       <?php if ($notice === 'extension'): ?><div class="notice" role="status">Your stay extension request has been sent to the front desk.</div><?php endif; ?>
+      <?php if ($notice === 'chat'): ?><div class="notice" role="status">Your message has been sent to the front desk.</div><?php endif; ?>
       <?php if ($pageError !== ''): ?><div class="notice error" role="alert"><?=portal_escape($pageError)?></div><?php endif; ?>
 
       <?php
@@ -1507,6 +1574,29 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
             </article>
             <?php endif; ?>
           <?php endforeach; ?>
+        </div>
+      </section>
+
+      <section aria-labelledby="chat-title">
+        <div class="section-heading"><div><p class="eyebrow">Front desk chat</p><h2 id="chat-title">Message front desk</h2><p>Text-only chat with the front desk team during your stay.</p></div></div>
+        <div class="card chat-card">
+          <div class="chat-list" id="chat-messages">
+            <?php if (!$chatMessages): ?><div class="chat-empty">No messages yet. Say hello — the front desk team will reply here.</div><?php endif; ?>
+            <?php foreach ($chatMessages as $chatMessage): ?>
+            <article class="chat-msg <?= $chatMessage['sender_type'] === 'STAFF' ? 'staff' : 'guest' ?>" data-chat-id="<?=portal_escape($chatMessage['id'])?>">
+              <div class="chat-msg-head"><strong><?= $chatMessage['sender_type'] === 'STAFF' ? 'Front desk' : 'You' ?></strong><span class="chat-msg-time"><?=portal_escape(date('M j, g:i A', strtotime($chatMessage['created_at'])))?></span></div>
+              <p class="chat-msg-body"><?=nl2br(portal_escape($chatMessage['body']))?></p>
+            </article>
+            <?php endforeach; ?>
+          </div>
+          <?php if (!$isActive): ?><p class="notice">Messaging is available during an active stay.</p>
+          <?php else: ?>
+          <form class="chat-form" method="post" action="portal.php?t=<?=rawurlencode($token)?>">
+            <input type="hidden" name="t" value="<?=portal_escape($token)?>"><input type="hidden" name="csrf" value="<?=portal_escape($csrf)?>"><input type="hidden" name="portal_action" value="chat_send">
+            <label class="field">Message<textarea name="message" rows="3" maxlength="1000" placeholder="Write a message to the front desk…" required></textarea></label>
+            <button class="button" type="submit">Send message</button>
+          </form>
+          <?php endif; ?>
         </div>
       </section>
       <p class="footer-note">Shesh Dev Hotel · Agora, Lapasan, Cagayan de Oro</p>
@@ -2203,6 +2293,11 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
       const orderList = document.querySelector('[data-activity-section="order"] .order-list');
       const extensionList = document.querySelector('[data-activity-section="extension"] .extension-list');
       const recentRequestList = document.querySelector('section[aria-labelledby="recent-title"] .request-list');
+      const chatList = document.getElementById("chat-messages");
+      const seenChatIds = new Set();
+      if (chatList instanceof HTMLElement) {
+        chatList.querySelectorAll("[data-chat-id]").forEach((el) => seenChatIds.add(String(el.dataset.chatId || "")));
+      }
       const liveCurrency = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
       let previousBillingState = "";
       let previousStayState = "";
@@ -2596,6 +2691,43 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           }
         });
       };
+      // Guest chat over the same 5-second poll: new messages are appended
+      // with textContent only, so a message can never inject markup. Staff
+      // replies toast once, the first time the poll sees them.
+      const appendChatMessage = (message) => {
+        if (!(chatList instanceof HTMLElement)) return false;
+        const id = String(message.id || "");
+        if (!id || seenChatIds.has(id)) return false;
+        seenChatIds.add(id);
+        chatList.querySelector(".chat-empty")?.remove();
+        const article = document.createElement("article");
+        const isStaff = String(message.sender_type || "").toUpperCase() === "STAFF";
+        article.className = "chat-msg " + (isStaff ? "staff" : "guest");
+        article.dataset.chatId = id;
+        const head = document.createElement("div");
+        head.className = "chat-msg-head";
+        const name = document.createElement("strong");
+        name.textContent = isStaff ? "Front desk" : "You";
+        const time = document.createElement("span");
+        time.className = "chat-msg-time";
+        time.textContent = formatCreatedAt(message.created_at);
+        head.append(name, time);
+        const body = document.createElement("p");
+        body.className = "chat-msg-body";
+        body.textContent = String(message.body || "");
+        article.append(head, body);
+        chatList.append(article);
+        chatList.scrollTop = chatList.scrollHeight;
+        return true;
+      };
+      const updateChatMessages = (messages, hadBaseline) => {
+        (messages || []).forEach((message) => {
+          const isStaff = String(message.sender_type || "").toUpperCase() === "STAFF";
+          if (appendChatMessage(message) && hadBaseline && isStaff) {
+            showToast("New message from front desk", "The front desk replied to your message.");
+          }
+        });
+      };
       const poll = async () => {
         if (pollInProgress || document.visibilityState === "hidden") return;
         pollInProgress = true;
@@ -2754,6 +2886,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
             seenExtensionStatuses.set(key, status);
           });
           if (extensionList) updateActivityCount("extension", extensionList.querySelectorAll("[data-live-extension]").length);
+          updateChatMessages(payload.chat || [], hasBaseline);
           hasBaseline = true;
           lastLiveFailureNotice = false;
           updateCountdowns();

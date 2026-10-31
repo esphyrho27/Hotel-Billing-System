@@ -30,6 +30,8 @@ const HOTEL_ROLE_PERMISSIONS = [
         'early_checkout.approve',
         'stay_extension.view',
         'stay_extension.approve',
+        'chat.view',
+        'chat.reply',
         'reports.financial.view',
         'transactions.view',
         'audit_logs.view',
@@ -57,6 +59,8 @@ const HOTEL_ROLE_PERMISSIONS = [
         'early_checkout.view',
         'early_checkout.request',
         'stay_extension.view',
+        'chat.view',
+        'chat.reply',
         'account.password.change',
     ],
     'cashier' => [
@@ -304,6 +308,20 @@ const HOTEL_ALL_PERMISSIONS = [
         'module' => 'early-checkouts'
     ],
     [
+        'category' => 'Guest Services',
+        'key' => 'chat.view',
+        'label' => 'View Guest Chats',
+        'description' => 'View guest chat conversations with the front desk',
+        'module' => 'guest-chats'
+    ],
+    [
+        'category' => 'Guest Services',
+        'key' => 'chat.reply',
+        'label' => 'Reply to Guest Chats',
+        'description' => 'Send replies in guest chat conversations',
+        'module' => 'guest-chats'
+    ],
+    [
         'category' => 'Department Services',
         'key' => 'service_requests.view',
         'label' => 'Department Requests Queue',
@@ -422,6 +440,9 @@ const HOTEL_ACTION_PERMISSIONS = [
     'stay_extension_requests' => 'stay_extension.view',
     'stay_extension_approve' => 'stay_extension.approve',
     'stay_extension_reject' => 'stay_extension.approve',
+    'chat_conversations' => 'chat.view',
+    'chat_messages' => 'chat.view',
+    'chat_send' => 'chat.reply',
     'checkout' => 'stays.checkout',
     'room_status' => 'rooms.status',
     'reports' => 'reports.financial.view',
@@ -556,7 +577,7 @@ function hotel_get_allowed_modules_for_role(string $role, ?PDO $pdo = null): arr
     if ($r === 'admin') {
         return [
             'dashboard', 'walkin-checkin', 'active-stays', 'checkout-history', 'checkout', 'rooms', 'catalog', 'payments',
-            'discount-approvals', 'early-checkouts', 'early-checkout-requests', 'service-requests',
+            'discount-approvals', 'early-checkouts', 'early-checkout-requests', 'service-requests', 'guest-chats',
             'reports', 'audit-logs', 'users', 'settings'
         ];
     }
@@ -569,7 +590,7 @@ function hotel_get_allowed_modules_for_role(string $role, ?PDO $pdo = null): arr
             'checkout',
             'early-checkout-requests',
             'rooms',
-            'service-requests'
+            'service-requests', 'guest-chats'
         ];
     }
     if ($r === 'cashier') {
@@ -587,7 +608,7 @@ function hotel_get_allowed_modules_for_role(string $role, ?PDO $pdo = null): arr
             'payments',
             'discount-approvals',
             'early-checkouts',
-            'service-requests',
+            'service-requests', 'guest-chats',
             'reports',
             'audit-logs',
             'users',
@@ -643,6 +664,9 @@ function hotel_get_allowed_modules_for_role(string $role, ?PDO $pdo = null): arr
     }
     if ($has('service_requests.view') || $has('service_requests.fulfill') || $has('service_requests.assign')) {
         $modules[] = 'service-requests';
+    }
+    if ($has('chat.view')) {
+        $modules[] = 'guest-chats';
     }
     if ($r === 'housekeeping' && $has('service_requests.view')) {
         $modules[] = 'dept-inventory';

@@ -14,6 +14,7 @@
     ["discount-approvals", "check2-square", "Discount Approvals", "Review pending manager discounts"],
     ["early-checkouts", "clipboard-check", "Early Checkout Approvals", "Review early checkout requests"],
     ["service-requests", "bell", "Guest Service Requests", "Review and update guest requests"],
+    ["guest-chats", "chat-dots", "Guest Chats", "Guest messages to the front desk"],
     ["reports", "bar-chart", "Reports", "Authorized financial reports"],
     ["dept-reports", "graph-up-arrow", "Department Reports", "Daily, weekly and monthly order analytics"],
     ["dept-inventory", "boxes", "Inventory & Stocks", "Department supplies and inventory tracking"],
@@ -49,6 +50,7 @@
       "discount-approvals",
       "early-checkouts",
       "service-requests",
+      "guest-chats",
       "reports",
       "dept-reports",
       "dept-inventory",
@@ -66,6 +68,7 @@
       "checkout",
       "early-checkout-requests",
       "rooms",
+      "guest-chats",
       
     ],
     cashier: [
@@ -110,6 +113,9 @@
         if (roleKey === "frontdesk" && (permissions.includes("*") || permissions.includes("service_requests.view"))) {
           allowed.add("service-requests");
         }
+        if (["admin", "manager", "frontdesk"].includes(r) && (permissions.includes("*") || permissions.includes("chat.view"))) {
+          allowed.add("guest-chats");
+        }
         if (["bar", "bartender", "minibar", "restaurant", "foodbeverage", "food"].includes(roleKey)
           && (permissions.includes("*") || permissions.includes("service_requests.view"))) {
           allowed.add("service-requests");
@@ -138,7 +144,9 @@
                 ${
                   id === "service-requests"
                     ? '<span class="request-count-badge d-none" data-request-badge aria-label="Open request count">0</span>'
-                    : ""
+                    : id === "guest-chats"
+                      ? '<span class="request-count-badge d-none" data-chat-badge aria-label="Unread guest messages">0</span>'
+                      : ""
                 }
               </span>
               <span>${title}</span>
@@ -152,7 +160,7 @@
           : ["restaurant", "foodbeverage", "food"].includes(roleKey)
             ? [["Dining Operations", ["dashboard", "service-requests"]], ["Restaurant Menu", ["catalog"]], ["Account", ["settings"]]]
         : [
-            ["Operations", ["dashboard", "walkin-checkin", "group-checkin", "active-stays", "checkout-history", "checkout", "early-checkout-requests", "rooms", "service-requests"]],
+            ["Operations", ["dashboard", "walkin-checkin", "group-checkin", "active-stays", "checkout-history", "checkout", "early-checkout-requests", "rooms", "service-requests", "guest-chats"]],
             ["Billing", ["catalog", "payments", "discount-approvals", "early-checkouts", "reports"]],
             ["Admin", ["audit-logs", "users", "settings"]],
           ];

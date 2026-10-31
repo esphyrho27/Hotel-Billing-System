@@ -161,6 +161,7 @@ if ($action === 'session') {
 $readActions = [
     'dashboard', 'rooms', 'room_types', 'service_catalog', 'active_stays', 'checkout_history', 'hotel_time_policy', 'demo_clock_status',
     'requests', 'request_history', 'early_checkout_policies', 'early_checkout_requests', 'stay_extension_requests',
+    'chat_conversations', 'chat_messages',
     'discount_policy_admin_list', 'pending_discounts', 'discount_policies',
     'vat_settings', 'reports', 'payment_history', 'receipt_details', 'report_transactions', 'audit_logs', 'users',
     'permissions_get', 'my_permissions', 'checkin_payments', 'pending_checkins',
@@ -5270,6 +5271,98 @@ if ($action === 'stay_extension_reject') {
     } catch (Throwable $x) {
         $pdo->rollBack();
         out(['error' => $x->getMessage()], 400);
+    }
+}
+
+// ============================================================================
+// GUEST ↔ FRONT-DESK LIVE CHAT (text only, version one)
+// ============================================================================
+// Guests send from the portal (stay resolved from the portal token); staff
+// read and reply here. Delivery to guests rides the portal live poll, so no
+// guest WebSocket client is needed; guest messages reach staff over the
+// CHAT_MESSAGE broadcast plus the staff panel poll below. Permission gating
+// happens in the dispatcher via HOTEL_ACTION_PERMISSIONS (chat.view /
+// chat.reply) — these handlers never trust a client-supplied stay id without
+// re-validating the stay server-side.
+if ($action === 'chat_conversations') {
+    try {
+        $chatTable = (int)$pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='chat_messages'")->fetchColumn();
+        if ($chatTable === 0) {
+            out(['conversations' => [], 'migrated' => false]);
+        }
+        $q = $pdo->query("SELECT s.id AS stay_id, s.stay_code, r.room_number,
+                TRIM(CONCAT(COALESCE(c.first_name, ''), ' ', COALESCE(c.last_name, ''))) AS guest_name,
+                (SELECT body FROM chat_messages WHERE stay_id=s.id ORDER BY created_at DESC, id DESC LIMIT 1) AS last_body,
+                (SELECT created_at FROM chat_messages WHERE stay_id=s.id ORDER BY created_at DESC, id DESC LIMIT 1) AS last_at,
+                (SELECT sender_type FROM chat_messages WHERE stay_id=s.id ORDER BY created_at DESC, id DESC LIMIT 1) AS last_sender,
+                (SELECT COUNT(*) FROM chat_messages WHERE stay_id=s.id AND sender_type='GUEST' AND is_read=0) AS unread
+            FROM stays s
+            JOIN rooms r ON r.id=s.room_id
+            LEFT JOIN customers c ON c.customer_id=s.customer_id
+            WHERE s.status='ACTIVE' AND EXISTS (SELECT 1 FROM chat_messages WHERE stay_id=s.id)
+            ORDER BY last_at DESC, s.id DESC");
+        out(['conversations' => $q->fetchAll(), 'migrated' => true]);
+    } catch (Throwable $x) {
+        out(['error' => $x->getMessage()], 400);
+    }
+}
+
+if ($action === 'chat_messages') {
+    $stayId = filter_var($in['stay_id'] ?? $_GET['stay_id'] ?? null, FILTER_VALIDATE_INT);
+    if ($stayId === false || $stayId < 1) {
+        out(['error' => 'Choose a valid stay.'], 400);
+    }
+    $sq = $pdo->prepare('SELECT s.id, s.stay_code, s.status, r.room_number FROM stays s JOIN rooms r ON r.id=s.room_id WHERE s.id=?');
+    $sq->execute([$stayId]);
+    $stay = $sq->fetch();
+    if (!$stay) {
+        out(['error' => 'Stay not found.'], 404);
+    }
+    try {
+        // Opening the conversation marks the guest's messages read.
+        $pdo->prepare("UPDATE chat_messages SET is_read=1, read_at=NOW() WHERE stay_id=? AND sender_type='GUEST' AND is_read=0")->execute([$stayId]);
+        $q = $pdo->prepare("SELECT id, sender_type, sender_id, sender_name, body, is_read, created_at FROM chat_messages WHERE stay_id=? ORDER BY created_at ASC, id ASC LIMIT 100");
+        $q->execute([$stayId]);
+        out(['stay' => $stay, 'messages' => $q->fetchAll(), 'migrated' => true]);
+    } catch (Throwable $x) {
+        out(['error' => 'Guest chat is not available yet. Import the chat migration and try again.'], 400);
+    }
+}
+
+if ($action === 'chat_send') {
+    $stayId = filter_var($in['stay_id'] ?? $_GET['stay_id'] ?? null, FILTER_VALIDATE_INT);
+    $body = trim((string)($in['body'] ?? ''));
+    if ($stayId === false || $stayId < 1) {
+        out(['error' => 'Choose a valid stay.'], 400);
+    }
+    if ($body === '' || mb_strlen($body) > 1000) {
+        out(['error' => 'Write a message of 1 to 1000 characters.'], 422);
+    }
+    $sq = $pdo->prepare('SELECT id, status, stay_code FROM stays WHERE id=?');
+    $sq->execute([$stayId]);
+    $stay = $sq->fetch();
+    if (!$stay) {
+        out(['error' => 'Stay not found.'], 404);
+    }
+    if ($stay['status'] === 'CANCELLED') {
+        out(['error' => 'This stay was cancelled.'], 409);
+    }
+    try {
+        $tq = $pdo->prepare("SELECT COUNT(*) FROM chat_messages WHERE stay_id=? AND created_at >= (NOW() - INTERVAL 1 MINUTE)");
+        $tq->execute([$stayId]);
+        if ((int)$tq->fetchColumn() >= 10) {
+            out(['error' => 'You are sending messages too quickly. Please wait a moment and try again.'], 429);
+        }
+        $pdo->prepare("INSERT INTO chat_messages (stay_id, sender_type, sender_id, sender_name, body) VALUES (?, 'STAFF', ?, ?, ?)")
+            ->execute([$stayId, $u['id'], $u['username'], $body]);
+        $mid = (int)$pdo->lastInsertId();
+        audit($pdo, $u['id'], 'CHAT_SENT', 'stay', $stayId, ['message_id' => $mid]);
+        // No WebSocket broadcast: guests have no WS client, so the portal
+        // live poll delivers staff replies. Other staff see the reply on
+        // their next panel refresh instead of a toast about a colleague.
+        out(['ok' => true, 'message_id' => $mid, 'message' => 'Message sent to the guest.']);
+    } catch (Throwable $x) {
+        out(['error' => 'Guest chat is not available yet. Import the chat migration and try again.'], 400);
     }
 }
 

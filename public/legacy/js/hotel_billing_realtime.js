@@ -174,6 +174,22 @@
         }
         break;
       }
+      case 'CHAT_MESSAGE': {
+        // Guest → front desk only: staff replies travel over the portal
+        // live poll (guests have no WebSocket client), so no broadcast is
+        // emitted for them and no toast is needed here.
+        if (['admin', 'manager', 'frontdesk'].includes(curRole)) {
+          if (!isLocalActor) {
+            showNotification(`New guest message: Room ${data.room_number || '—'}`);
+          }
+          const active = window.HotelBilling?.getActiveModule?.();
+          if (active === 'guest-chats') {
+            window.HotelBilling?.open('guest-chats');
+          }
+          window.HotelBilling?.refreshChatBadge?.();
+        }
+        break;
+      }
       case 'REQUEST_ASSIGNED': {
         if (data.request_kind === 'ROOM_TRANSFER' && !['frontdesk', 'manager'].includes(curRole)) break;
         const isDept = matchDept(curRole, data.assigned_department);
