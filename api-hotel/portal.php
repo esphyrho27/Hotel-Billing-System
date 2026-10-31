@@ -914,13 +914,23 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     button{cursor:pointer}
     a{color:inherit}
     .shell{width:min(1180px,calc(100% - 36px));margin:28px auto 56px;padding:0 0 28px;background:#fff;border:1px solid #e5eaf0;border-radius:24px;overflow:hidden;box-shadow:var(--shadow)}
-    .hero{position:relative;display:flex;flex-direction:column;align-items:stretch;justify-content:space-between;gap:34px;min-height:390px;padding:24px clamp(24px,5vw,58px) 42px;color:#fff;background-image:linear-gradient(90deg,rgba(5,20,34,.90) 0%,rgba(7,25,39,.74) 34%,rgba(10,34,48,.24) 72%,rgba(10,34,48,.12) 100%),linear-gradient(0deg,rgba(7,24,39,.25),transparent 52%),url("https://images.pexels.com/photos/28848944/pexels-photo-28848944.jpeg?auto=compress&cs=tinysrgb&w=2000");background-color:#102a43;background-size:cover;background-position:center 58%;background-repeat:no-repeat}.hero-top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,.22)}.hero-brand{display:flex;align-items:center;gap:10px;color:#fff;font-size:13px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}.hero-brand-mark{display:grid;width:38px;height:38px;place-items:center;border:1px solid rgba(233,182,95,.7);border-radius:50%;color:#f1c878;font-size:21px}.hero-brand small{display:block;margin-top:3px;color:rgba(255,255,255,.7);font-size:9px;font-weight:600;letter-spacing:.22em}.hero-copy{max-width:700px;padding:0 0 3px}.hero .eyebrow{margin:0 0 13px;color:#f1c878;font-size:11px;font-weight:800;letter-spacing:.22em;text-transform:uppercase}.hero h1{margin:0 0 14px;font:600 clamp(38px,5.4vw,64px)/1.04 Georgia,"Times New Roman",serif;letter-spacing:-.04em;text-wrap:balance}.hero p{max-width:560px;margin:0;color:rgba(245,248,252,.9);font-size:15px;line-height:1.7}.hero-actions{display:flex;flex-wrap:wrap;gap:11px;margin-top:24px}.hero-link{display:inline-flex;min-height:48px;align-items:center;justify-content:center;gap:10px;padding:12px 19px;border:1px solid rgba(255,255,255,.8);border-radius:12px;background:rgba(13,35,51,.42);color:#fff;font-size:13px;font-weight:750;text-decoration:none;backdrop-filter:blur(8px);transition:transform .18s,background .18s}.hero-link:hover{transform:translateY(-1px);background:rgba(13,35,51,.72)}.hero-link.primary{border-color:#e9b65f;background:#e9b65f;color:#102a43}.hero-link.primary:hover{background:#f3c875}.hero-link[aria-disabled="true"]{opacity:.72;cursor:default}
+    .hero{position:relative;display:flex;flex-direction:column;align-items:stretch;justify-content:space-between;gap:34px;min-height:390px;padding:24px clamp(24px,5vw,58px) 42px;color:#fff;background-image:linear-gradient(90deg,rgba(5,20,34,.90) 0%,rgba(7,25,39,.74) 34%,rgba(10,34,48,.24) 72%,rgba(10,34,48,.12) 100%),linear-gradient(0deg,rgba(7,24,39,.25),transparent 52%),url("/assets/hero.jpg");background-color:#102a43;background-size:cover;background-position:center 58%;background-repeat:no-repeat}.hero-top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,.22)}.hero-brand{display:flex;align-items:center;gap:10px;color:#fff;font-size:13px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}.hero-brand-mark{display:grid;width:38px;height:38px;place-items:center;border:1px solid rgba(233,182,95,.7);border-radius:50%;color:#f1c878;font-size:21px}.hero-brand small{display:block;margin-top:3px;color:rgba(255,255,255,.7);font-size:9px;font-weight:600;letter-spacing:.22em}.hero-copy{max-width:700px;padding:0 0 3px}.hero .eyebrow{margin:0 0 13px;color:#f1c878;font-size:11px;font-weight:800;letter-spacing:.22em;text-transform:uppercase}.hero h1{margin:0 0 14px;font:600 clamp(38px,5.4vw,64px)/1.04 Georgia,"Times New Roman",serif;letter-spacing:-.04em;text-wrap:balance}.hero p{max-width:560px;margin:0;color:rgba(245,248,252,.9);font-size:15px;line-height:1.7}.hero-actions{display:flex;flex-wrap:wrap;gap:11px;margin-top:24px}.hero-link{display:inline-flex;min-height:48px;align-items:center;justify-content:center;gap:10px;padding:12px 19px;border:1px solid rgba(255,255,255,.8);border-radius:12px;background:rgba(13,35,51,.42);color:#fff;font-size:13px;font-weight:750;text-decoration:none;backdrop-filter:blur(8px);transition:transform .18s,background .18s}.hero-link:hover{transform:translateY(-1px);background:rgba(13,35,51,.72)}.hero-link.primary{border-color:#e9b65f;background:#e9b65f;color:#102a43}.hero-link.primary:hover{background:#f3c875}.hero-link[aria-disabled="true"]{opacity:.72;cursor:default}
     .hero-copy{max-width:700px}.eyebrow{margin:0 0 11px;color:#f1c878;font-size:10px;font-weight:800;letter-spacing:.19em;text-transform:uppercase}
     h1,h2,h3,p{margin-top:0}.hero h1{margin:0 0 10px;font:600 clamp(34px,5vw,54px)/1.07 Georgia,"Times New Roman",serif;letter-spacing:-.035em}
     .hero p{max-width:600px;margin:0;color:rgba(245,248,252,.85);font-size:14px;line-height:1.65}
     .stay-badge{flex:none;padding:9px 14px;border:1px solid rgba(198,234,211,.38);border-radius:999px;background:rgba(22,115,75,.23);color:#e1f5e8;font-size:12px;font-weight:700;backdrop-filter:blur(8px)}
     .content{padding:26px clamp(18px,4vw,44px) 0}
     .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 18px}
+    .journey{display:flex;align-items:center;gap:0;margin:0 0 18px;padding:18px 20px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(145deg,#fff,#fafbfd);box-shadow:0 5px 18px rgba(23,43,69,.035)}
+    .journey-point{display:flex;align-items:center;gap:12px;min-width:0}
+    .journey-dot{flex:none;width:14px;height:14px;border:3px solid #e9b65f;border-radius:50%;background:#102a43}
+    .journey-point.is-done .journey-dot{background:#16734b}
+    .journey-label{display:block;color:var(--muted);font-size:9px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}
+    .journey-value{display:block;color:var(--ink);font-size:14px;font-weight:750;white-space:nowrap}
+    .journey-line{flex:1;display:flex;align-items:center;gap:10px;min-width:90px;margin:0 16px}
+    .journey-line::before,.journey-line::after{content:"";flex:1;height:2px;background:linear-gradient(90deg,#e9b65f,#f1c878)}
+    .journey-nights{flex:none;padding:5px 11px;border-radius:999px;background:#fdf6e7;color:#8a6a1f;font-size:11px;font-weight:800;white-space:nowrap}
+    @media(max-width:640px){.journey{flex-wrap:wrap}.journey-point{flex:1 1 100%}.journey-line{flex:1 1 100%;margin:14px 0 0 26px}}
     .stat,.card{min-width:0;border:1px solid var(--line);border-radius:15px;background:linear-gradient(145deg,#fff,#fafbfd);box-shadow:0 5px 18px rgba(23,43,69,.035)}
     .stat{padding:17px 19px}.stat-label{color:var(--muted);font-size:9px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}
     .stat-value{margin:8px 0 3px;color:var(--ink);font-size:23px;font-weight:800;letter-spacing:-.035em;overflow-wrap:anywhere}
@@ -1085,7 +1095,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     /* Guest portal refinement: preserve the established navy-and-gold identity. */
     :root{--portal-radius:18px}
     .shell{border-color:#e1e7ee;box-shadow:0 22px 60px rgba(16,42,67,.10)}
-    .hero{background-image:linear-gradient(105deg,#0a1c2f 0%,#102a43 58%,#173b5c 100%)}
+    .hero{background-image:linear-gradient(90deg,rgba(5,20,34,.90) 0%,rgba(7,25,39,.74) 34%,rgba(10,34,48,.24) 72%,rgba(10,34,48,.12) 100%),linear-gradient(0deg,rgba(7,24,39,.25),transparent 52%),url("/assets/hero.jpg")}
     .stat,.action-card,.card,.menu-item{transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
     .stat:hover,.menu-item:hover{border-color:#d4dee8;box-shadow:0 9px 24px rgba(23,43,69,.07)}
     .action-card{min-height:170px;border-radius:var(--portal-radius);padding:18px}
@@ -1183,6 +1193,28 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
       <?php if ($notice === 'service'): ?><div class="notice" role="status">Your request has been sent to the hotel team.</div><?php endif; ?>
       <?php if ($notice === 'order'): ?><div class="notice" role="status">Your room-service order has been submitted to the restaurant.</div><?php endif; ?>
       <?php if ($pageError !== ''): ?><div class="notice error" role="alert"><?=portal_escape($pageError)?></div><?php endif; ?>
+
+      <?php
+        $journeyCheckinAt = (string)($stay['checkin_at'] ?? '');
+        $journeyCheckoutRaw = (string)(($stay['actual_checkout'] ?? '') !== '' ? $stay['actual_checkout'] : ($stay['planned_checkout'] ?? ''));
+        $journeyCheckedOut = ($stay['actual_checkout'] ?? '') !== '';
+        $journeyNights = null;
+        if ($journeyCheckinAt !== '' && $journeyCheckoutRaw !== '') {
+          $journeyNights = max(0, (int)(new DateTimeImmutable(date('Y-m-d', strtotime($journeyCheckinAt))))->diff(new DateTimeImmutable(date('Y-m-d', strtotime($journeyCheckoutRaw))))->format('%a'));
+        }
+        $journeyCheckoutLabel = '';
+        if ($journeyCheckoutRaw !== '') {
+          $journeyCheckoutLabel = date('M j, Y', strtotime($journeyCheckoutRaw));
+          $journeyCheckoutLabel .= ($journeyCheckedOut || date('H:i:s', strtotime($journeyCheckoutRaw)) !== '00:00:00') ? ' · ' . date('g:i A', strtotime($journeyCheckoutRaw)) : ' · 12:00 PM';
+        }
+      ?>
+      <?php if ($journeyCheckinAt !== '' && $journeyCheckoutRaw !== ''): ?>
+      <section class="journey" aria-label="Stay dates">
+        <div class="journey-point"><span class="journey-dot" aria-hidden="true"></span><div><span class="journey-label">Check-in</span><strong class="journey-value"><?=portal_escape(date('M j, Y · g:i A', strtotime($journeyCheckinAt)))?></strong></div></div>
+        <div class="journey-line" aria-hidden="true"><span class="journey-nights"><?=$journeyNights === 1 ? '1 night' : $journeyNights . ' nights'?></span></div>
+        <div class="journey-point<?= $journeyCheckedOut ? ' is-done' : '' ?>"><span class="journey-dot" aria-hidden="true"></span><div><span class="journey-label"><?= $journeyCheckedOut ? 'Checked out' : 'Check-out' ?></span><strong class="journey-value"><?=portal_escape($journeyCheckoutLabel)?></strong></div></div>
+      </section>
+      <?php endif; ?>
 
       <section class="stats" aria-label="Stay summary">
         <article class="stat"><div class="stat-label">Your room</div><div class="stat-value"><?=portal_escape($stay['room_number'])?></div><p class="stat-note">Assigned room</p></article>
