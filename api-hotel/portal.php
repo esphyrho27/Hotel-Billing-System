@@ -58,6 +58,53 @@ function portal_broadcast(string $event, array $data, ?string $department, ?stri
     }
 }
 
+// Guest-facing menu artwork, shared by the menu grid and the live order feed so
+// the two can never drift apart. Patterns are matched against the item name in
+// order; returns the /assets-relative path or null when nothing matches.
+$portalMenuPhotoRules = [
+    '/chicken wings?|wings/i' => '/assets/menu/chicken-wings.png',
+    '/french fries?|fries/i' => '/assets/menu/french-fries.png',
+    '/kare.?kare/i' => '/assets/menu/beef-kare-kare.png',
+    '/cappuccino|espresso|brewed coffee|americano/i' => '/assets/menu/cappuccino.png',
+    '/caesar|salad/i' => '/assets/menu/chicken-caesar-salad.png',
+    '/club sandwich|sandwich/i' => '/assets/menu/club-sandwich.png',
+    '/salmon|grilled fish/i' => '/assets/menu/grilled-salmon.png',
+    '/iced latte|cafe latte|latte/i' => '/assets/menu/iced-latte.png',
+    '/mango shake|mango smoothie|shake/i' => '/assets/menu/mango-shake.png',
+    '/spaghetti|carbonara|pasta/i' => '/assets/menu/spaghetti-carbonara.png',
+    '/nachos|nacho/i' => '/assets/menu/nachos.png',
+    '/chocolate cake|choco cake|chocolate dessert/i' => '/assets/menu/chocolate-cake.png',
+    '/garlic bread/i' => '/assets/menu/garlic-bread.png',
+    '/lumpia shanghai|lumpia/i' => '/assets/menu/lumpia-shanghai.png',
+    '/halo-halo/i' => '/assets/menu/halo-halo.png',
+    '/ice cream|gelato/i' => '/assets/menu/ice-cream.png',
+    '/leche flan|flan/i' => '/assets/menu/leche-flan.png',
+    '/beef steak|steak/i' => '/assets/menu/beef-steak.png',
+    '/adobo/i' => '/assets/menu/chicken-adobo.png',
+    '/chicken inasal|inasal/i' => '/assets/menu/chicken-inasal.png',
+    '/grilled bangus|bangus/i' => '/assets/menu/grilled-bangus.png',
+    '/pork sinigang|sinigang/i' => '/assets/menu/pork-sinigang.png',
+    '/bottled water|mineral water/i' => '/assets/menu/bottled-water.png',
+    '/fresh orange juice|orange juice/i' => '/assets/menu/fresh-orange-juice.png',
+    '/ice coffee|iced coffee/i' => '/assets/menu/iced-coffee.png',
+    '/iced tea|ice tea/i' => '/assets/menu/iced-tea.png',
+    '/freshly brewed coffee|coffee|cafe/i' => '/assets/menu/brewed-coffeee.png',
+    '/hot chocolate|chocolate drink/i' => '/assets/menu/hot-chocolate.png',
+    '/hot tea|tea/i' => '/assets/menu/hot-tea.png',
+    '/tanduay/i' => '/assets/menu/tanduay.png',
+    '/Redhorse|beer/i' => '/assets/menu/redhorse.png',
+];
+
+function portal_menu_photo_match(string $itemName): ?string {
+    global $portalMenuPhotoRules;
+    foreach ($portalMenuPhotoRules as $pattern => $imagePath) {
+        if (preg_match($pattern, $itemName)) {
+            return $imagePath;
+        }
+    }
+    return null;
+}
+
 $token = trim((string)($_GET['t'] ?? $_POST['t'] ?? ''));
 $stay = null;
 $folio = null;
@@ -159,7 +206,7 @@ try {
                 $orderIds = array_values(array_map(static fn(array $order): int => (int)$order['id'], $liveOrders));
                 $orderPlaceholders = implode(',', array_fill(0, count($orderIds), '?'));
                 $liveItemsQuery = $pdo->prepare(
-                    "SELECT order_id, item_name, quantity
+                    "SELECT order_id, item_id, item_name, quantity
                      FROM restaurant_order_items
                      WHERE order_id IN ($orderPlaceholders)
                      ORDER BY order_id, item_name"
@@ -169,6 +216,7 @@ try {
                 foreach ($liveItemsQuery->fetchAll() as $item) {
                     $orderId = (int)$item['order_id'];
                     $itemsByOrder[$orderId][] = [
+                        'item_id' => (int)$item['item_id'],
                         'name' => (string)$item['item_name'],
                         'quantity' => (int)$item['quantity'],
                     ];
@@ -177,10 +225,52 @@ try {
                     $liveOrder['items'] = $itemsByOrder[(int)$liveOrder['id']] ?? [];
                 }
                 unset($liveOrder);
+                // Status-dialog photo: the resolved artwork of the order's first item,
+                // using the same shared name rules as the menu grid. When no pattern
+                // matches, fall back to the drink/food artwork only when the item's
+                // menu type can be determined; otherwise leave it empty and the
+                // dialog keeps its generic icon.
+                $liveFirstItemIds = [];
+                foreach ($liveOrders as $liveOrder) {
+                    $liveFirstItem = $liveOrder['items'][0] ?? null;
+                    if ($liveFirstItem && !empty($liveFirstItem['item_id'])) {
+                        $liveFirstItemIds[] = (int)$liveFirstItem['item_id'];
+                    }
+                }
+                $liveMenuTypes = [];
+                if ($liveFirstItemIds) {
+                    $liveMenuTypePlaceholders = implode(',', array_fill(0, count($liveFirstItemIds), '?'));
+                    $liveMenuTypeQuery = $pdo->prepare(
+                        "SELECT m.id, c.menu_type FROM menu_items m
+                         JOIN menu_categories c ON c.id = m.category_id
+                         WHERE m.id IN ($liveMenuTypePlaceholders)"
+                    );
+                    $liveMenuTypeQuery->execute($liveFirstItemIds);
+                    foreach ($liveMenuTypeQuery->fetchAll() as $liveMenuTypeRow) {
+                        $liveMenuTypes[(int)$liveMenuTypeRow['id']] = (string)$liveMenuTypeRow['menu_type'];
+                    }
+                }
+                foreach ($liveOrders as &$liveOrder) {
+                    $liveOrder['photo'] = '';
+                    $liveFirstItem = $liveOrder['items'][0] ?? null;
+                    if ($liveFirstItem) {
+                        $liveMatchedPhoto = portal_menu_photo_match((string)$liveFirstItem['name']);
+                        if ($liveMatchedPhoto !== null) {
+                            $liveOrder['photo'] = $publicAssetUrlPrefix . substr($liveMatchedPhoto, strlen('/assets'));
+                        } elseif (isset($liveFirstItem['item_id']) && isset($liveMenuTypes[(int)$liveFirstItem['item_id']])) {
+                            $liveMenuType = strtolower($liveMenuTypes[(int)$liveFirstItem['item_id']]);
+                            $liveFallbackPhoto = str_contains($liveMenuType, 'drink')
+                                ? '/assets/menu/menu-drink.svg'
+                                : '/assets/menu/menu-food.svg';
+                            $liveOrder['photo'] = $publicAssetUrlPrefix . substr($liveFallbackPhoto, strlen('/assets'));
+                        }
+                    }
+                }
+                unset($liveOrder);
             }
             $liveRequestsQuery = $pdo->prepare(
                 'SELECT sr.request_code, sr.status, sr.description, sr.chargeable, sr.price, sr.created_at,
-                        sr.request_kind, rr.room_number AS requested_room_number
+                        sr.request_kind, sr.service_type, sr.assigned_department, rr.room_number AS requested_room_number
                  FROM service_requests sr
                  LEFT JOIN rooms rr ON rr.id=sr.requested_room_id
                  WHERE sr.stay_id = ? ORDER BY sr.created_at DESC LIMIT 30'
@@ -855,54 +945,10 @@ try {
         $menuItems = $menuQuery->fetchAll();
 
         // Keep guest-facing menu artwork in public/assets/menu (never api-hotel/assets).
-        // Prefer an image explicitly configured in Restaurant Menu; otherwise match the
-        // menu item's name to a bundled public image so cards display immediately.
-        $menuPhotoRules = [
-            '/chicken wings?|wings/i' => '/assets/menu/chicken-wings.png',
-            '/french fries?|fries/i' => '/assets/menu/french-fries.png',
-            '/kare.?kare/i' => '/assets/menu/beef-kare-kare.png',
-            '/cappuccino|espresso|brewed coffee|americano/i' => '/assets/menu/cappuccino.png',
-            '/caesar|salad/i' => '/assets/menu/chicken-caesar-salad.png',
-            '/club sandwich|sandwich/i' => '/assets/menu/club-sandwich.png',
-            '/salmon|grilled fish/i' => '/assets/menu/grilled-salmon.png',
-            '/iced latte|cafe latte|latte/i' => '/assets/menu/iced-latte.png',
-            '/mango shake|mango smoothie|shake/i' => '/assets/menu/mango-shake.png',
-            '/spaghetti|carbonara|pasta/i' => '/assets/menu/spaghetti-carbonara.png',
-            '/nachos|nacho/i' => '/assets/menu/nachos.png',
-            '/chocolate cake|choco cake|chocolate dessert/i' => '/assets/menu/chocolate-cake.png',
-            '/garlic bread/i' => '/assets/menu/garlic-bread.png',
-            '/lumpia shanghai|lumpia/i' => '/assets/menu/lumpia-shanghai.png',
-            '/halo-halo/i' => '/assets/menu/halo-halo.png',
-            '/ice cream|gelato/i' => '/assets/menu/ice-cream.png',
-            '/leche flan|flan/i' => '/assets/menu/leche-flan.png',
-            '/beef steak|steak/i' => '/assets/menu/beef-steak.png',
-            '/adobo/i' => '/assets/menu/chicken-adobo.png',
-            '/chicken inasal|inasal/i' => '/assets/menu/chicken-inasal.png',
-            '/grilled bangus|bangus/i' => '/assets/menu/grilled-bangus.png',
-            '/pork sinigang|sinigang/i' => '/assets/menu/pork-sinigang.png',
-            '/bottled water|mineral water/i' => '/assets/menu/bottled-water.png',
-            '/fresh orange juice|orange juice/i' => '/assets/menu/fresh-orange-juice.png',
-            '/ice coffee|iced coffee/i' => '/assets/menu/iced-coffee.png',
-            '/iced tea|ice tea/i' => '/assets/menu/iced-tea.png',
-            '/mango shake|mango smoothie/i' => '/assets/menu/mango-shake.png',
-            '/freshly brewed coffee|coffee|cafe/i' => '/assets/menu/brewed-coffeee.png',
-            '/hot chocolate|chocolate drink/i' => '/assets/menu/hot-chocolate.png',
-            '/hot tea|tea/i' => '/assets/menu/hot-tea.png',
-            '/tanduay/i' => '/assets/menu/tanduay.png',
-            '/Redhorse|beer/i' => '/assets/menu/redhorse.png',
-
-        ];
+        // Artwork resolves from the item name via the shared rules above, so stale/broken
+        // database paths cannot keep the guest portal stuck on its placeholder.
         foreach ($menuItems as &$menuItem) {
-            // Resolve menu artwork from the item name so stale/broken database paths
-            // cannot keep the guest portal stuck on its placeholder.
-            $menuName = (string)($menuItem['item_name'] ?? '');
-            $matchedImage = null;
-            foreach ($menuPhotoRules as $pattern => $imagePath) {
-                if (preg_match($pattern, $menuName)) {
-                    $matchedImage = $imagePath;
-                    break;
-                }
-            }
+            $matchedImage = portal_menu_photo_match((string)($menuItem['item_name'] ?? ''));
             if ($matchedImage !== null) {
                 $menuItem['image_path'] = $matchedImage;
             } else {
@@ -1222,7 +1268,8 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     .live-stay-close{color:#fff!important;align-self:flex-start;margin-left:0}
     .live-stay-content{padding:16px}
     .live-stay-item{display:flex;align-items:center;gap:13px}
-    .live-stay-food-icon{display:grid;place-items:center;flex:0 0 100px;height:100px;border-radius:13px;background:linear-gradient(145deg,#fff1d5,#f2e2c4);font-size:43px}
+    .live-stay-food-icon{display:grid;place-items:center;flex:0 0 100px;height:100px;border-radius:13px;background:linear-gradient(145deg,#fff1d5,#f2e2c4);font-size:43px;overflow:hidden}
+    .live-stay-food-icon img{width:100%;height:100%;object-fit:cover;border-radius:13px}
     .live-stay-item-copy{min-width:0;display:flex;align-items:flex-start;flex-direction:column;gap:5px}
     .live-stay-item-copy>strong{font-size:16px;line-height:1.4;overflow-wrap:anywhere}
     .live-stay-item-copy p{margin:0;color:#646b73;font-size:13px;overflow-wrap:anywhere}
@@ -2064,6 +2111,9 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
       const alertQuantity = document.getElementById("live-order-alert-quantity");
       const alertStatus = document.getElementById("live-order-alert-status");
       const alertEstimate = document.getElementById("live-order-alert-estimate");
+      const alertIcon = alertDialog?.querySelector(".live-stay-food-icon");
+      const alertEstimateSection = alertDialog?.querySelector(".live-stay-estimate");
+      const alertProgressSection = alertDialog?.querySelector(".live-stay-progress");
       const toast = document.getElementById("live-update-toast");
       const toastTitle = document.getElementById("live-update-toast-title");
       const toastMessage = document.getElementById("live-update-toast-message");
@@ -2357,15 +2407,54 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         }
         return { title: "Your order status changed", message: names + " (" + code + ") is now " + friendlyStatus(status) + "." };
       };
+      // Status-dialog artwork: food orders show the first item's photo, service
+      // requests show one icon per service type. The dialog is reused across
+      // alerts, so every render resets the icon box and section visibility
+      // first — otherwise a previous alert's photo or icon leaks into the next.
+      const serviceIconFor = (serviceType, department, requestKind) => {
+        const type = String(serviceType || "").toUpperCase();
+        const dept = String(department || "").toUpperCase();
+        const kind = String(requestKind || "").toUpperCase();
+        if (type === "MAINTENANCE" || dept === "MAINTENANCE") return "🔧";
+        if (type === "LAUNDRY" || dept === "LAUNDRY") return "🧺";
+        if (type === "HOUSEKEEPING" || dept === "HOUSEKEEPING") return "🧹";
+        if (type === "VALET" || dept === "VALET") return "🚗";
+        if (type === "FRONT_DESK" || dept === "FRONT_DESK") return "🛎";
+        if (type === "ROOM_TRANSFER" || kind === "ROOM_TRANSFER") return "🔑";
+        return "✦";
+      };
+      const setAlertPhoto = (photo) => {
+        if (!(alertIcon instanceof HTMLElement)) return;
+        alertIcon.textContent = "";
+        const img = document.createElement("img");
+        img.src = String(photo);
+        img.alt = "";
+        img.addEventListener("error", () => { if (alertIcon instanceof HTMLElement) alertIcon.textContent = "🍽"; }, { once: true });
+        alertIcon.append(img);
+      };
       const showNextStatusAlert = () => {
         if (alertShowing || pendingAlerts.length === 0) return;
         if (!(alertDialog instanceof HTMLDialogElement) || !(alertTitle instanceof HTMLElement) || !(alertMessage instanceof HTMLElement)) return;
         const next = pendingAlerts.shift();
+        // Full reset first: clear any previous photo/icon and restore the
+        // food-order sections before applying this alert's own visuals.
+        if (alertIcon instanceof HTMLElement) alertIcon.textContent = "🍽";
+        const isServiceAlert = next.kind === "request";
+        if (alertEstimateSection instanceof HTMLElement) alertEstimateSection.style.display = isServiceAlert ? "none" : "";
+        if (alertProgressSection instanceof HTMLElement) alertProgressSection.style.display = isServiceAlert ? "none" : "";
         alertTitle.textContent = next.title;
         alertMessage.textContent = next.message;
-        if (alertItems) alertItems.textContent = next.items || "Your room-service order";
-        if (alertCode) alertCode.textContent = next.code ? "Order #" + next.code : "Room-service order";
-        if (alertQuantity) alertQuantity.textContent = next.quantity || "";
+        if (isServiceAlert) {
+          if (alertIcon instanceof HTMLElement) alertIcon.textContent = serviceIconFor(next.service_type, next.assigned_department, next.request_kind);
+          if (alertItems) alertItems.textContent = next.items || "Service request";
+          if (alertCode) alertCode.textContent = next.code ? "Request " + next.code : "Service request";
+          if (alertQuantity) alertQuantity.textContent = next.quantity || "";
+        } else {
+          if (next.photo) setAlertPhoto(next.photo);
+          if (alertItems) alertItems.textContent = next.items || "Your room-service order";
+          if (alertCode) alertCode.textContent = next.code ? "Order #" + next.code : "Room-service order";
+          if (alertQuantity) alertQuantity.textContent = next.quantity || "";
+        }
         if (alertStatus) alertStatus.textContent = next.status || "Updated";
         if (alertEstimate) alertEstimate.textContent = next.estimate || "We'll update you when we have an estimate.";
         const currentIndex = ["confirmed","preparing","ready"].indexOf(next.progress || "confirmed");
@@ -2492,7 +2581,8 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
                 quantity: "",
                 status: friendlyStatus(status),
                 estimate: estimateText,
-                progress
+                progress,
+                photo: String(order.photo || "")
               });
             }
             seenOrderStatuses.set(key, status);
@@ -2534,7 +2624,16 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
                 ? "Your service request is complete"
                 : (["rejected", "cancelled", "canceled"].includes(lower) ? "Service request update" : "Service request in progress");
               const details = description ? ' ("' + description + '")' : "";
-              queueStatusAlert(title, "Request " + key + details + " is now " + statusLabel + ".");
+              queueStatusAlert(title, "Request " + key + details + " is now " + statusLabel + ".", {
+                kind: "request",
+                items: description || "Service request",
+                code: key,
+                quantity: "",
+                status: statusLabel,
+                service_type: String(request.service_type || ""),
+                assigned_department: String(request.assigned_department || ""),
+                request_kind: String(request.request_kind || "")
+              });
             }
             seenRequestStatuses.set(key, status);
           });
@@ -2595,3 +2694,4 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
 <?php endif; ?>
 </body>
 </html>
+
