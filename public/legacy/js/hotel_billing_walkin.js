@@ -4399,7 +4399,9 @@ async function confirmCheckinPayment(cpId) {
   }
   function chatMessageHtml(m) {
     const isStaff = String(m.sender_type || '').toUpperCase() === 'STAFF';
-    return `<div class="d-flex mb-2 ${isStaff ? 'justify-content-end' : 'justify-content-start'}"><div class="p-2 rounded" style="max-width:85%;background:${isStaff ? '#e9eef5' : '#fdf3d7'}"><div class="small text-muted">${esc(isStaff ? 'Front desk' : (m.sender_name || 'Guest'))} · ${esc(m.created_at || '')}</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(m.body || '')}</div></div></div>`;
+    const meta = `<div class="small text-muted mb-1 ${isStaff ? 'text-end' : ''}">${esc(isStaff ? 'Front desk' : (m.sender_name || 'Guest'))} · ${esc(m.created_at || '')}</div>`;
+    const bubble = `<div class="p-2 px-3" style="max-width:75%;border-radius:18px;overflow-wrap:anywhere;${isStaff ? 'background:#17344e;color:#fff' : 'background:#e9ecef;color:#17344e'}"><div style="white-space:pre-wrap">${esc(m.body || '')}</div></div>`;
+    return `<div class="d-flex flex-column mb-2 ${isStaff ? 'align-items-end' : 'align-items-start'}">${meta}${bubble}</div>`;
   }
   async function renderChatList() {
     const host = $('guest-chats-content'); if (!host) return;
@@ -4423,15 +4425,17 @@ async function confirmCheckinPayment(cpId) {
       const stay = data.stay || {};
       const messages = data.messages || [];
       chatThreadSeenIds = new Set(messages.map(m => String(m.id)));
-      threadEl.innerHTML = `<div class="card border-0 shadow-sm mt-3"><div class="card-body"><h6 class="fw-bold">Room ${esc(stay.room_number)} · ${esc(stay.stay_code)}</h6><div id="guest-chat-thread-messages">${messages.length ? messages.map(chatMessageHtml).join('') : '<div class="text-muted">No messages yet.</div>'}</div><form id="guest-chat-reply-form" class="mt-3"><div class="mb-2"><textarea class="form-control" name="body" rows="3" maxlength="1000" placeholder="Write a reply…" required></textarea></div><button class="btn btn-primary btn-sm" type="submit">Send reply</button></form></div></div>`;
+      threadEl.innerHTML = `<div class="card border-0 shadow-sm mt-3"><div class="card-body"><h6 class="fw-bold">Room ${esc(stay.room_number)} · ${esc(stay.stay_code)}</h6><div id="guest-chat-thread-messages" style="max-height:420px;overflow-y:auto;padding:2px">${messages.length ? messages.map(chatMessageHtml).join('') : '<div class="text-muted">No messages yet.</div>'}</div><form id="guest-chat-reply-form" class="mt-3"><div class="mb-2"><textarea class="form-control" name="body" rows="3" maxlength="1000" placeholder="Write a reply…" required></textarea></div><button class="btn btn-primary btn-sm" type="submit">Send reply</button></form></div></div>`;
       const form = threadEl.querySelector('#guest-chat-reply-form');
       form.onsubmit = async e => { e.preventDefault(); const body = new FormData(form).get('body').toString().trim(); if (!body) return; try { await api('chat_send', {stay_id: stayId, body}); form.reset(); notify('Message sent to the guest.'); await openChatThread(stayId); await renderChatList(); await refreshChatBadge(); } catch (err) { notify(err.message, true); } };
       await refreshChatBadge();
+      const threadBox = threadEl.querySelector('#guest-chat-thread-messages');
+      if (threadBox) threadBox.scrollTop = threadBox.scrollHeight;
     } catch (e) { threadEl.innerHTML = `<div class="alert alert-danger">${esc(e.message)}</div>`; }
   }
   async function renderGuestChats() {
     const host = $('guest-chats-content'); if (!host) return;
-    host.innerHTML = `<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3"><div><h3 class="h4 fw-bold mb-1">Guest Chats</h3><p class="text-muted mb-0">Text chats from guests to the front desk. Opening a chat marks the guest's messages read.</p></div><div class="d-flex gap-2"><button type="button" class="btn btn-outline-secondary btn-sm" id="guest-chats-sound-toggle" title="Mute chat sound">🔔</button><button type="button" class="btn btn-outline-secondary btn-sm" id="guest-chats-refresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button></div></div><div id="guest-chat-list"></div><div id="guest-chat-thread"></div>`;
+    host.innerHTML = `<div class="d-flex justify-content-end gap-2 mb-3"><button type="button" class="btn btn-outline-secondary btn-sm" id="guest-chats-sound-toggle" title="Mute chat sound">🔔</button><button type="button" class="btn btn-outline-secondary btn-sm" id="guest-chats-refresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button></div><div id="guest-chat-list"></div><div id="guest-chat-thread"></div>`;
     host.querySelector('#guest-chats-refresh').addEventListener('click', async () => { await renderChatList(); if (chatOpenStayId) await openChatThread(chatOpenStayId); });
     const chatSoundBtn = host.querySelector('#guest-chats-sound-toggle');
     const syncChatSoundBtn = () => { if (chatSoundBtn) { const m = window.HotelChatSound?.muted?.() === true; chatSoundBtn.textContent = m ? '🔕' : '🔔'; chatSoundBtn.title = m ? 'Unmute chat sound' : 'Mute chat sound'; } };
@@ -4447,7 +4451,12 @@ async function confirmCheckinPayment(cpId) {
           const data = await api('chat_messages', {stay_id: chatOpenStayId}, 'GET');
           (data.messages || []).forEach(m => { const key = String(m.id); if (String(m.sender_type || '').toUpperCase() === 'GUEST' && !chatThreadSeenIds.has(key)) { chatThreadSeenIds.add(key); window.HotelChatSound?.play(m.id); } });
           const box = document.querySelector('#guest-chat-thread-messages');
-          if (box) box.innerHTML = (data.messages || []).length ? data.messages.map(chatMessageHtml).join('') : '<div class="text-muted">No messages yet.</div>';
+          if (box) {
+            const nearBottom = (box.scrollHeight - box.scrollTop - box.clientHeight) < 120;
+            const prevTop = box.scrollTop;
+            box.innerHTML = (data.messages || []).length ? data.messages.map(chatMessageHtml).join('') : '<div class="text-muted">No messages yet.</div>';
+            box.scrollTop = nearBottom ? box.scrollHeight : prevTop;
+          }
         } catch (_) {}
       }
     }, 30000);
