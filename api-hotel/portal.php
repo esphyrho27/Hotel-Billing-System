@@ -299,7 +299,7 @@ try {
             ];
             $liveCheckinPayment = null;
             if ($liveFolioId > 0) {
-                $liveChargeQuery = $pdo->prepare('SELECT description, quantity, amount, created_at FROM charges WHERE folio_id=? ORDER BY created_at DESC, id DESC');
+                $liveChargeQuery = $pdo->prepare('SELECT description, quantity, amount, category, created_at FROM charges WHERE folio_id=? ORDER BY created_at DESC, id DESC');
                 $liveChargeQuery->execute([$liveFolioId]);
                 $liveBilling['charges'] = $liveChargeQuery->fetchAll();
                 $liveDiscountQuery = $pdo->prepare("SELECT name, category, discount_type, discount_value, amount, created_at FROM applied_discounts WHERE folio_id=? AND status IN ('APPLIED','APPROVED') ORDER BY created_at DESC, id DESC");
@@ -895,7 +895,7 @@ try {
         $folio = $folioQuery->fetch() ?: null;
 
         if ($folio) {
-            $chargeQuery = $pdo->prepare('SELECT description, quantity, amount, created_at FROM charges WHERE folio_id = ? ORDER BY created_at DESC, id DESC');
+            $chargeQuery = $pdo->prepare('SELECT description, quantity, amount, category, created_at FROM charges WHERE folio_id = ? ORDER BY created_at DESC, id DESC');
             $chargeQuery->execute([(int)$folio['id']]);
             $charges = $chargeQuery->fetchAll();
             $paymentQuery = $pdo->prepare('SELECT amount, method AS payment_method, receipt_number, created_at FROM payments WHERE folio_id = ? ORDER BY created_at DESC, id DESC');
@@ -914,6 +914,16 @@ try {
             $finalTotal = $tax['total_amount_cents'] / 100;
             $balance = max(0, round($finalTotal - $totalPayments, 2));
             $creditBalance = max(0, round($totalPayments - $finalTotal, 2));
+            $discountMetricLabel = 'Less: Discounts';
+            if (count($discounts) === 1) {
+                $onlyDiscount = $discounts[0];
+                $onlyDiscountName = (string)($onlyDiscount['name'] ?: $onlyDiscount['category'] ?: 'Discount');
+                if (strtoupper((string)$onlyDiscount['discount_type']) === 'PERCENT' && !preg_match('/\d+(?:\.\d+)?\s*%/', $onlyDiscountName)) {
+                    $onlyDiscountName .= ' ' . rtrim(rtrim(number_format((float)($onlyDiscount['discount_value'] ?? 0), 2, '.', ''), '0'), '.') . '%';
+                }
+                $discountMetricLabel = 'Less: Discount (' . $onlyDiscountName . ')';
+            }
+            $vatMetricLabel = 'VAT (' . rtrim(rtrim(number_format(htl_vat_rate_percent($pdo), 2, '.', ''), '0'), '.') . '%)';
         }
 
         $serviceQuery = $pdo->query(
@@ -1696,28 +1706,29 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         <div class="folio-intro"><p class="record-meta" style="margin:0">Room <?=portal_escape($stay['room_number'] ?? '')?> · Your account summary</p></div>
         <section class="folio-summary" aria-label="Account totals">
           <div class="folio-metric balance-due"><span class="folio-metric-label">Outstanding balance</span><strong class="folio-metric-value" data-live-total="balance">₱<?=number_format($balance, 2)?></strong><span class="folio-settled-note <?= $balance > 0 ? 'is-due' : '' ?>" data-live-balance-note><?= $balance > 0 ? '● Balance remaining on your account' : '✓ Your posted account balance is settled' ?></span></div>
-          <div class="folio-metric"><span class="folio-metric-label">Total charges (VAT-inclusive)</span><strong class="folio-metric-value" data-live-total="charges">₱<?=number_format($totalCharges, 2)?></strong></div>
-          <div class="folio-metric"><span class="folio-metric-label">Discounts applied</span><strong class="folio-metric-value" data-live-total="discounts">− ₱<?=number_format($discountTotal, 2)?></strong></div>
-          <div class="folio-metric"><span class="folio-metric-label">VATable sales</span><strong class="folio-metric-value" data-live-total="vatable_sales">₱<?=number_format($vatableSales, 2)?></strong></div>
-          <div class="folio-metric"><span class="folio-metric-label">VAT</span><strong class="folio-metric-value" data-live-total="vat">₱<?=number_format($vatAmount, 2)?></strong></div>
-          <div class="folio-metric"><span class="folio-metric-label">VAT-exempt sales</span><strong class="folio-metric-value" data-live-total="vat_exempt_sales">₱<?=number_format($vatExemptSales, 2)?></strong></div>
-          <div class="folio-metric"><span class="folio-metric-label">Total amount due</span><strong class="folio-metric-value" data-live-total="total">₱<?=number_format($finalTotal, 2)?></strong></div>
-          <div class="folio-metric"><span class="folio-metric-label">Payments received</span><strong class="folio-metric-value" data-live-total="payments">₱<?=number_format($totalPayments, 2)?></strong></div>
-          <div class="folio-metric"><span class="folio-metric-label">Unrefunded credit</span><strong class="folio-metric-value" data-live-total="credit_balance">₱<?=number_format($creditBalance, 2)?></strong></div>
+          <div class="folio-metric"><span class="folio-metric-label">Total charges</span><strong class="folio-metric-value" data-live-total="charges">₱<?=number_format($totalCharges, 2)?></strong></div>
+          <div class="folio-metric"><span class="folio-metric-label"><?=portal_escape($discountMetricLabel)?></span><strong class="folio-metric-value" data-live-total="discounts">− ₱<?=number_format($discountTotal, 2)?></strong></div>
+          <div class="folio-metric"><span class="folio-metric-label">Charges before VAT</span><strong class="folio-metric-value" data-live-total="vatable_sales">₱<?=number_format($vatableSales, 2)?></strong></div>
+          <div class="folio-metric"><span class="folio-metric-label"><?=portal_escape($vatMetricLabel)?></span><strong class="folio-metric-value" data-live-total="vat">₱<?=number_format($vatAmount, 2)?></strong></div>
+          <div class="folio-metric"><span class="folio-metric-label">VAT-free charges</span><strong class="folio-metric-value" data-live-total="vat_exempt_sales">₱<?=number_format($vatExemptSales, 2)?></strong></div>
+          <div class="folio-metric"><span class="folio-metric-label">Total to pay</span><strong class="folio-metric-value" data-live-total="total">₱<?=number_format($finalTotal, 2)?></strong></div>
+          <div class="folio-metric"><span class="folio-metric-label">Payments made</span><strong class="folio-metric-value" data-live-total="payments">₱<?=number_format($totalPayments, 2)?></strong></div>
+          <div class="folio-metric"><span class="folio-metric-label">Extra payment to refund</span><strong class="folio-metric-value" data-live-total="credit_balance">₱<?=number_format($creditBalance, 2)?></strong></div>
         </section>
+        <p class="folio-settled-line" data-live-settled-line <?= ($balance <= 0 && $totalPayments > 0) ? '' : 'hidden' ?>>You paid ₱<?=number_format($totalPayments, 2)?>. Nothing left to pay.</p>
         <section class="folio-section">
-          <div class="folio-section-heading"><h3>Discounts applied</h3><span data-live-count="discounts"><?=count($discounts)?> entries</span></div>
+          <div class="folio-section-heading"><h3>Discounts</h3><span data-live-count="discounts"><?=count($discounts)?> entries</span></div>
           <div class="bill-list" data-live-list="discounts"><?php foreach ($discounts as $discount): $discountName = (string)($discount['name'] ?: $discount['category'] ?: 'Discount'); $discountRate = (float)($discount['discount_value'] ?? 0); if (strtoupper((string)$discount['discount_type']) === 'PERCENT' && !preg_match('/\d+(?:\.\d+)?\s*%/', $discountName)) { $discountName .= ' (' . rtrim(rtrim(number_format($discountRate, 2, '.', ''), '0'), '.') . '%)'; } ?><article class="record folio-record payment-record"><div class="record-top"><div><h3 class="record-title"><?=portal_escape($discountName)?></h3><p class="record-meta"><?=portal_escape($discount['category'] ?? 'Discount')?></p></div><span class="record-price">− ₱<?=number_format((float)$discount['amount'], 2)?></span></div></article><?php endforeach; ?></div>
         </section>
         <section class="folio-section">
           <div class="folio-section-heading"><h3>Posted charges</h3><span data-live-count="charges"><?=count($charges)?> entries</span></div>
-          <div class="bill-list" data-live-list="charges"><?php if (!$charges): ?><div class="activity-empty"><span class="activity-empty-icon" aria-hidden="true">▤</span><strong>No posted charges yet</strong><p>Charges will appear here once they have been posted to your stay.</p></div><?php endif; ?><?php foreach ($charges as $charge): ?><article class="record folio-record charge-record"><div class="record-top"><div><h3 class="record-title"><?=portal_escape($charge['description'])?></h3><p class="record-meta">Quantity <?=portal_escape($charge['quantity'])?> · <?=portal_escape(date('M j, Y · g:i A', strtotime($charge['created_at'])))?></p></div><span class="record-price">₱<?=number_format((float)$charge['amount'], 2)?></span></div></article><?php endforeach; ?></div>
+          <div class="bill-list" data-live-list="charges"><?php if (!$charges): ?><div class="activity-empty"><span class="activity-empty-icon" aria-hidden="true">▤</span><strong>No posted charges yet</strong><p>Charges will appear here once they have been posted to your stay.</p></div><?php endif; ?><?php foreach ($charges as $charge): $chargeTitle = (string)$charge['description']; if (str_starts_with($chargeTitle, 'Accommodation')) { $chargeNights = (int)$charge['quantity']; $chargeTitle = 'Room stay — ' . $chargeNights . ($chargeNights === 1 ? ' night' : ' nights'); } ?><article class="record folio-record charge-record"><div class="record-top"><div><h3 class="record-title"><?=portal_escape($chargeTitle)?></h3><p class="record-meta">Quantity <?=portal_escape($charge['quantity'])?> · <?=portal_escape(date('M j, Y · g:i A', strtotime($charge['created_at'])))?></p></div><span class="record-price">₱<?=number_format((float)$charge['amount'], 2)?></span></div></article><?php endforeach; ?></div>
         </section>
         <section class="folio-section">
-          <div class="folio-section-heading"><h3>Payments received</h3><span data-live-count="payments"><?=count($payments)?> entries</span></div>
+          <div class="folio-section-heading"><h3>Payments made</h3><span data-live-count="payments"><?=count($payments)?> entries</span></div>
           <div class="bill-list" data-live-list="payments"><?php if (!$payments): ?><div class="activity-empty"><span class="activity-empty-icon" aria-hidden="true">✓</span><strong>No payments recorded yet</strong><p>Payments will be listed here once recorded by the hotel.</p></div><?php endif; ?><?php foreach ($payments as $payment): ?><article class="record folio-record payment-record"><div class="record-top"><div><h3 class="record-title"><?=portal_escape($payment['payment_method'] ?: 'Payment')?></h3><p class="record-meta"><?=portal_escape($payment['receipt_number'] ?: 'Receipt not provided')?> · <?=portal_escape(date('M j, Y · g:i A', strtotime($payment['created_at'])))?></p></div><span class="record-price">− ₱<?=number_format((float)$payment['amount'], 2)?></span></div></article><?php endforeach; ?></div>
         </section>
-        <p class="folio-note"><strong>Billing information</strong><br>This summary includes charges, discounts, payments, and any unrefunded credit currently recorded for your stay. For questions about an entry or your final bill, please contact the front desk.</p>
+        <p class="folio-note"><strong>Billing information</strong><br>This summary includes charges, discounts, payments, and any extra payment to refund currently recorded for your stay. For questions about an entry or your final bill, please contact the front desk.</p>
       </div>
     </div>
   </dialog>
@@ -2226,7 +2237,9 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           const price = document.createElement("span");
           price.className = "record-price";
           if (name === "charges") {
-            title.textContent = String(record.description || "Charge");
+            const chargeQty = Number(record.quantity) || 1;
+            const chargeDesc = String(record.description || "Charge");
+            title.textContent = chargeDesc.startsWith("Accommodation") ? `Room stay — ${chargeQty} ${chargeQty === 1 ? "night" : "nights"}` : chargeDesc;
             meta.textContent = `Quantity ${Number(record.quantity) || 1} · ${formatCreatedAt(record.created_at)}`;
             price.textContent = liveCurrency.format(Number(record.amount) || 0);
           } else if (name === "discounts") {
@@ -2261,6 +2274,12 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         }
         const topBalance = document.querySelector("[data-live-balance]");
         if (topBalance) topBalance.textContent = liveCurrency.format(balance);
+        const settledLine = document.querySelector("[data-live-settled-line]");
+        if (settledLine) {
+          const paid = Number(totals.payments) || 0;
+          settledLine.hidden = !(balance <= 0 && paid > 0);
+          if (balance <= 0 && paid > 0) settledLine.textContent = `You paid ${liveCurrency.format(paid)}. Nothing left to pay.`;
+        }
         renderBillingList("charges", billing.charges);
         renderBillingList("discounts", billing.discounts);
         renderBillingList("payments", billing.payments);
@@ -2609,7 +2628,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           if (hasBaseline && previousBillingState && billingState !== previousBillingState) {
             const due = Number(billing.totals?.balance) || 0;
             const credit = Number(billing.totals?.credit_balance) || 0;
-            showToast("Your hotel folio was updated", `Charges, discounts, payments and account credit are refreshed. Balance: ${liveCurrency.format(due)} · Unrefunded credit: ${liveCurrency.format(credit)}.`);
+            showToast("Your hotel folio was updated", `Charges, discounts, payments and account credit are refreshed. Balance: ${liveCurrency.format(due)} · Extra payment to refund: ${liveCurrency.format(credit)}.`);
           }
           previousBillingState = billingState;
           updateLiveBilling(billing);

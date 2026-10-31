@@ -3439,13 +3439,13 @@
         </table>
 
         <div class="border-top pt-2 mb-3" style="font-size:0.82rem;">
-          ${receiptDiscountTotal>0?`<div class="d-flex justify-content-between mb-1 text-success"><span>Discounts applied to folio:</span><span>− ${php(receiptDiscountTotal)}</span></div>`:''}
+          ${receiptDiscountTotal>0?`<div class="d-flex justify-content-between mb-1 text-success"><span>Less: Discounts:</span><span>− ${php(receiptDiscountTotal)}</span></div>`:''}
           <div class="d-flex justify-content-between mb-1 text-muted">
-            <span>Room Charges (VAT-inclusive):</span>
+            <span>Room charges:</span>
             <span>${php(roomCharges)}</span>
           </div>
           <div class="d-flex justify-content-between mb-1 text-muted">
-            <span>VATable Sales (this receipt):</span>
+            <span>Charges before VAT (this receipt):</span>
             <span>${php(vatable)}</span>
           </div>
           <div class="d-flex justify-content-between mb-1 text-muted">
@@ -3453,11 +3453,11 @@
             <span>${php(vat12)}</span>
           </div>
           <div class="d-flex justify-content-between mb-1 text-muted">
-            <span>VAT-exempt Sales (this receipt):</span>
+            <span>VAT-free charges (this receipt):</span>
             <span>${php(vatExempt)}</span>
           </div>
           <div class="d-flex justify-content-between mb-1 fw-semibold">
-            <span>Total Amount Due:</span>
+            <span>Total to pay:</span>
             <span>${php(totalDue)}</span>
           </div>
           <div class="d-flex justify-content-between py-2 border-top border-bottom my-2 bg-light-subtle px-2 rounded">
@@ -3476,7 +3476,7 @@
             <span class="fw-bold">${isSettled ? 'Folio Settlement Status:' : 'Balance Remaining:'}</span>
             <strong class="fs-6">${isSettled ? '✓ PAID IN FULL · SETTLED' : php(remBal)}</strong>
           </div>
-          ${creditBalance > 0.009 ? `<div class="d-flex justify-content-between p-2 mt-2 rounded bg-info-subtle text-primary border border-info-subtle"><span class="fw-bold">Unrefunded credit:</span><strong>${php(creditBalance)}</strong></div>` : ''}
+          ${creditBalance > 0.009 ? `<div class="d-flex justify-content-between p-2 mt-2 rounded bg-info-subtle text-primary border border-info-subtle"><span class="fw-bold">Extra payment to refund:</span><strong>${php(creditBalance)}</strong></div>` : ''}
         </div>
 
         <div class="text-center text-muted small py-2 border-top border-dashed" style="font-size:11px;">
@@ -6489,45 +6489,45 @@ async function transfer(id) {
 
 
   function checkoutReceiptHtml(d, finalized=false) {
-    const rows=(d.charges||[]).map(c=>`<tr><td>${esc(c.description)}${c.category==='ROOM'?' (VAT-inclusive)':''}</td><td class="num">${php(c.amount)}</td></tr>`).join('')
-      + `<tr><td>VATable sales</td><td class="num">${php(d.vatable_sales||0)}</td></tr>`
-      + (Number(d.vat_exempt_sales||0)>0?`<tr><td>VAT-exempt sales</td><td class="num">${php(d.vat_exempt_sales)}</td></tr>`:'');
+    const rows=(d.charges||[]).map(c=>`<tr><td>${esc(roomStayTitle(c))}${c.category==='ROOM'?' (VAT-inclusive)':''}</td><td class="num">${php(c.amount)}</td></tr>`).join('')
+      + `<tr><td>Charges before VAT</td><td class="num">${php(d.vatable_sales||0)}</td></tr>`
+      + (Number(d.vat_exempt_sales||0)>0?`<tr><td>VAT-free charges</td><td class="num">${php(d.vat_exempt_sales)}</td></tr>`:'');
     const discountRows=(d.discounts||[]).map(discount=>`<tr><td class="text-success">Discount: ${esc(discountDisplayName(discount))}</td><td class="text-end text-success">− ${php(discount.amount)}</td></tr>`).join('')
       || (Number(d.discount_total)>0?`<tr><td>Discounts / credits</td><td class="text-end">− ${php(d.discount_total)}</td></tr>`:'');
     const status=d.settlement_status==='CREDIT_BALANCE'
-      ? `Unrefunded credit: ${php(d.settlement_delta)}`
+      ? `Extra payment to refund: ${php(d.settlement_delta)}`
       : (d.settlement_status==='ADDITIONAL_PAYMENT_DUE'
         ? `Balance due: ${php(Math.abs(Number(d.settlement_delta)))}`
         : 'Fully settled');
     const creditRow=d.settlement_status==='CREDIT_BALANCE'
-      ? `<tr><td>Unrefunded credit</td><td class="text-end">${php(d.settlement_delta)}</td></tr>`
+      ? `<tr><td>Extra payment to refund</td><td class="text-end">${php(d.settlement_delta)}</td></tr>`
       : '';
     const settled=d.settlement_status!=='ADDITIONAL_PAYMENT_DUE';
     const outstandingBalance=Math.max(0,Number(d.final_amount||0)-Number(d.payments_received||0));
 
-    return `<div class="checkout-receipt"><div class="text-center mb-3"><h4 class="mb-1">SHESH DEV HOTEL</h4><div class="small text-muted">Agora, Lapasan, Cagayan de Oro</div><h5 class="mt-3">${finalized?'FINAL CHECKOUT RECEIPT':'CHECKOUT BILL REVIEW'}</h5><div class="small text-muted">${finalized?'Finalized transaction':'Estimate — not yet finalized'}</div></div><hr><div class="row g-2 mb-3"><div class="col-6"><div class="small text-muted">Stay reference</div><strong>${esc(d.stay.stay_code)}</strong></div><div class="col-6 text-end"><div class="small text-muted">Folio</div><strong>${esc(d.stay.folio_number)}</strong></div><div class="col-6"><div class="small text-muted">Room</div><strong>${esc(d.stay.room_number)}</strong></div><div class="col-6 text-end"><div class="small text-muted">Guests / Nights</div><strong>${Number(d.nights_stayed)} night(s)</strong></div>${d.stay.guest_name?`<div class="col-12"><div class="small text-muted">Guest</div><strong>${esc(d.stay.guest_name)}</strong></div>`:''}<div class="col-12"><div class="small text-muted">Scheduled check-in</div><strong>${esc(d.stay.checkin_at)}</strong><div class="small text-muted mt-1">Actual check-in</div><strong>${esc(d.stay.actual_checkin_at||'Not recorded')}</strong><div class="small text-muted mt-1">Scheduled checkout</div><strong>${esc(d.stay.planned_checkout)} at 12:00 PM</strong></div></div><table class="table table-sm"><thead><tr><th>Item</th><th class="text-end">Amount</th></tr></thead><tbody>${rows}${discountRows}<tr><td>VAT (${Number(d.vat_rate)}%) included</td><td class="text-end">${php(d.vat)}</td></tr></tbody><tfoot><tr><th>Total amount due</th><th class="text-end">${php(d.final_amount)}</th></tr><tr><td>Amount paid</td><td class="text-end">${php(d.payments_received)}</td></tr><tr><td>Outstanding balance</td><td class="text-end">${php(outstandingBalance)}</td></tr>${creditRow}</tfoot></table><div class="alert alert-${settled?'success':'warning'} mb-0"><strong>${esc(status)}</strong>${d.settlement_status==='CREDIT_BALANCE'?' · This amount remains on the folio as a credit.':''}</div>${finalized?'<p class="small text-muted text-center mt-3 mb-0">Thank you for staying with us.</p>':''}</div>`;
+    return `<div class="checkout-receipt"><div class="text-center mb-3"><h4 class="mb-1">SHESH DEV HOTEL</h4><div class="small text-muted">Agora, Lapasan, Cagayan de Oro</div><h5 class="mt-3">${finalized?'FINAL CHECKOUT RECEIPT':'CHECKOUT BILL REVIEW'}</h5><div class="small text-muted">${finalized?'Finalized transaction':'Estimate — not yet finalized'}</div></div><hr><div class="row g-2 mb-3"><div class="col-6"><div class="small text-muted">Stay reference</div><strong>${esc(d.stay.stay_code)}</strong></div><div class="col-6 text-end"><div class="small text-muted">Folio</div><strong>${esc(d.stay.folio_number)}</strong></div><div class="col-6"><div class="small text-muted">Room</div><strong>${esc(d.stay.room_number)}</strong></div><div class="col-6 text-end"><div class="small text-muted">Guests / Nights</div><strong>${Number(d.nights_stayed)} night(s)</strong></div>${d.stay.guest_name?`<div class="col-12"><div class="small text-muted">Guest</div><strong>${esc(d.stay.guest_name)}</strong></div>`:''}<div class="col-12"><div class="small text-muted">Scheduled check-in</div><strong>${esc(d.stay.checkin_at)}</strong><div class="small text-muted mt-1">Actual check-in</div><strong>${esc(d.stay.actual_checkin_at||'Not recorded')}</strong><div class="small text-muted mt-1">Scheduled checkout</div><strong>${esc(d.stay.planned_checkout)} at 12:00 PM</strong></div></div><table class="table table-sm"><thead><tr><th>Item</th><th class="text-end">Amount</th></tr></thead><tbody>${rows}${discountRows}<tr><td>VAT (${Number(d.vat_rate)}%) included</td><td class="text-end">${php(d.vat)}</td></tr></tbody><tfoot><tr><th>Total to pay</th><th class="text-end">${php(d.final_amount)}</th></tr><tr><td>Amount paid</td><td class="text-end">${php(d.payments_received)}</td></tr><tr><td>Outstanding balance</td><td class="text-end">${php(outstandingBalance)}</td></tr>${creditRow}</tfoot></table><div class="alert alert-${settled?'success':'warning'} mb-0"><strong>${esc(status)}</strong>${d.settlement_status==='CREDIT_BALANCE'?' · This amount remains on the folio as a credit.':''}</div>${finalized?'<p class="small text-muted text-center mt-3 mb-0">Thank you for staying with us.</p>':''}</div>`;
 
   }
 
   function printCheckoutReceipt(d) {
-    const rows=(d.charges||[]).map(c=>`<tr><td>${esc(c.description)}${c.category==='ROOM'?' (VAT-inclusive)':''}</td><td style="text-align:right">${php(c.amount)}</td></tr>`).join('')
-      + `<tr><td>VATable sales</td><td style="text-align:right">${php(d.vatable_sales||0)}</td></tr>`
-      + (Number(d.vat_exempt_sales||0)>0?`<tr><td>VAT-exempt sales</td><td style="text-align:right">${php(d.vat_exempt_sales)}</td></tr>`:'');
+    const rows=(d.charges||[]).map(c=>`<tr><td>${esc(roomStayTitle(c))}${c.category==='ROOM'?' (VAT-inclusive)':''}</td><td style="text-align:right">${php(c.amount)}</td></tr>`).join('')
+      + `<tr><td>Charges before VAT</td><td style="text-align:right">${php(d.vatable_sales||0)}</td></tr>`
+      + (Number(d.vat_exempt_sales||0)>0?`<tr><td>VAT-free charges</td><td style="text-align:right">${php(d.vat_exempt_sales)}</td></tr>`:'');
     const discountRows=(d.discounts||[]).map(discount=>`<tr><td>Discount: ${esc(discountDisplayName(discount))}</td><td style="text-align:right">− ${php(discount.amount)}</td></tr>`).join('')
       || (Number(d.discount_total)>0?`<tr><td>Discounts / credits</td><td style="text-align:right">− ${php(d.discount_total)}</td></tr>`:'');
 
     const w=window.open('','_blank','width=760,height=800'); if(!w){notify('Allow pop-ups to print the checkout receipt.',true);return;}
 
     const settlementStatus=d.settlement_status==='CREDIT_BALANCE'
-      ? `Unrefunded credit ${php(d.settlement_delta)}`
+      ? `Extra payment to refund ${php(d.settlement_delta)}`
       : (d.settlement_status==='ADDITIONAL_PAYMENT_DUE'
         ? `Balance due ${php(Math.abs(Number(d.settlement_delta)))}`
         : 'Fully settled');
     const creditRow=d.settlement_status==='CREDIT_BALANCE'
-      ? `<div><span>Unrefunded credit</span><span>${php(d.settlement_delta)}</span></div>`
+      ? `<div><span>Extra payment to refund</span><span>${php(d.settlement_delta)}</span></div>`
       : '';
     const outstandingBalance=Math.max(0,Number(d.final_amount||0)-Number(d.payments_received||0));
-    w.document.write(`<!doctype html><html><head><title>Checkout Receipt · ${esc(d.stay.stay_code)}</title><meta charset="utf-8"><style>body{font:14px Arial,sans-serif;color:#111;margin:28px}h2,h3,p{text-align:center;margin:5px}table{width:100%;border-collapse:collapse;margin-top:18px}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}.num{text-align:right}.totals{margin-top:14px}.totals div{display:flex;justify-content:space-between;padding:5px 0}.muted{color:#555;font-size:12px}.status{border:1px solid #aaa;padding:10px;margin-top:15px;text-align:center}@media print{button{display:none}body{margin:12mm}}</style></head><body><h2>SHESH DEV HOTEL</h2><p>Agora, Lapasan, Cagayan de Oro</p><h3>FINAL CHECKOUT RECEIPT</h3><p class="muted">Stay ${esc(d.stay.stay_code)} · Folio ${esc(d.stay.folio_number)} · Room ${esc(d.stay.room_number)}${d.stay.guest_name?` · Guest: ${esc(d.stay.guest_name)}`:''}</p><p>Scheduled check-in: ${esc(d.stay.checkin_at)} · Actual check-in: ${esc(d.stay.actual_checkin_at||'Not recorded')} · Actual checkout: ${esc(d.stay.actual_checkout||'Not recorded')}</p><table><thead><tr><th>Item</th><th class="num">Amount</th></tr></thead><tbody>${rows}${discountRows}<tr><td>VAT (${Number(d.vat_rate)}%) included</td><td class="num">${php(d.vat)}</td></tr></tbody></table><div class="totals"><div><strong>Total amount due</strong><strong>${php(d.final_amount)}</strong></div><div><span>Amount paid</span><span>${php(d.payments_received)}</span></div><div><span>Outstanding balance</span><span>${php(outstandingBalance)}</span></div>${creditRow}<div><strong>Balance / settlement</strong><strong>${esc(settlementStatus)}</strong></div></div><div class="status">Checkout finalized · Room status: Cleaning</div><p style="margin-top:24px">Thank you for staying with us.</p><button onclick="window.print()">Print receipt</button><script>window.onload=()=>window.print()</script></body></html>`);
+    w.document.write(`<!doctype html><html><head><title>Checkout Receipt · ${esc(d.stay.stay_code)}</title><meta charset="utf-8"><style>body{font:14px Arial,sans-serif;color:#111;margin:28px}h2,h3,p{text-align:center;margin:5px}table{width:100%;border-collapse:collapse;margin-top:18px}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}.num{text-align:right}.totals{margin-top:14px}.totals div{display:flex;justify-content:space-between;padding:5px 0}.muted{color:#555;font-size:12px}.status{border:1px solid #aaa;padding:10px;margin-top:15px;text-align:center}@media print{button{display:none}body{margin:12mm}}</style></head><body><h2>SHESH DEV HOTEL</h2><p>Agora, Lapasan, Cagayan de Oro</p><h3>FINAL CHECKOUT RECEIPT</h3><p class="muted">Stay ${esc(d.stay.stay_code)} · Folio ${esc(d.stay.folio_number)} · Room ${esc(d.stay.room_number)}${d.stay.guest_name?` · Guest: ${esc(d.stay.guest_name)}`:''}</p><p>Scheduled check-in: ${esc(d.stay.checkin_at)} · Actual check-in: ${esc(d.stay.actual_checkin_at||'Not recorded')} · Actual checkout: ${esc(d.stay.actual_checkout||'Not recorded')}</p><table><thead><tr><th>Item</th><th class="num">Amount</th></tr></thead><tbody>${rows}${discountRows}<tr><td>VAT (${Number(d.vat_rate)}%) included</td><td class="num">${php(d.vat)}</td></tr></tbody></table><div class="totals"><div><strong>Total to pay</strong><strong>${php(d.final_amount)}</strong></div><div><span>Amount paid</span><span>${php(d.payments_received)}</span></div><div><span>Outstanding balance</span><span>${php(outstandingBalance)}</span></div>${creditRow}<div><strong>Balance / settlement</strong><strong>${esc(settlementStatus)}</strong></div></div><div class="status">Checkout finalized · Room status: Cleaning</div><p style="margin-top:24px">Thank you for staying with us.</p><button onclick="window.print()">Print receipt</button><script>window.onload=()=>window.print()</script></body></html>`);
 
     w.document.close();
 
@@ -6566,7 +6566,7 @@ async function transfer(id) {
 
       } else if (creditBalance > 0.009) {
 
-        statusAlert = `<div class="alert alert-info mt-3 mb-0"><strong><i class="bi bi-info-circle-fill me-1"></i>Unrefunded credit:</strong> The guest has an excess payment of <strong>${php(creditBalance)}</strong>. It will remain as a credit after checkout.</div>`;
+        statusAlert = `<div class="alert alert-info mt-3 mb-0"><strong><i class="bi bi-info-circle-fill me-1"></i>Extra payment to refund:</strong> The guest has an excess payment of <strong>${php(creditBalance)}</strong>. It will remain as a credit after checkout.</div>`;
 
       }
 
@@ -7011,6 +7011,15 @@ async function transfer(id) {
 
   }
 
+  function roomStayTitle(charge) {
+    const desc = String(charge.description || '');
+    if (charge.category === 'ROOM' && desc.startsWith('Accommodation')) {
+      const qty = Number(charge.quantity) || 1;
+      return `Room stay — ${qty} ${qty === 1 ? 'night' : 'nights'}`;
+    }
+    return desc;
+  }
+
   async function folio(id) {
 
     try {
@@ -7072,7 +7081,7 @@ async function transfer(id) {
 
           <div>
 
-            <strong>${esc(c.description)}</strong>
+            <strong>${esc(roomStayTitle(c))}</strong>
 
             <span class="badge ${isRoom ? 'text-bg-light border' : 'text-bg-secondary'} ms-1" style="font-size:10px;">${esc(c.category || 'CHARGE')}</span>
 
@@ -7212,22 +7221,22 @@ async function transfer(id) {
 
                 <div class="folio-totals">
 
-                  <div class="folio-line"><span>Charges total (VAT-inclusive)</span><strong>${money(d.total)}</strong></div>
+                  <div class="folio-line"><span>Total charges</span><strong>${money(d.total)}</strong></div>
 
                   ${addTotal > 0 ? `<div class="folio-line text-muted"><span>  ↳ Additional incidental charges</span><strong>${money(addTotal)}</strong></div>` : ''}
 
                   ${discounts}
 
-                  <div class="folio-line"><span>VATable sales</span><strong>${money(vatableSales)}</strong></div>
+                  <div class="folio-line"><span>Charges before VAT</span><strong>${money(vatableSales)}</strong></div>
                   <div class="folio-line"><span>VAT (${vatRate}%) included</span><strong>${money(vatAmount)}</strong></div>
-                  ${vatExemptSales > 0 ? `<div class="folio-line"><span>VAT-exempt sales</span><strong>${money(vatExemptSales)}</strong></div>` : ''}
+                  ${vatExemptSales > 0 ? `<div class="folio-line"><span>VAT-free charges</span><strong>${money(vatExemptSales)}</strong></div>` : ''}
 
                   <div class="folio-line folio-final"><span>Final bill (VAT included)</span><strong>${money(final)}</strong></div>
 
-                  <div class="folio-line"><span>Payments received</span><strong>${money(d.paid)}</strong></div>
+                  <div class="folio-line"><span>Payments made</span><strong>${money(d.paid)}</strong></div>
 
                   <div class="folio-line folio-final"><span>Balance due</span><strong class="${balanceDue > 0 ? 'text-danger' : 'folio-positive'}">${money(balanceDue)}</strong></div>
-                  ${creditBalance > 0.009 ? `<div class="folio-line"><span>Unrefunded credit</span><strong class="text-primary">${money(creditBalance)}</strong></div>` : ''}
+                  ${creditBalance > 0.009 ? `<div class="folio-line"><span>Extra payment to refund</span><strong class="text-primary">${money(creditBalance)}</strong></div>` : ''}
 
                 </div>
 
@@ -7239,7 +7248,7 @@ async function transfer(id) {
 
           <aside>
 
-            <section class="folio-section"><div class="folio-section-title">Payment summary</div><div class="folio-card p-3"><div class="folio-meta-label">Total payments received</div><div class="folio-payment-total">${money(d.paid)}</div><hr><div class="folio-meta-label">VATable sales</div><div class="folio-meta-value">${money(vatableSales)}</div><div class="folio-meta-label mt-2">VAT included in total</div><div class="folio-meta-value">${money(vatAmount)}</div></div></section>
+            <section class="folio-section"><div class="folio-section-title">Payment summary</div><div class="folio-card p-3"><div class="folio-meta-label">Total payments made</div><div class="folio-payment-total">${money(d.paid)}</div><hr><div class="folio-meta-label">Charges before VAT</div><div class="folio-meta-value">${money(vatableSales)}</div><div class="folio-meta-label mt-2">VAT included in total</div><div class="folio-meta-value">${money(vatAmount)}</div></div></section>
 
             <section class="folio-section"><div class="folio-section-title">Payment history</div><div class="folio-card">${payments}</div></section>
 
@@ -7253,10 +7262,10 @@ async function transfer(id) {
 
                 <div class="folio-line"><span>Final bill amount</span><strong>${money(final)}</strong></div>
 
-                <div class="folio-line"><span>Payments received</span><strong>${money(d.paid)}</strong></div>
+                <div class="folio-line"><span>Payments made</span><strong>${money(d.paid)}</strong></div>
 
                 <div class="folio-line"><span>Balance remaining</span><strong class="${balanceDue > 0 ? 'text-danger' : 'text-success'}">${money(balanceDue)}</strong></div>
-                ${creditBalance > 0.009 ? `<div class="folio-line"><span>Unrefunded credit</span><strong class="text-primary">${money(creditBalance)}</strong></div>` : ''}
+                ${creditBalance > 0.009 ? `<div class="folio-line"><span>Extra payment to refund</span><strong class="text-primary">${money(creditBalance)}</strong></div>` : ''}
 
                 <div class="folio-actions">
 
