@@ -1253,7 +1253,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     .service-intro{display:flex;align-items:center;gap:12px;margin:0 0 2px}.service-intro p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}.service-room-chip{flex:none;padding:8px 10px;border:1px solid #e5d7b5;border-radius:999px;background:#fbf7ed;color:#765c26;font-size:11px;font-weight:800;white-space:nowrap}
     .service-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.service-choice{display:grid;grid-template-columns:38px 1fr;align-items:center;gap:2px 10px;min-height:88px;padding:12px;text-align:left;border:1px solid #dce4eb;border-radius:13px;background:#fff;color:var(--ink);cursor:pointer;transition:border-color .16s,background .16s,box-shadow .16s}.service-choice:hover{border-color:#b8a16a;background:#fdfbf6}.service-choice.is-selected{border-color:#b08b3c;background:#fbf7ed;box-shadow:inset 0 0 0 1px #b08b3c}.service-choice-icon{grid-row:1 / span 2;display:grid;width:38px;height:38px;place-items:center;border-radius:11px;background:#edf2f6;color:#17344e;font-size:20px}.service-choice.is-selected .service-choice-icon{background:#e9dfc8;color:#765c26}.service-choice strong{font-size:13px}.service-choice>span:last-child{color:var(--muted);font-size:11px;line-height:1.4}.service-type-fallback{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}.service-assurance{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid #e7e2d5;border-radius:12px;background:#faf8f2;color:#4e5b65}.service-assurance>span{display:grid;flex:none;width:23px;height:23px;place-items:center;border-radius:50%;background:#e7ddc3;color:#6f5625;font-weight:800}.service-assurance p{margin:0;font-size:11px;line-height:1.55}.service-assurance strong{color:var(--ink);font-size:12px}.service-dialog-footer .button{gap:9px;background:#17344e}.service-dialog-footer .button:hover{background:#244a69}
     .stay-activity-intro{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px;padding:13px 14px;border:1px solid #e6dcc5;border-radius:13px;background:linear-gradient(120deg,#fbf7ed,#fff)}.stay-activity-intro strong{display:block;color:var(--ink);font:600 17px Georgia,"Times New Roman",serif}.stay-activity-intro p{margin:4px 0 0;color:var(--muted);font-size:11px}.stay-room-tag{flex:none;padding:7px 10px;border-radius:999px;background:#e9dfc8;color:#705723;font-size:10px;font-weight:800}.activity-tabs{display:flex;gap:7px;margin:0 0 16px;padding:4px;overflow-x:auto;border:1px solid #e6ebf0;border-radius:12px;background:#edf1f5}.activity-tab{flex:1;min-height:38px;padding:8px 10px;border:1px solid transparent;border-radius:9px;background:transparent;color:#52657a;font-size:11px;font-weight:750;white-space:nowrap;cursor:pointer}.activity-tab[aria-pressed="true"]{border-color:#e8dfca;background:#fff;color:#17344e;box-shadow:0 2px 5px rgba(23,43,69,.06)}.activity-section{margin-top:18px}.activity-section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}.activity-section-heading h3{margin:0;color:var(--ink);font-size:13px;font-weight:800}.activity-count{display:inline-grid;min-width:25px;height:25px;place-items:center;padding:0 7px;border-radius:999px;background:#eef2f6;color:#53677c;font-size:10px;font-weight:800}.activity-record{border-color:#e1e7ed;box-shadow:0 3px 10px rgba(23,43,69,.025)}.activity-record .record-top{align-items:center}.activity-record .status{flex:none;max-width:45%;white-space:normal;text-align:center;line-height:1.4}.activity-record .record-title{font-size:13px;line-height:1.45}.activity-record[data-kind="order"]{border-left:3px solid #b08b3c}.activity-record[data-kind="request"]{border-left:3px solid #b8c7d5}.activity-record[data-kind="extension"],.record[data-kind="extension"]{border-left:3px solid #16734b}.activity-empty{padding:24px 16px;border:1px dashed #d6dfe7;border-radius:13px;background:#fff;text-align:center}.activity-empty-icon{display:grid;width:42px;height:42px;place-items:center;margin:0 auto 10px;border-radius:13px;background:#f2f5f8;color:#765c26;font-size:20px}.activity-empty strong{display:block;color:var(--ink);font-size:13px}.activity-empty p{margin:5px 0 0;color:var(--muted);font-size:11px;line-height:1.5}
-    .chat-card{padding:14px}.chat-list{display:flex;flex-direction:column;gap:10px;max-height:320px;overflow-y:auto;padding:2px}.chat-empty{padding:18px;border:1px dashed #d6dfe7;border-radius:11px;background:#fff;text-align:center;color:var(--muted);font-size:13px}.chat-msg{max-width:85%;padding:10px 12px;border-radius:12px;background:#eef2f6}.chat-msg.staff{align-self:flex-start;background:#e9eef5;border-left:3px solid #17344e}.chat-msg.guest{align-self:flex-end;background:#fdf3d7;border-right:3px solid #b08b3c}.chat-msg-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:4px;font-size:11px;color:var(--muted)}.chat-msg-head strong{color:var(--ink)}.chat-msg-body{margin:0;font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}.chat-form{margin-top:14px}.chat-form textarea{width:100%}
+    .chat-card{padding:14px}.chat-list{display:flex;flex-direction:column;gap:10px;max-height:320px;overflow-y:auto;padding:2px}.chat-empty{padding:18px;border:1px dashed #d6dfe7;border-radius:11px;background:#fff;text-align:center;color:var(--muted);font-size:13px}.chat-msg{max-width:85%;padding:10px 12px;border-radius:12px;background:#eef2f6}.chat-msg.staff{align-self:flex-start;background:#e9eef5;border-left:3px solid #17344e}.chat-msg.guest{align-self:flex-end;background:#fdf3d7;border-right:3px solid #b08b3c}.chat-msg-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:4px;font-size:11px;color:var(--muted)}.chat-msg-head strong{color:var(--ink)}.chat-msg-body{margin:0;font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}.chat-form{margin-top:14px}.chat-form textarea{width:100%}.chat-bubble-btn{position:fixed;right:18px;bottom:18px;z-index:80;width:60px;height:60px;border:0;border-radius:50%;background:#17344e;display:grid;place-items:center;box-shadow:0 6px 18px rgba(23,52,78,.35);cursor:pointer}.chat-bubble-btn svg{width:30px;height:30px}.chat-bubble-btn:focus-visible{outline:3px solid #e9b65f;outline-offset:2px}.chat-bubble-badge{position:absolute;top:-4px;right:-4px;min-width:22px;height:22px;padding:0 5px;border-radius:999px;background:#c0392b;color:#fff;font-size:12px;font-weight:800;display:none;place-items:center}.chat-bubble-badge.show{display:grid}.chat-bubble-hint{position:fixed;right:88px;bottom:34px;z-index:80;padding:8px 12px;border-radius:999px;background:#fff;color:#17344e;font-size:13px;font-weight:700;box-shadow:0 4px 14px rgba(23,52,78,.25);display:none}.chat-bubble-hint.show{display:block}.chat-popup{position:fixed;right:16px;bottom:92px;z-index:80;width:min(380px,calc(100vw - 32px));max-height:70vh;background:#fff;border:1px solid #e1e7ed;border-radius:16px;box-shadow:0 12px 32px rgba(23,52,78,.30);display:none;flex-direction:column;overflow:hidden}.chat-popup.open{display:flex}.chat-popup-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;background:#17344e;color:#fff}.chat-popup-head strong{font:600 16px Georgia,"Times New Roman",serif}.chat-popup-head button{border:1px solid rgba(255,255,255,.35);background:transparent;color:#fff;border-radius:8px;padding:4px 8px;cursor:pointer;font-size:14px}.chat-popup-body{padding:14px;overflow-y:auto}.chat-popup .chat-list{max-height:300px}@media(max-width:520px){.chat-popup{right:12px;bottom:88px;width:calc(100vw - 24px)}}@media print{.chat-bubble-btn,.chat-bubble-hint,.chat-popup{display:none !important}}
     .folio-intro{margin-bottom:15px}.folio-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:17px}.folio-metric{min-width:0;padding:13px;border:1px solid #e3e9ef;border-radius:13px;background:#fff}.folio-metric-label{display:block;color:var(--muted);font-size:10px;font-weight:750;letter-spacing:.04em;text-transform:uppercase}.folio-metric-value{display:block;margin-top:7px;color:var(--ink);font-size:18px;font-weight:850;overflow-wrap:anywhere}.folio-metric.balance-due{grid-column:1/-1;padding:18px;border-color:#e4d7b7;background:linear-gradient(125deg,#142d46,#1c3b57);color:#fff}.folio-metric.balance-due .folio-metric-label{color:#e3d2a7}.folio-metric.balance-due .folio-metric-value{margin-top:5px;color:#fff;font-size:clamp(27px,6vw,35px);letter-spacing:-.03em}.folio-settled-note{display:flex;align-items:center;gap:7px;margin-top:10px;color:#d9e9df;font-size:11px}.folio-settled-note.is-due{color:#f2ddb0}.folio-section{margin-top:19px}.folio-section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}.folio-section-heading h3{margin:0;color:var(--ink);font-size:13px;font-weight:800}.folio-section-heading span{color:var(--muted);font-size:10px}.folio-record{padding:13px;border-color:#e1e7ed}.folio-record .record-top{align-items:center}.folio-record .record-title{font-size:12px;line-height:1.45}.folio-record .record-price{font-size:13px;white-space:nowrap}.folio-record.payment-record{border-left:3px solid #7da68e}.folio-record.charge-record{border-left:3px solid #b08b3c}.folio-note{margin-top:16px;padding:12px;border:1px solid #e4eaf0;border-radius:11px;background:#f1f5f8;color:#53677c;font-size:11px;line-height:1.55}.folio-note strong{color:var(--ink)}
     .field{display:grid;gap:7px;color:#3b5066;font-size:12px;font-weight:700}
     .field input,.field select,.field textarea{width:100%;min-height:46px;padding:11px 12px;border:1px solid #d6e0e9;border-radius:10px;background:#fff;color:var(--ink);font-size:16px}
@@ -1577,31 +1577,38 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         </div>
       </section>
 
-      <section aria-labelledby="chat-title">
-        <div class="section-heading"><div><p class="eyebrow">Front desk chat</p><h2 id="chat-title">Message front desk</h2><p>Text-only chat with the front desk team during your stay.</p></div></div>
-        <div class="card chat-card">
-          <div class="chat-list" id="chat-messages">
-            <?php if (!$chatMessages): ?><div class="chat-empty">No messages yet. Say hello — the front desk team will reply here.</div><?php endif; ?>
-            <?php foreach ($chatMessages as $chatMessage): ?>
-            <article class="chat-msg <?= $chatMessage['sender_type'] === 'STAFF' ? 'staff' : 'guest' ?>" data-chat-id="<?=portal_escape($chatMessage['id'])?>">
-              <div class="chat-msg-head"><strong><?= $chatMessage['sender_type'] === 'STAFF' ? 'Front desk' : 'You' ?></strong><span class="chat-msg-time"><?=portal_escape(date('M j, g:i A', strtotime($chatMessage['created_at'])))?></span></div>
-              <p class="chat-msg-body"><?=nl2br(portal_escape($chatMessage['body']))?></p>
-            </article>
-            <?php endforeach; ?>
-          </div>
-          <?php if (!$isActive): ?><p class="notice">Messaging is available during an active stay.</p>
-          <?php else: ?>
-          <form class="chat-form" method="post" action="portal.php?t=<?=rawurlencode($token)?>">
-            <input type="hidden" name="t" value="<?=portal_escape($token)?>"><input type="hidden" name="csrf" value="<?=portal_escape($csrf)?>"><input type="hidden" name="portal_action" value="chat_send">
-            <label class="field">Message<textarea name="message" rows="3" maxlength="1000" placeholder="Write a message to the front desk…" required></textarea></label>
-            <button class="button" type="submit">Send message</button>
-          </form>
-          <?php endif; ?>
-        </div>
-      </section>
       <p class="footer-note">Shesh Dev Hotel · Agora, Lapasan, Cagayan de Oro</p>
     </div>
   </main>
+
+  <button type="button" class="chat-bubble-btn" id="chat-bubble-btn" aria-label="Chat with front desk" aria-expanded="false" aria-controls="chat-popup">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.5 0-3-.4-4.2-1.1L3 20l1.2-4.3A8.5 8.5 0 1 1 21 11.5Z" stroke="#e9b65f" stroke-width="1.8" stroke-linejoin="round"/><circle cx="8" cy="11.5" r="1.3" fill="#e9b65f"/><circle cx="12" cy="11.5" r="1.3" fill="#e9b65f"/><circle cx="16" cy="11.5" r="1.3" fill="#e9b65f"/></svg>
+    <span class="chat-bubble-badge" id="chat-bubble-badge">0</span>
+  </button>
+  <div class="chat-bubble-hint" id="chat-bubble-hint">Chat with us</div>
+  <div class="chat-popup" id="chat-popup" role="dialog" aria-label="Front desk chat">
+    <div class="chat-popup-head"><strong>Front desk</strong><span><button type="button" id="chat-sound-toggle" aria-label="Mute chat sound">🔔</button><button type="button" id="chat-popup-close" aria-label="Close chat">×</button></span></div>
+    <div class="chat-popup-body">
+      <div class="chat-list" id="chat-messages">
+        <?php if (!$chatMessages): ?><div class="chat-empty">No messages yet. Say hello — the front desk team will reply here.</div><?php endif; ?>
+        <?php foreach ($chatMessages as $chatMessage): ?>
+        <article class="chat-msg <?= $chatMessage['sender_type'] === 'STAFF' ? 'staff' : 'guest' ?>" data-chat-id="<?=portal_escape($chatMessage['id'])?>">
+          <div class="chat-msg-head"><strong><?= $chatMessage['sender_type'] === 'STAFF' ? 'Front desk' : 'You' ?></strong><span class="chat-msg-time"><?=portal_escape(date('M j, g:i A', strtotime($chatMessage['created_at'])))?></span></div>
+          <p class="chat-msg-body"><?=nl2br(portal_escape($chatMessage['body']))?></p>
+        </article>
+        <?php endforeach; ?>
+      </div>
+      <?php if (!$isActive): ?><p class="notice">Messaging is available during an active stay.</p>
+      <?php else: ?>
+      <form class="chat-form" method="post" action="portal.php?t=<?=rawurlencode($token)?>" onsubmit="try{sessionStorage.setItem('sheshdev-portal-chat-open','1')}catch(e){}">
+        <input type="hidden" name="t" value="<?=portal_escape($token)?>"><input type="hidden" name="csrf" value="<?=portal_escape($csrf)?>"><input type="hidden" name="portal_action" value="chat_send">
+        <label class="field">Message<textarea name="message" rows="3" maxlength="1000" placeholder="Write a message to the front desk…" required></textarea></label>
+        <button class="button" type="submit">Send message</button>
+      </form>
+      <?php endif; ?>
+    </div>
+  </div>
+  <audio id="chat-sound-audio" preload="none"><source src="/assets/chat.mp3" type="audio/mpeg"></audio>
 
   <dialog class="dialog wide" id="food-dialog" aria-labelledby="food-title">
     <div class="dialog-frame">
@@ -2720,11 +2727,59 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         chatList.scrollTop = chatList.scrollHeight;
         return true;
       };
+      // Floating chat bubble: replaces the old in-flow card. Same list id,
+      // same poll rendering, same send form — only the presentation moved.
+      // Sound plays once per new staff reply; failures (no interaction yet,
+      // missing file) are swallowed silently by design.
+      const chatBubbleBtn = document.getElementById("chat-bubble-btn");
+      const chatPopup = document.getElementById("chat-popup");
+      const chatHint = document.getElementById("chat-bubble-hint");
+      const chatBadge = document.getElementById("chat-bubble-badge");
+      const chatSoundToggle = document.getElementById("chat-sound-toggle");
+      const chatSoundAudio = document.getElementById("chat-sound-audio");
+      let chatUnread = 0;
+      let chatSoundUnavailable = false;
+      const chatSoundMuted = () => { try { return localStorage.getItem("sheshdev-portal-chat-sound") === "off"; } catch (e) { return false; } };
+      const syncChatSoundToggle = () => { if (chatSoundToggle instanceof HTMLElement) { const muted = chatSoundMuted(); chatSoundToggle.textContent = muted ? "🔕" : "🔔"; chatSoundToggle.setAttribute("aria-label", muted ? "Unmute chat sound" : "Mute chat sound"); } };
+      const playChatSound = () => {
+        if (chatSoundMuted() || chatSoundUnavailable || !(chatSoundAudio instanceof HTMLAudioElement)) return;
+        try { const p = chatSoundAudio.play(); if (p && typeof p.then === "function") p.catch(() => {}); } catch (e) {}
+      };
+      if (chatSoundAudio instanceof HTMLAudioElement) {
+        chatSoundAudio.volume = 0.5;
+        chatSoundAudio.addEventListener("error", () => { chatSoundUnavailable = true; });
+      }
+      const setChatBadge = () => { if (chatBadge instanceof HTMLElement) { chatBadge.textContent = String(chatUnread); chatBadge.classList.toggle("show", chatUnread > 0); } };
+      const openChatPopup = () => {
+        if (!(chatPopup instanceof HTMLElement)) return;
+        chatPopup.classList.add("open");
+        chatUnread = 0; setChatBadge();
+        if (chatBubbleBtn instanceof HTMLElement) chatBubbleBtn.setAttribute("aria-expanded", "true");
+        try { localStorage.setItem("sheshdev-portal-chat-opened", "1"); } catch (e) {}
+        if (chatHint instanceof HTMLElement) chatHint.classList.remove("show");
+      };
+      const closeChatPopup = () => {
+        if (chatPopup instanceof HTMLElement) chatPopup.classList.remove("open");
+        if (chatBubbleBtn instanceof HTMLElement) chatBubbleBtn.setAttribute("aria-expanded", "false");
+      };
+      if (chatBubbleBtn instanceof HTMLElement) chatBubbleBtn.addEventListener("click", () => {
+        if (chatPopup instanceof HTMLElement && chatPopup.classList.contains("open")) closeChatPopup(); else openChatPopup();
+      });
+      const chatPopupClose = document.getElementById("chat-popup-close");
+      if (chatPopupClose instanceof HTMLElement) chatPopupClose.addEventListener("click", closeChatPopup);
+      if (chatSoundToggle instanceof HTMLElement) chatSoundToggle.addEventListener("click", () => { try { localStorage.setItem("sheshdev-portal-chat-sound", chatSoundMuted() ? "on" : "off"); } catch (e) {} syncChatSoundToggle(); });
+      syncChatSoundToggle();
+      try {
+        if (!localStorage.getItem("sheshdev-portal-chat-opened") && chatHint instanceof HTMLElement) chatHint.classList.add("show");
+        if (sessionStorage.getItem("sheshdev-portal-chat-open") === "1") { sessionStorage.removeItem("sheshdev-portal-chat-open"); openChatPopup(); }
+      } catch (e) {}
       const updateChatMessages = (messages, hadBaseline) => {
         (messages || []).forEach((message) => {
           const isStaff = String(message.sender_type || "").toUpperCase() === "STAFF";
           if (appendChatMessage(message) && hadBaseline && isStaff) {
             showToast("New message from front desk", "The front desk replied to your message.");
+            if (!(chatPopup instanceof HTMLElement) || !chatPopup.classList.contains("open")) { chatUnread += 1; setChatBadge(); }
+            playChatSound();
           }
         });
       };

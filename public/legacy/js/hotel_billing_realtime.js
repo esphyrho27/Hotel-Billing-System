@@ -181,6 +181,7 @@
         if (['admin', 'manager', 'frontdesk'].includes(curRole)) {
           if (!isLocalActor) {
             showNotification(`New guest message: Room ${data.room_number || '—'}`);
+            window.HotelChatSound?.play(data.message_id);
           }
           const active = window.HotelBilling?.getActiveModule?.();
           if (active === 'guest-chats') {
