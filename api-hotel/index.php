@@ -3468,7 +3468,7 @@ if ($action === 'cancel_pending_checkin') {
         }
 
         $pdo->prepare("UPDATE checkin_payments SET status='CANCELLED' WHERE stay_id=? AND status='FOR_PAYMENT'")->execute([$sid]);
-        $pdo->prepare("UPDATE folios SET status='CANCELLED' WHERE stay_id=?")->execute([$sid]);
+        $pdo->prepare("UPDATE folios SET status='VOID' WHERE stay_id=?")->execute([$sid]);
         $pdo->prepare("UPDATE stays SET status='CANCELLED' WHERE id=?")->execute([$sid]);
         $pdo->prepare("UPDATE rooms SET status='AVAILABLE' WHERE id=?")->execute([(int)$stay['room_id']]);
 
@@ -3528,7 +3528,11 @@ if ($action === 'transfer') {
         $q->execute([$sid]);
         $fid = (int)$q->fetch()['id'];
 
-        $remaining = max(0, (new DateTimeImmutable($s['planned_checkout']))->diff(new DateTimeImmutable($effective))->days);
+        // Signed nights remaining: DateTime::diff()->days is absolute, so an
+        // overdue stay (planned checkout already past) used to report positive
+        // nights and post a spurious adjustment. A signed diff yields 0 once
+        // no nights remain.
+        $remaining = max(0, (int)(new DateTimeImmutable($effective))->diff(new DateTimeImmutable($s['planned_checkout']))->format('%r%a'));
         $delta = round((float)$r['new_rate'] - (float)$s['old_rate'], 2);
 
         if ($remaining > 0 && abs($delta) > 0.001) {
@@ -4526,7 +4530,9 @@ if ($action === 'request_status') {
             $q->execute([$sid]);
             $fid = (int)$q->fetch()['id'];
 
-            $remaining = max(0, (new DateTimeImmutable($stay['planned_checkout']))->diff(new DateTimeImmutable($effective))->days);
+            // Signed nights remaining (see transfer action): absolute diff()->days
+        // overstated remaining nights for overdue stays.
+        $remaining = max(0, (int)(new DateTimeImmutable($effective))->diff(new DateTimeImmutable($stay['planned_checkout']))->format('%r%a'));
             $delta = round((float)$dest['new_rate'] - (float)$stay['old_rate'], 2);
             $transferNights = $remaining;
             $transferAdjustment = round($remaining * $delta, 2);
@@ -5060,15 +5066,41 @@ if ($action === 'early_checkout_finalize') {
 
         $oldAmount = null;
         $newAmount = null;
+        $unusedNightCredit = 0.0;
+        $unusedNights = 0;
         $authorizationOnly = $e['policy'] === 'MANAGER_EXCEPTION';
         if ($authorizationOnly) {
+            // Manager exceptions used to leave billing untouched, so a guest
+            // who prepaid the full stay and left early got no credit for
+            // un-stayed nights. Credit those nights here, on the same
+            // calendar-date basis the checkout record uses, keyed so a
+            // re-finalize can never post it twice.
+            $sq = $pdo->prepare("SELECT s.checkin_at, s.planned_checkout, rt.nightly_rate FROM stays s JOIN rooms r ON r.id=s.room_id JOIN room_types rt ON rt.id=r.room_type_id WHERE s.id=? FOR UPDATE");
+            $sq->execute([(int)$e['stay_id']]);
+            $stayRow = $sq->fetch();
+            if ($stayRow) {
+                $checkinDate = (new DateTimeImmutable($stayRow['checkin_at'], hotel_timezone()))->setTime(0, 0);
+                $departureDate = (new DateTimeImmutable($e['requested_departure_at'], hotel_timezone()))->setTime(0, 0);
+                $plannedDate = (new DateTimeImmutable($stayRow['planned_checkout'], hotel_timezone()))->setTime(0, 0);
+                $nightsStayed = max(1, (int)$checkinDate->diff($departureDate)->format('%a'));
+                $plannedNights = max(1, (int)$checkinDate->diff($plannedDate)->format('%a'));
+                $unusedNights = max(0, $plannedNights - $nightsStayed);
+                $nightlyRate = round((float)$stayRow['nightly_rate'], 2);
+                if ($unusedNights > 0 && $nightlyRate > 0) {
+                    $unusedNightCredit = round($unusedNights * $nightlyRate, 2);
+                    $pdo->prepare("INSERT IGNORE INTO charges(folio_id, category, description, quantity, unit_price, amount, idempotency_key, created_by) VALUES(?, 'ADJUSTMENT', ?, ?, ?, ?, ?, ?)")
+                        ->execute([(int)$e['folio_id'], 'Unused-night credit - early checkout (manager exception) - Request #' . $id, $unusedNights, -$nightlyRate, -$unusedNightCredit, 'early-checkout-credit-' . $id, $u['id']]);
+                }
+            }
             $pdo->prepare("UPDATE early_checkout_requests SET status='FINALIZED', updated_at=CURRENT_TIMESTAMP WHERE id=?")
                 ->execute([$id]);
             audit($pdo, $u['id'], 'EARLY_CHECKOUT_EXCEPTION_FINALIZED', 'stay', (int)$e['stay_id'], [
                 'request_id' => $id,
                 'folio_id' => $e['folio_id'],
                 'policy' => $e['policy'],
-                'room_charges_changed' => false
+                'room_charges_changed' => false,
+                'unused_nights' => $unusedNights,
+                'unused_night_credit' => $unusedNightCredit
             ]);
         } else {
             $q = $pdo->prepare("SELECT id, amount, description FROM charges WHERE folio_id=? AND category='ROOM' ORDER BY id LIMIT 1 FOR UPDATE");
@@ -5102,6 +5134,8 @@ if ($action === 'early_checkout_finalize') {
         ws_broadcast('EARLY_CHECKOUT_UPDATED', ['request_id' => $id, 'status' => 'FINALIZED', 'stay_id' => (int)$e['stay_id'], 'folio_id' => (int)$e['folio_id']], null, 'frontdesk');
         if (!$authorizationOnly) {
             ws_broadcast('FOLIO_UPDATED', ['folio_id' => (int)$e['folio_id'], 'type' => 'ROOM_CHARGE_RECALCULATED', 'amount' => $newAmount], null, 'frontdesk');
+        } elseif ($unusedNightCredit > 0) {
+            ws_broadcast('FOLIO_UPDATED', ['folio_id' => (int)$e['folio_id'], 'type' => 'UNUSED_NIGHT_CREDIT', 'amount' => -$unusedNightCredit], null, 'frontdesk');
         }
 
         out([
@@ -5109,8 +5143,11 @@ if ($action === 'early_checkout_finalize') {
             'folio_id' => (int)$e['folio_id'],
             'previous_room_charge' => $oldAmount === null ? null : money($oldAmount),
             'recalculated_room_charge' => $newAmount === null ? null : money($newAmount),
+            'unused_night_credit' => $authorizationOnly ? money($unusedNightCredit) : null,
             'message' => $authorizationOnly
-                ? 'Manager-approved early departure authorized. Existing room charges are unchanged; settle the folio before checkout.'
+                ? ($unusedNightCredit > 0
+                    ? 'Manager-approved early departure authorized. Unused-night credit of ' . money($unusedNightCredit) . ' posted to the folio; settle any remaining balance before checkout.'
+                    : 'Manager-approved early departure authorized. No unused nights to credit; settle the folio before checkout.')
                 : 'Room charge recalculated according to the approved early-checkout policy. No separate early-checkout fee was added. Review and settle any remaining folio balance; any excess payment remains a credit.'
         ]);
     } catch (Throwable $x) {
