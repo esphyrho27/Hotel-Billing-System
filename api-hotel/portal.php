@@ -2408,7 +2408,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         return { title: "Your order status changed", message: names + " (" + code + ") is now " + friendlyStatus(status) + "." };
       };
       // Status-dialog artwork: food orders show the first item's photo, service
-      // requests show one icon per service type. The dialog is reused across
+      // requests show one icon per service type, stay extensions show a bed. The dialog is reused across
       // alerts, so every render resets the icon box and section visibility
       // first — otherwise a previous alert's photo or icon leaks into the next.
       const serviceIconFor = (serviceType, department, requestKind) => {
@@ -2450,7 +2450,9 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           if (alertCode) alertCode.textContent = next.code ? "Request " + next.code : "Service request";
           if (alertQuantity) alertQuantity.textContent = next.quantity || "";
         } else {
-          if (next.photo) setAlertPhoto(next.photo);
+          if (next.kind === "extension") {
+            if (alertIcon instanceof HTMLElement) alertIcon.textContent = "🛏";
+          } else if (next.photo) setAlertPhoto(next.photo);
           if (alertItems) alertItems.textContent = next.items || "Your room-service order";
           if (alertCode) alertCode.textContent = next.code ? "Order #" + next.code : "Room-service order";
           if (alertQuantity) alertQuantity.textContent = next.quantity || "";
@@ -2661,9 +2663,9 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
             }
             if (hasBaseline && previous !== undefined && normalizeStatus(previous) !== normalizeStatus(status)) {
               if (status.toUpperCase() === "APPROVED") {
-                queueStatusAlert("Stay extension approved", `Your stay now ends on ${formatExtensionDate(extension.requested_checkout)}. The extra nights were added to your folio.`);
+                queueStatusAlert("Stay extension approved", `Your stay now ends on ${formatExtensionDate(extension.requested_checkout)}. The extra nights were added to your folio.`, { kind: "extension" });
               } else if (status.toUpperCase() === "REJECTED") {
-                queueStatusAlert("Stay extension declined", extension.review_note ? `Reason: ${String(extension.review_note)}` : "Contact the front desk for details.");
+                queueStatusAlert("Stay extension declined", extension.review_note ? `Reason: ${String(extension.review_note)}` : "Contact the front desk for details.", { kind: "extension" });
               }
             }
             seenExtensionStatuses.set(key, status);
