@@ -1371,13 +1371,12 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
 
 
     /* Guest portal background music — opt-in only, no autoplay. */
-    .portal-music{position:fixed;left:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:90;display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid rgba(233,182,95,.55);border-radius:999px;background:#102a43;color:#fff;box-shadow:0 10px 30px rgba(3,14,28,.35)}
-    .portal-music .music-btn{border:0;border-radius:999px;background:#e9b65f;color:#102a43;padding:8px 14px;font-weight:750;cursor:pointer}
-    .portal-music .music-btn:disabled{cursor:not-allowed;opacity:.6}
-    .portal-music .music-label{font-size:12px;font-weight:700;white-space:nowrap}
-    .portal-music input[type=range]{width:90px;accent-color:#e9b65f}
-    .portal-music .music-status{font-size:11px;color:#c9d6e4;white-space:nowrap}
-    @media(max-width:420px){.portal-music{left:12px;bottom:calc(12px + env(safe-area-inset-bottom));padding:8px 12px;gap:8px}.portal-music .music-label{display:none}.portal-music input[type=range]{width:70px}}
+    .portal-music{position:fixed;left:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:90;width:44px;height:44px;display:grid;place-items:center;border:1px solid rgba(233,182,95,.55);border-radius:50%;background:#102a43;box-shadow:0 10px 30px rgba(3,14,28,.35)}
+    .portal-music.playing{border-color:#e9b65f;box-shadow:0 0 0 3px rgba(233,182,95,.25),0 10px 30px rgba(3,14,28,.35)}
+    .portal-music .music-btn{width:100%;height:100%;border:0;border-radius:50%;background:transparent;color:#e9b65f;font-size:20px;line-height:1;cursor:pointer}
+    .portal-music.playing .music-btn{background:#e9b65f;color:#102a43}
+    .portal-music .music-btn:disabled{cursor:not-allowed;opacity:.45}
+    @media(max-width:420px){.portal-music{left:12px;bottom:calc(12px + env(safe-area-inset-bottom))}}
     @media print{.portal-music{display:none!important}}
 
   </style>
@@ -1746,32 +1745,29 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
 
 
   <div class="portal-music" id="portal-music">
-    <button type="button" class="music-btn" id="portal-music-toggle" aria-label="Play background music" aria-pressed="false">♪ Play music</button>
-    <span class="music-label">Music</span>
-    <input type="range" id="portal-music-volume" min="0" max="100" value="35" aria-label="Music volume">
-    <span class="music-status" id="portal-music-status" role="status"></span>
+    <button type="button" class="music-btn" id="portal-music-toggle" aria-label="Play background music" aria-pressed="false" title="Play background music">♪</button>
     <audio id="portal-music-audio" loop preload="none"><source src="/assets/music.mp3" type="audio/mpeg"></audio>
   </div>
   <script>
     (() => {
+      const container = document.getElementById("portal-music");
       const audio = document.getElementById("portal-music-audio");
       const toggle = document.getElementById("portal-music-toggle");
-      const volume = document.getElementById("portal-music-volume");
-      const status = document.getElementById("portal-music-status");
-      if (!(audio instanceof HTMLAudioElement) || !toggle || !volume) return;
-      let savedVolume = 35;
-      try { const v = Number(localStorage.getItem("sheshdev-portal-volume")); if (Number.isFinite(v) && v >= 0 && v <= 100) savedVolume = v; } catch (e) {}
-      volume.value = String(savedVolume);
-      audio.volume = savedVolume / 100;
+      if (!(audio instanceof HTMLAudioElement) || !toggle) return;
+      audio.volume = 0.30;
       const setPlaying = (playing) => {
-        toggle.textContent = playing ? "♫ Playing" : "♪ Play music";
+        toggle.textContent = playing ? "♫" : "♪";
         toggle.setAttribute("aria-pressed", playing ? "true" : "false");
         toggle.setAttribute("aria-label", playing ? "Pause background music" : "Play background music");
+        toggle.setAttribute("title", playing ? "Pause background music" : "Play background music");
+        if (container) container.classList.toggle("playing", playing);
       };
       const setUnavailable = () => {
-        toggle.textContent = "Music unavailable";
+        toggle.textContent = "♪";
         toggle.disabled = true;
-        if (status) status.textContent = "";
+        toggle.setAttribute("aria-label", "Music unavailable");
+        toggle.setAttribute("title", "Music unavailable");
+        if (container) container.classList.remove("playing");
       };
       audio.addEventListener("error", setUnavailable);
       audio.addEventListener("ended", () => setPlaying(false));
@@ -1786,10 +1782,6 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           setPlaying(false);
           try { localStorage.setItem("sheshdev-portal-music", "off"); } catch (e) {}
         }
-      });
-      volume.addEventListener("input", () => {
-        audio.volume = Number(volume.value) / 100;
-        try { localStorage.setItem("sheshdev-portal-volume", String(volume.value)); } catch (e) {}
       });
       // Resume only if the guest previously turned music on AND the browser allows it.
       // Browsers block sound autoplay without a tap, so a failed resume simply stays paused.
