@@ -183,6 +183,17 @@ $u = in_array($action, ['discount_policies', 'demo_clock_status', 'request_statu
     ? require_user()
     : require_permission(HOTEL_ACTION_PERMISSIONS[$action]);
 
+// Guest chat is frontdesk-only. This explicit role gate runs AFTER the
+// permission check on purpose: it overrides the admin '*' wildcard in
+// hotel_user_can() and any saved role_permissions grant of chat.view /
+// chat.reply, so manager and admin cannot reach the chat handlers at all.
+if (in_array($action, ['chat_conversations', 'chat_messages', 'chat_send'], true)) {
+    $chatRole = strtolower(trim(str_replace([' ', '_', '-'], '', (string)($u['role'] ?? ''))));
+    if ($chatRole !== 'frontdesk') {
+        out(['error' => 'Guest chats are available to the front desk only.'], 403);
+    }
+}
+
 // Verify CSRF token for mutating HTTP requests
 if (!in_array($_SERVER['REQUEST_METHOD'], ['GET', 'HEAD'], true)) {
     $csrf = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
@@ -5282,7 +5293,8 @@ if ($action === 'stay_extension_reject') {
 // guest WebSocket client is needed; guest messages reach staff over the
 // CHAT_MESSAGE broadcast plus the staff panel poll below. Permission gating
 // happens in the dispatcher via HOTEL_ACTION_PERMISSIONS (chat.view /
-// chat.reply) — these handlers never trust a client-supplied stay id without
+// chat.reply) plus the frontdesk-only role gate above — these handlers never
+// trust a client-supplied stay id without
 // re-validating the stay server-side.
 if ($action === 'chat_conversations') {
     try {

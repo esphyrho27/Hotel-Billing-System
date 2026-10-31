@@ -177,8 +177,10 @@
       case 'CHAT_MESSAGE': {
         // Guest → front desk only: staff replies travel over the portal
         // live poll (guests have no WebSocket client), so no broadcast is
-        // emitted for them and no toast is needed here.
-        if (['admin', 'manager', 'frontdesk'].includes(curRole)) {
+        // emitted for them and no toast is needed here. Admin/manager never
+        // see this event: the WS server targets frontdesk only, and this
+        // client-side gate covers a stale server still broadcasting widely.
+        if (curRole === 'frontdesk') {
           if (!isLocalActor) {
             showNotification(`New guest message: Room ${data.room_number || '—'}`);
             window.HotelChatSound?.play(data.message_id);

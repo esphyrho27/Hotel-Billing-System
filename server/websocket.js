@@ -135,6 +135,12 @@ function broadcast(event, data, filters = {}) {
       )
     );
     const isTargetRole = Boolean(targetRole && (meta.role === targetRole || targetRole === 'all'));
+
+    // Guest chat is frontdesk-only: never deliver CHAT_MESSAGE to any other
+    // role, even supervisory ones that would otherwise receive untargeted
+    // events. Staff replies are not broadcast (portal live poll delivers
+    // them), so frontdesk is the only staff audience for this event.
+    if (event === 'CHAT_MESSAGE' && meta.role !== 'frontdesk') continue;
     const isRestrictedTransfer =
       data.request_kind === 'ROOM_TRANSFER' || event === 'ROOM_TRANSFER_REQUESTED';
 

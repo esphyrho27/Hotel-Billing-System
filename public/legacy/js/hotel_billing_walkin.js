@@ -2489,6 +2489,10 @@
 
     } else if (id==='guest-chats') {
 
+      const curRole = String(window.HotelAuth.getUser()?.role||'').toLowerCase();
+
+      if (curRole !== 'frontdesk') { $('guest-chats-content').innerHTML='<div class="alert alert-warning">Guest chats are available to the front desk only.</div>'; return; }
+
       await renderGuestChats();
 
     } else if (id==='settings') {
@@ -4387,8 +4391,8 @@ async function confirmCheckinPayment(cpId) {
   })();
   async function refreshChatBadge() {
     try {
-      const perms = window.HotelAuth.getUser()?.permissions || [];
-      if (perms.length && !perms.includes('*') && !perms.includes('chat.view')) {
+      const curRole = String(window.HotelAuth.getUser()?.role || '').toLowerCase();
+      if (curRole !== 'frontdesk') {
         document.querySelectorAll('[data-chat-badge]').forEach(el => { el.textContent = '0'; el.classList.add('d-none'); });
         return;
       }
@@ -4406,12 +4410,14 @@ async function confirmCheckinPayment(cpId) {
   async function renderChatList() {
     const host = $('guest-chats-content'); if (!host) return;
     const listEl = host.querySelector('#guest-chat-list'); if (!listEl) return;
+    const prevScrollTop = listEl.scrollTop;
     try {
       const data = await api('chat_conversations', {}, 'GET');
       if (data.migrated === false) { listEl.innerHTML = '<div class="alert alert-warning">Guest chat is not available yet. Import database/migrations/20261031_chat_messages.sql and refresh.</div>'; return; }
       const conversations = data.conversations || [];
       if (!conversations.length) { listEl.innerHTML = '<div class="text-muted py-4">No guest chats yet. Messages from guests appear here.</div>'; return; }
-      listEl.innerHTML = conversations.map(c => `<div class="card border-0 shadow-sm mb-2"><div class="card-body d-flex justify-content-between align-items-center gap-2"><div><strong>Room ${esc(c.room_number)}</strong><span class="text-muted"> · ${esc(c.guest_name || 'Guest')} · ${esc(c.stay_code)}</span>${Number(c.unread) > 0 ? ` <span class="badge text-bg-danger">${esc(c.unread)} unread</span>` : ''}<div class="text-muted small">${esc(c.last_sender === 'STAFF' ? 'Front desk: ' : '')}${esc((c.last_body || '').slice(0, 100))}</div><div class="text-muted small">${esc(c.last_at || '')}</div></div><button type="button" class="btn btn-primary btn-sm" data-chat-open="${esc(c.stay_id)}">Open chat</button></div></div>`).join('');
+      listEl.innerHTML = conversations.map(c => `<div class="card border-0 shadow-sm mb-2 ${chatOpenStayId === Number(c.stay_id) ? 'chat-list-item-active' : ''}" data-chat-item="${esc(c.stay_id)}"><div class="card-body"><div><strong>Room ${esc(c.room_number)}</strong><span class="text-muted"> · ${esc(c.guest_name || 'Guest')} · ${esc(c.stay_code)}</span>${Number(c.unread) > 0 ? ` <span class="badge text-bg-danger">${esc(c.unread)} unread</span>` : ''}</div><div class="text-muted small">${esc(c.last_sender === 'STAFF' ? 'Front desk: ' : '')}${esc((c.last_body || '').slice(0, 100))}</div><div class="text-muted small">${esc(c.last_at || '')}</div><button type="button" class="btn btn-primary btn-sm w-100 mt-2" data-chat-open="${esc(c.stay_id)}">Open chat</button></div></div>`).join('');
+      listEl.scrollTop = prevScrollTop;
       listEl.querySelectorAll('[data-chat-open]').forEach(btn => btn.addEventListener('click', () => openChatThread(Number(btn.dataset.chatOpen))));
     } catch (e) { listEl.innerHTML = `<div class="alert alert-danger">${esc(e.message)}</div>`; }
   }
@@ -4425,7 +4431,8 @@ async function confirmCheckinPayment(cpId) {
       const stay = data.stay || {};
       const messages = data.messages || [];
       chatThreadSeenIds = new Set(messages.map(m => String(m.id)));
-      threadEl.innerHTML = `<div class="card border-0 shadow-sm mt-3"><div class="card-body"><h6 class="fw-bold">Room ${esc(stay.room_number)} · ${esc(stay.stay_code)}</h6><div id="guest-chat-thread-messages" style="max-height:420px;overflow-y:auto;padding:2px">${messages.length ? messages.map(chatMessageHtml).join('') : '<div class="text-muted">No messages yet.</div>'}</div><form id="guest-chat-reply-form" class="mt-3"><div class="mb-2"><textarea class="form-control" name="body" rows="3" maxlength="1000" placeholder="Write a reply…" required></textarea></div><button class="btn btn-primary btn-sm" type="submit">Send reply</button></form></div></div>`;
+      host.querySelectorAll('[data-chat-item]').forEach(el => el.classList.toggle('chat-list-item-active', Number(el.dataset.chatItem) === stayId));
+      threadEl.innerHTML = `<div class="card border-0 shadow-sm"><div class="card-body"><h6 class="fw-bold">Room ${esc(stay.room_number)} · ${esc(stay.stay_code)}</h6><div id="guest-chat-thread-messages" style="max-height:420px;overflow-y:auto;padding:2px">${messages.length ? messages.map(chatMessageHtml).join('') : '<div class="text-muted">No messages yet.</div>'}</div><form id="guest-chat-reply-form" class="mt-3"><div class="mb-2"><textarea class="form-control" name="body" rows="3" maxlength="1000" placeholder="Write a reply…" required></textarea></div><button class="btn btn-primary btn-sm" type="submit">Send reply</button></form></div></div>`;
       const form = threadEl.querySelector('#guest-chat-reply-form');
       form.onsubmit = async e => { e.preventDefault(); const body = new FormData(form).get('body').toString().trim(); if (!body) return; try { await api('chat_send', {stay_id: stayId, body}); form.reset(); notify('Message sent to the guest.'); await openChatThread(stayId); await renderChatList(); await refreshChatBadge(); } catch (err) { notify(err.message, true); } };
       await refreshChatBadge();
@@ -4435,7 +4442,7 @@ async function confirmCheckinPayment(cpId) {
   }
   async function renderGuestChats() {
     const host = $('guest-chats-content'); if (!host) return;
-    host.innerHTML = `<div class="d-flex justify-content-end gap-2 mb-3"><button type="button" class="btn btn-outline-secondary btn-sm" id="guest-chats-sound-toggle" title="Mute chat sound">🔔</button><button type="button" class="btn btn-outline-secondary btn-sm" id="guest-chats-refresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button></div><div id="guest-chat-list"></div><div id="guest-chat-thread"></div>`;
+    host.innerHTML = `<div class="d-flex justify-content-end gap-2 mb-3"><button type="button" class="btn btn-outline-secondary btn-sm" id="guest-chats-sound-toggle" title="Mute chat sound">🔔</button><button type="button" class="btn btn-outline-secondary btn-sm" id="guest-chats-refresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button></div><style>.guest-chat-layout{display:flex;gap:16px;align-items:flex-start}.guest-chat-layout #guest-chat-list{flex:0 0 340px;max-width:360px;min-width:0;max-height:640px;overflow-y:auto;padding-right:2px}.guest-chat-layout #guest-chat-thread{flex:1;min-width:0}.guest-chat-layout .chat-list-item-active{outline:2px solid #17344e;outline-offset:-2px}@media (max-width:767px){.guest-chat-layout{flex-direction:column}.guest-chat-layout #guest-chat-list{flex:none;max-width:none;width:100%;max-height:none}}</style><div class="guest-chat-layout"><div id="guest-chat-list"></div><div id="guest-chat-thread"><div class="text-muted py-4 px-2">Select a conversation to view messages.</div></div></div>`;
     host.querySelector('#guest-chats-refresh').addEventListener('click', async () => { await renderChatList(); if (chatOpenStayId) await openChatThread(chatOpenStayId); });
     const chatSoundBtn = host.querySelector('#guest-chats-sound-toggle');
     const syncChatSoundBtn = () => { if (chatSoundBtn) { const m = window.HotelChatSound?.muted?.() === true; chatSoundBtn.textContent = m ? '🔕' : '🔔'; chatSoundBtn.title = m ? 'Unmute chat sound' : 'Mute chat sound'; } };

@@ -577,7 +577,7 @@ function hotel_get_allowed_modules_for_role(string $role, ?PDO $pdo = null): arr
     if ($r === 'admin') {
         return [
             'dashboard', 'walkin-checkin', 'active-stays', 'checkout-history', 'checkout', 'rooms', 'catalog', 'payments',
-            'discount-approvals', 'early-checkouts', 'early-checkout-requests', 'service-requests', 'guest-chats',
+            'discount-approvals', 'early-checkouts', 'early-checkout-requests', 'service-requests',
             'reports', 'audit-logs', 'users', 'settings'
         ];
     }
@@ -608,7 +608,7 @@ function hotel_get_allowed_modules_for_role(string $role, ?PDO $pdo = null): arr
             'payments',
             'discount-approvals',
             'early-checkouts',
-            'service-requests', 'guest-chats',
+            'service-requests',
             'reports',
             'audit-logs',
             'users',
@@ -665,7 +665,9 @@ function hotel_get_allowed_modules_for_role(string $role, ?PDO $pdo = null): arr
     if ($has('service_requests.view') || $has('service_requests.fulfill') || $has('service_requests.assign')) {
         $modules[] = 'service-requests';
     }
-    if ($has('chat.view')) {
+    // Frontdesk returns its own list above, so this generic path only ever
+    // sees non-frontdesk roles: guest-chats stays frontdesk-only here too.
+    if ($r === 'frontdesk' && $has('chat.view')) {
         $modules[] = 'guest-chats';
     }
     if ($r === 'housekeeping' && $has('service_requests.view')) {

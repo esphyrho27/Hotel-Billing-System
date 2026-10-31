@@ -40,7 +40,7 @@
   const cashierRoleModules = ["dashboard", "payments"];
 
   const visibleModules = {
-    admin: modules.map(([id]) => id),
+    admin: modules.filter(([id]) => id !== "guest-chats").map(([id]) => id),
     manager: [
       "dashboard",
       "active-stays",
@@ -50,7 +50,6 @@
       "discount-approvals",
       "early-checkouts",
       "service-requests",
-      "guest-chats",
       "reports",
       "dept-reports",
       "dept-inventory",
@@ -113,7 +112,7 @@
         if (roleKey === "frontdesk" && (permissions.includes("*") || permissions.includes("service_requests.view"))) {
           allowed.add("service-requests");
         }
-        if (["admin", "manager", "frontdesk"].includes(r) && (permissions.includes("*") || permissions.includes("chat.view"))) {
+        if (roleKey === "frontdesk" && (permissions.includes("*") || permissions.includes("chat.view"))) {
           allowed.add("guest-chats");
         }
         if (["bar", "bartender", "minibar", "restaurant", "foodbeverage", "food"].includes(roleKey)
