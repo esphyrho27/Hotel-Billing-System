@@ -842,6 +842,34 @@ INSERT INTO `early_checkout_requests` (`id`, `stay_id`, `folio_id`, `request_typ
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `stay_extension_requests`
+--
+
+CREATE TABLE `stay_extension_requests` (
+  `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `stay_id` bigint(20) UNSIGNED NOT NULL,
+  `folio_id` bigint(20) UNSIGNED NOT NULL,
+  `current_checkout` date NOT NULL,
+  `requested_checkout` date NOT NULL,
+  `extra_nights` int(11) NOT NULL,
+  `nightly_rate` decimal(12,2) NOT NULL,
+  `proposed_charge` decimal(12,2) NOT NULL,
+  `reason` varchar(500) DEFAULT NULL,
+  `status` enum('REQUESTED','APPROVED','REJECTED') NOT NULL DEFAULT 'REQUESTED',
+  `review_note` varchar(500) DEFAULT NULL,
+  `requested_by` bigint(20) UNSIGNED DEFAULT NULL,
+  `approved_by` bigint(20) UNSIGNED DEFAULT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `stay_id` (`stay_id`),
+  KEY `folio_id` (`folio_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `folios`
 --
 
@@ -1624,7 +1652,8 @@ CREATE TRIGGER `hotel_stays_before_update_time_guard` BEFORE UPDATE ON `stays` F
       SET MESSAGE_TEXT = 'The scheduled check-in timestamp cannot be changed.';
   END IF;
 
-  IF NOT (NEW.planned_checkout <=> OLD.planned_checkout) THEN
+  IF NOT (NEW.planned_checkout <=> OLD.planned_checkout)
+     AND COALESCE(@hotel_allow_planned_checkout_change, 0) <> 1 THEN
     SIGNAL SQLSTATE '45000'
       SET MESSAGE_TEXT = 'The scheduled checkout date cannot be changed directly.';
   END IF;

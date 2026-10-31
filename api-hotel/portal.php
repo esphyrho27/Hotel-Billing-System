@@ -71,6 +71,8 @@ $transferRooms = [];
 $currentNightlyRate = 0.0;
 $transferRemainingNights = 0;
 $hasPendingTransfer = false;
+$pendingExtension = null;
+$latestRejectedExtension = null;
 // The app may be served with either the repository root or public/ as document root.
 // Resolve the URL prefix from the actual deployed public asset location.
 $documentRoot = rtrim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''), DIRECTORY_SEPARATOR);
@@ -389,6 +391,104 @@ try {
                         'price' => 0,
                     ], 'frontdesk', $stay['stay_code']);
                     portal_redirect($token, 'service');
+                }
+            } elseif ($action === 'extend_stay') {
+                $requestedValue = $_POST['requested_checkout'] ?? null;
+                $reasonValue = $_POST['reason'] ?? null;
+                $requestedCheckout = is_scalar($requestedValue) ? trim((string)$requestedValue) : '';
+                $reason = is_scalar($reasonValue) ? trim((string)$reasonValue) : '';
+                $parsedCheckout = $requestedCheckout !== ''
+                    ? DateTimeImmutable::createFromFormat('!Y-m-d', $requestedCheckout)
+                    : false;
+                if ($parsedCheckout === false || $parsedCheckout->format('Y-m-d') !== $requestedCheckout
+                    || mb_strlen($reason) > 500) {
+                    http_response_code(422);
+                    $pageError = 'Choose a valid new checkout date and keep the reason under 500 characters.';
+                } else {
+                    $pdo->beginTransaction();
+                    try {
+                        $extendStayQuery = $pdo->prepare(
+                            "SELECT s.id, s.room_id, s.status, s.planned_checkout,
+                                    rt.nightly_rate AS current_rate
+                             FROM stays s
+                             JOIN rooms r ON r.id=s.room_id
+                             JOIN room_types rt ON rt.id=r.room_type_id
+                             WHERE s.id=? FOR UPDATE"
+                        );
+                        $extendStayQuery->execute([(int)$stay['id']]);
+                        $extendStay = $extendStayQuery->fetch();
+                        if (!$extendStay || $extendStay['status'] !== 'ACTIVE') {
+                            throw new RuntimeException('Your stay is no longer active. Please contact the front desk.');
+                        }
+                        $currentCheckout = (string)$extendStay['planned_checkout'];
+                        if ($requestedCheckout <= $currentCheckout) {
+                            throw new RuntimeException('The new checkout date must be after your current checkout date.');
+                        }
+                        $duplicateQuery = $pdo->prepare(
+                            "SELECT COUNT(*) FROM stay_extension_requests
+                             WHERE stay_id=? AND status='REQUESTED'"
+                        );
+                        $duplicateQuery->execute([(int)$extendStay['id']]);
+                        if ((int)$duplicateQuery->fetchColumn() > 0) {
+                            throw new RuntimeException('You already have a stay extension request awaiting staff action.');
+                        }
+                        $conflictQuery = $pdo->prepare(
+                            "SELECT id FROM stays
+                             WHERE room_id=? AND status IN ('ACTIVE','PENDING_PAYMENT')
+                               AND DATE(checkin_at) < ? AND planned_checkout > ?
+                             LIMIT 1 FOR UPDATE"
+                        );
+                        $conflictQuery->execute([(int)$extendStay['room_id'], $requestedCheckout, $currentCheckout]);
+                        if ($conflictQuery->fetch()) {
+                            throw new RuntimeException('Your room is already booked past your current checkout date. Please contact the front desk.');
+                        }
+                        $extendFolioQuery = $pdo->prepare('SELECT id FROM folios WHERE stay_id=? LIMIT 1 FOR UPDATE');
+                        $extendFolioQuery->execute([(int)$extendStay['id']]);
+                        $extendFolio = $extendFolioQuery->fetch();
+                        if (!$extendFolio) {
+                            throw new RuntimeException('Your folio could not be found. Please contact the front desk.');
+                        }
+                        $extraNights = (int)(new DateTimeImmutable($currentCheckout))->diff(new DateTimeImmutable($requestedCheckout))->format('%a');
+                        if ($extraNights < 1) {
+                            throw new RuntimeException('The new checkout date must add at least one night.');
+                        }
+                        $nightlyRate = round((float)$extendStay['current_rate'], 2);
+                        $proposedCharge = round($extraNights * $nightlyRate, 2);
+                        $insertExtension = $pdo->prepare(
+                            "INSERT INTO stay_extension_requests
+                                (stay_id, folio_id, current_checkout, requested_checkout, extra_nights,
+                                 nightly_rate, proposed_charge, reason, status, requested_by)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'REQUESTED', NULL)"
+                        );
+                        $insertExtension->execute([
+                            (int)$extendStay['id'],
+                            (int)$extendFolio['id'],
+                            $currentCheckout,
+                            $requestedCheckout,
+                            $extraNights,
+                            $nightlyRate,
+                            $proposedCharge,
+                            $reason !== '' ? $reason : null,
+                        ]);
+                        $extensionRequestId = (int)$pdo->lastInsertId();
+                        $pdo->commit();
+                    } catch (Throwable $error) {
+                        if ($pdo->inTransaction()) {
+                            $pdo->rollBack();
+                        }
+                        throw $error;
+                    }
+                    portal_broadcast('EXTENSION_REQUESTED', [
+                        'id' => $extensionRequestId,
+                        'stay_code' => $stay['stay_code'],
+                        'room_number' => $stay['room_number'],
+                        'current_checkout' => $currentCheckout,
+                        'requested_checkout' => $requestedCheckout,
+                        'extra_nights' => $extraNights,
+                        'proposed_charge' => $proposedCharge,
+                        'status' => 'REQUESTED',
+                    ], 'frontdesk', $stay['stay_code']);
+                    portal_redirect($token, 'extension');
                 }
             } elseif ($action === 'service_request') {
                 $description = trim((string)($_POST['description'] ?? ''));
@@ -822,6 +922,30 @@ try {
         );
         $pendingTransferQuery->execute([(int)$stay['id']]);
         $hasPendingTransfer = (int)$pendingTransferQuery->fetchColumn() > 0;
+        try {
+            $pendingExtensionQuery = $pdo->prepare(
+                "SELECT id, current_checkout, requested_checkout, extra_nights, nightly_rate, proposed_charge, reason, review_note, status, created_at
+                 FROM stay_extension_requests
+                 WHERE stay_id=? AND status='REQUESTED'
+                 ORDER BY created_at DESC LIMIT 1"
+            );
+            $pendingExtensionQuery->execute([(int)$stay['id']]);
+            $pendingExtension = $pendingExtensionQuery->fetch() ?: null;
+            if (!$pendingExtension) {
+                $rejectedExtensionQuery = $pdo->prepare(
+                    "SELECT id, current_checkout, requested_checkout, extra_nights, nightly_rate, proposed_charge, reason, review_note, status, created_at
+                     FROM stay_extension_requests
+                     WHERE stay_id=? AND status='REJECTED'
+                     ORDER BY created_at DESC LIMIT 1"
+                );
+                $rejectedExtensionQuery->execute([(int)$stay['id']]);
+                $latestRejectedExtension = $rejectedExtensionQuery->fetch() ?: null;
+            }
+        } catch (Throwable $extensionQueryError) {
+            // Stay-extension table not migrated yet: the portal still loads.
+            $pendingExtension = null;
+            $latestRejectedExtension = null;
+        }
         if ($stay['status'] === 'ACTIVE') {
             $rateQuery = $pdo->prepare(
                 'SELECT rt.nightly_rate FROM stays s JOIN rooms r ON r.id=s.room_id JOIN room_types rt ON rt.id=r.room_type_id WHERE s.id=?'
@@ -931,6 +1055,10 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     .journey-line::before,.journey-line::after{content:"";flex:1;height:2px;background:linear-gradient(90deg,#e9b65f,#f1c878)}
     .journey-nights{flex:none;padding:5px 11px;border-radius:999px;background:#fdf6e7;color:#8a6a1f;font-size:11px;font-weight:800;white-space:nowrap}
     @media(max-width:640px){.journey{flex-wrap:wrap}.journey-point{flex:1 1 100%}.journey-line{flex:1 1 100%;margin:14px 0 0 26px}}
+    .extend-row{margin:-6px 0 18px}
+    .extend-btn{display:inline-flex;min-height:44px;align-items:center;justify-content:center;padding:10px 18px;border:1px solid #e9b65f;border-radius:12px;background:#e9b65f;color:#102a43;font-size:13px;font-weight:800;cursor:pointer}
+    .extend-btn:disabled{border-color:#d4dee8;background:#eef2f6;color:#64748b;cursor:default}
+    .extend-status{margin:8px 0 0;color:var(--muted);font-size:12px;line-height:1.5}
     .stat,.card{min-width:0;border:1px solid var(--line);border-radius:15px;background:linear-gradient(145deg,#fff,#fafbfd);box-shadow:0 5px 18px rgba(23,43,69,.035)}
     .stat{padding:17px 19px}.stat-label{color:var(--muted);font-size:9px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}
     .stat-value{margin:8px 0 3px;color:var(--ink);font-size:23px;font-weight:800;letter-spacing:-.035em;overflow-wrap:anywhere}
@@ -1192,6 +1320,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     <div class="content">
       <?php if ($notice === 'service'): ?><div class="notice" role="status">Your request has been sent to the hotel team.</div><?php endif; ?>
       <?php if ($notice === 'order'): ?><div class="notice" role="status">Your room-service order has been submitted to the restaurant.</div><?php endif; ?>
+      <?php if ($notice === 'extension'): ?><div class="notice" role="status">Your stay extension request has been sent to the front desk.</div><?php endif; ?>
       <?php if ($pageError !== ''): ?><div class="notice error" role="alert"><?=portal_escape($pageError)?></div><?php endif; ?>
 
       <?php
@@ -1214,6 +1343,19 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         <div class="journey-line" aria-hidden="true"><span class="journey-nights"><?=$journeyNights === 1 ? '1 night' : $journeyNights . ' nights'?></span></div>
         <div class="journey-point<?= $journeyCheckedOut ? ' is-done' : '' ?>"><span class="journey-dot" aria-hidden="true"></span><div><span class="journey-label"><?= $journeyCheckedOut ? 'Checked out' : 'Check-out' ?></span><strong class="journey-value"><?=portal_escape($journeyCheckoutLabel)?></strong></div></div>
       </section>
+      <?php endif; ?>
+      <?php if ($isActive && $journeyCheckinAt !== '' && $journeyCheckoutRaw !== ''): ?>
+      <div class="extend-row">
+        <?php if ($pendingExtension): ?>
+          <button class="extend-btn" type="button" disabled>Extension requested — waiting for front desk</button>
+          <p class="extend-status">Requested new check-out: <?=portal_escape(date('M j, Y', strtotime($pendingExtension['requested_checkout'])))?> · <?=(int)$pendingExtension['extra_nights'] === 1 ? '1 night' : (int)$pendingExtension['extra_nights'] . ' nights'?> · ₱<?=number_format((float)$pendingExtension['proposed_charge'], 2)?> — waiting for front desk approval.</p>
+        <?php else: ?>
+          <button class="extend-btn" type="button" data-open="extend-dialog">Extend stay</button>
+          <?php if ($latestRejectedExtension): ?>
+            <p class="extend-status">Previous extension request declined<?= $latestRejectedExtension['review_note'] !== null && $latestRejectedExtension['review_note'] !== '' ? ': ' . portal_escape($latestRejectedExtension['review_note']) : '' ?>.</p>
+          <?php endif; ?>
+        <?php endif; ?>
+      </div>
       <?php endif; ?>
 
       <section class="stats" aria-label="Stay summary">
@@ -1382,6 +1524,30 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     </div>
   </dialog>
 
+  <dialog class="dialog" id="extend-dialog" aria-labelledby="extend-title">
+    <div class="dialog-frame">
+      <header class="dialog-head"><div><p class="eyebrow">Stay longer</p><h2 id="extend-title">Extend your stay</h2><p>Choose a new checkout date. The extra nights are added to your folio and settled at checkout.</p></div><button class="dialog-close" type="button" data-close aria-label="Close extend stay dialog">×</button></header>
+      <div class="dialog-body">
+        <?php if (!$isActive): ?><p class="notice">Stay extensions are available during an active stay.</p><?php else: ?>
+          <form method="post" action="portal.php?t=<?=rawurlencode($token)?>">
+            <input type="hidden" name="t" value="<?=portal_escape($token)?>"><input type="hidden" name="csrf" value="<?=portal_escape($csrf)?>"><input type="hidden" name="portal_action" value="extend_stay">
+            <div class="service-intro">
+              <span class="service-room-chip">Room <?=portal_escape($stay['room_number'] ?? '')?></span>
+              <p>Current check-out: <?=portal_escape(date('M j, Y', strtotime($stay['planned_checkout'])))?> · ₱<?=number_format((float)($currentNightlyRate ?? 0), 2)?>/night</p>
+            </div>
+            <label class="field">New checkout date
+              <input type="date" name="requested_checkout" data-extend-date required min="<?=portal_escape(date('Y-m-d', strtotime($stay['planned_checkout'] . ' +1 day')))?>" data-current-checkout="<?=portal_escape($stay['planned_checkout'])?>" data-nightly-rate="<?=portal_escape((string)($currentNightlyRate ?? 0))?>">
+            </label>
+            <p class="stat-note" data-extend-preview>Choose a new checkout date to see the added cost.</p>
+            <label class="field">Reason (optional)
+              <textarea name="reason" maxlength="500" placeholder="Tell the front desk why you are extending your stay."></textarea>
+            </label>
+            <footer class="dialog-footer"><span class="stat-note">A manager must approve this request before your checkout date moves.</span><button class="button" type="submit" data-extend-submit disabled>Request extension</button></footer>
+          </form>
+        <?php endif; ?>
+      </div>
+    </div>
+  </dialog>
   <dialog class="dialog" id="requests-dialog" aria-labelledby="requests-title">
     <div class="dialog-frame">
       <header class="dialog-head"><div><p class="eyebrow">Your stay, at a glance</p><h2 id="requests-title">My requests</h2><p>Follow your service requests and room-service orders.</p></div><button class="dialog-close" type="button" data-close aria-label="Close requests dialog">×</button></header>
@@ -1487,6 +1653,30 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
       filters.forEach((filter) => filter.addEventListener("click", () => applyFilter(filter)));
       applyFilter(dialog.querySelector('[data-activity-filter="all"]') || filters[0]);
     })();
+
+    const extendDate = document.querySelector("[data-extend-date]");
+    if (extendDate instanceof HTMLInputElement) {
+      const preview = document.querySelector("[data-extend-preview]");
+      const submit = document.querySelector("[data-extend-submit]");
+      const currentCheckout = extendDate.dataset.currentCheckout || "";
+      const nightlyRate = Number(extendDate.dataset.nightlyRate || 0);
+      const fmt = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
+      const update = () => {
+        const start = currentCheckout ? new Date(currentCheckout + "T00:00:00") : null;
+        const end = extendDate.value ? new Date(extendDate.value + "T00:00:00") : null;
+        const nights = start && end ? Math.round((end - start) / 86400000) : 0;
+        if (nights >= 1 && nightlyRate > 0) {
+          if (preview) preview.textContent = `${nights} extra night${nights === 1 ? "" : "s"} × ${fmt.format(nightlyRate)} = ${fmt.format(nights * nightlyRate)}. This will be added to your folio and settled at checkout.`;
+          if (submit) submit.disabled = false;
+        } else {
+          if (preview) preview.textContent = "Choose a new checkout date after your current checkout date to see the added cost.";
+          if (submit) submit.disabled = true;
+        }
+      };
+      extendDate.addEventListener("change", update);
+      extendDate.addEventListener("input", update);
+      update();
+    }
 
     document.querySelectorAll("[data-open]").forEach((button) => {
       button.addEventListener("click", () => {

@@ -160,7 +160,7 @@ if ($action === 'session') {
 
 $readActions = [
     'dashboard', 'rooms', 'room_types', 'service_catalog', 'active_stays', 'checkout_history', 'hotel_time_policy', 'demo_clock_status',
-    'requests', 'request_history', 'early_checkout_policies', 'early_checkout_requests',
+    'requests', 'request_history', 'early_checkout_policies', 'early_checkout_requests', 'stay_extension_requests',
     'discount_policy_admin_list', 'pending_discounts', 'discount_policies',
     'vat_settings', 'reports', 'payment_history', 'receipt_details', 'report_transactions', 'audit_logs', 'users',
     'permissions_get', 'my_permissions', 'checkin_payments', 'pending_checkins',
@@ -491,6 +491,15 @@ if ($action === 'dashboard') {
         }
         if (hotel_user_can($u, 'early_checkout.approve', $pdo)) {
             $approvals['early_checkouts'] = (int)$pdo->query("SELECT COUNT(*) n FROM early_checkout_requests WHERE status='REQUESTED'")->fetch()['n'];
+        }
+        if (hotel_user_can($u, 'stay_extension.approve', $pdo)) {
+            // Guarded separately so a database that has not imported the
+            // stay-extension migration yet does not wipe the whole inbox.
+            try {
+                $approvals['stay_extensions'] = (int)$pdo->query("SELECT COUNT(*) n FROM stay_extension_requests WHERE status='REQUESTED'")->fetch()['n'];
+            } catch (Throwable $e) {
+                // Table missing: the extension inbox is simply unavailable.
+            }
         }
         if (hotel_user_can($u, 'payments.process', $pdo) || $roleKey === 'cashier') {
             htl_ensure_checkin_payments($pdo);
@@ -5104,6 +5113,123 @@ if ($action === 'early_checkout_finalize') {
                 ? 'Manager-approved early departure authorized. Existing room charges are unchanged; settle the folio before checkout.'
                 : 'Room charge recalculated according to the approved early-checkout policy. No separate early-checkout fee was added. Review and settle any remaining folio balance; any excess payment remains a credit.'
         ]);
+    } catch (Throwable $x) {
+        $pdo->rollBack();
+        out(['error' => $x->getMessage()], 400);
+    }
+}
+
+// ============================================================================
+// STAY EXTENSION REQUESTS (guest request + manager/admin approval)
+// ============================================================================
+
+/**
+ * Lists stay extension requests for the approvals inbox.
+ */
+if ($action === 'stay_extension_requests') {
+    $q = $pdo->query("SELECT e.id, e.stay_id, e.folio_id, e.current_checkout, e.requested_checkout, e.extra_nights, e.nightly_rate, e.proposed_charge, e.reason, e.review_note, e.status, e.created_at, e.updated_at, s.stay_code, r.room_number, f.folio_number, ur.username AS requested_by_name, ua.username AS approved_by_name FROM stay_extension_requests e JOIN stays s ON s.id=e.stay_id JOIN rooms r ON r.id=s.room_id JOIN folios f ON f.id=e.folio_id LEFT JOIN users ur ON ur.id=e.requested_by LEFT JOIN users ua ON ua.id=e.approved_by ORDER BY CASE e.status WHEN 'REQUESTED' THEN 0 WHEN 'APPROVED' THEN 1 WHEN 'REJECTED' THEN 2 ELSE 3 END, e.created_at DESC");
+    out(['requests' => $q->fetchAll()]);
+}
+
+/**
+ * Approves a pending stay extension: moves planned_checkout and posts the
+ * extra nights as one ROOM charge to the open folio (Option A: the guest
+ * settles the folio at checkout; no payment is collected here).
+ */
+if ($action === 'stay_extension_approve') {
+    $id = filter_var($in['request_id'] ?? null, FILTER_VALIDATE_INT);
+    if ($id === false || $id < 1) {
+        out(['error' => 'Choose a valid extension request.'], 400);
+    }
+    $pdo->beginTransaction();
+    try {
+        $q = $pdo->prepare('SELECT * FROM stay_extension_requests WHERE id=? FOR UPDATE');
+        $q->execute([$id]);
+        $e = $q->fetch();
+        if (!$e) {
+            throw new RuntimeException('Stay extension request not found.');
+        }
+        if ($e['status'] !== 'REQUESTED') {
+            throw new RuntimeException('Only pending requests can be approved.');
+        }
+        $sq = $pdo->prepare('SELECT s.*, r.room_number FROM stays s JOIN rooms r ON r.id=s.room_id WHERE s.id=? FOR UPDATE');
+        $sq->execute([(int)$e['stay_id']]);
+        $stay = $sq->fetch();
+        if (!$stay) {
+            throw new RuntimeException('Stay not found.');
+        }
+        if ($stay['status'] !== 'ACTIVE') {
+            throw new RuntimeException('Only active stays can be extended.');
+        }
+        $currentCheckout = (string)$stay['planned_checkout'];
+        $requestedCheckout = (string)$e['requested_checkout'];
+        if ($requestedCheckout <= $currentCheckout) {
+            throw new RuntimeException('The requested checkout date must be after the current planned checkout date.');
+        }
+        if (htl_room_has_stay_conflict($pdo, (int)$stay['room_id'], $currentCheckout, $requestedCheckout)) {
+            throw new RuntimeException('The room is already booked during the extended stay. The extension cannot be approved.');
+        }
+        $rateQuery = $pdo->prepare('SELECT rt.nightly_rate FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.id=?');
+        $rateQuery->execute([(int)$stay['room_id']]);
+        $rate = $rateQuery->fetchColumn();
+        if ($rate === false) {
+            throw new RuntimeException('The room rate could not be determined.');
+        }
+        $extraNights = (int)(new DateTimeImmutable($currentCheckout))->diff(new DateTimeImmutable($requestedCheckout))->format('%a');
+        if ($extraNights < 1) {
+            throw new RuntimeException('The requested checkout date must add at least one night.');
+        }
+        $roomRate = money($rate);
+        $roomTotal = money((htl_money_cents($roomRate) * $extraNights) / 100);
+        // The hotel time-guard trigger blocks direct planned_checkout changes.
+        // An approved extension is the authorized path: allow it for this
+        // UPDATE only, then clear the flag immediately.
+        $pdo->exec('SET @hotel_allow_planned_checkout_change = 1');
+        $pdo->prepare('UPDATE stays SET planned_checkout=? WHERE id=?')->execute([$requestedCheckout, (int)$stay['id']]);
+        $pdo->exec('SET @hotel_allow_planned_checkout_change = NULL');
+        $pdo->prepare("INSERT INTO charges (folio_id, category, description, quantity, unit_price, amount, created_by) VALUES (?, 'ROOM', ?, ?, ?, ?, ?)")
+            ->execute([(int)$e['folio_id'], 'Accommodation - ' . $extraNights . ' night(s)', $extraNights, $roomRate, $roomTotal, $u['id']]);
+        $pdo->prepare("UPDATE stay_extension_requests SET status='APPROVED', approved_by=?, approved_at=NOW(), updated_at=CURRENT_TIMESTAMP WHERE id=?")
+            ->execute([$u['id'], $id]);
+        audit($pdo, $u['id'], 'STAY_EXTENSION_APPROVED', 'stay', (int)$stay['id'], ['request_id' => $id, 'previous_checkout' => $currentCheckout, 'requested_checkout' => $requestedCheckout, 'extra_nights' => $extraNights, 'nightly_rate' => $roomRate, 'room_charge' => $roomTotal]);
+        $pdo->commit();
+        ws_broadcast('STAY_EXTENSION_UPDATED', ['request_id' => $id, 'status' => 'APPROVED', 'stay_id' => (int)$stay['id'], 'planned_checkout' => $requestedCheckout], null, 'frontdesk');
+        out(['ok' => true, 'status' => 'APPROVED', 'planned_checkout' => $requestedCheckout, 'extra_nights' => $extraNights, 'room_charge' => $roomTotal, 'message' => 'Stay extended. The extra nights were posted to the folio and settle at checkout.']);
+    } catch (Throwable $x) {
+        $pdo->rollBack();
+        out(['error' => $x->getMessage()], 400);
+    }
+}
+
+/**
+ * Rejects a pending stay extension with an optional review note for the guest.
+ */
+if ($action === 'stay_extension_reject') {
+    $id = filter_var($in['request_id'] ?? null, FILTER_VALIDATE_INT);
+    $note = trim((string)($in['note'] ?? ''));
+    if ($id === false || $id < 1) {
+        out(['error' => 'Choose a valid extension request.'], 400);
+    }
+    if (mb_strlen($note) > 500) {
+        out(['error' => 'The review note must be 500 characters or fewer.'], 400);
+    }
+    $pdo->beginTransaction();
+    try {
+        $q = $pdo->prepare('SELECT * FROM stay_extension_requests WHERE id=? FOR UPDATE');
+        $q->execute([$id]);
+        $e = $q->fetch();
+        if (!$e) {
+            throw new RuntimeException('Stay extension request not found.');
+        }
+        if ($e['status'] !== 'REQUESTED') {
+            throw new RuntimeException('Only pending requests can be rejected.');
+        }
+        $pdo->prepare("UPDATE stay_extension_requests SET status='REJECTED', review_note=?, approved_by=?, approved_at=NOW(), updated_at=CURRENT_TIMESTAMP WHERE id=?")
+            ->execute([$note !== '' ? $note : null, $u['id'], $id]);
+        audit($pdo, $u['id'], 'STAY_EXTENSION_REJECTED', 'stay', (int)$e['stay_id'], ['request_id' => $id, 'note' => $note]);
+        $pdo->commit();
+        ws_broadcast('STAY_EXTENSION_UPDATED', ['request_id' => $id, 'status' => 'REJECTED', 'stay_id' => (int)$e['stay_id']], null, 'frontdesk');
+        out(['ok' => true, 'status' => 'REJECTED', 'message' => 'Stay extension request rejected.']);
     } catch (Throwable $x) {
         $pdo->rollBack();
         out(['error' => $x->getMessage()], 400);

@@ -28,6 +28,8 @@ const HOTEL_ROLE_PERMISSIONS = [
         'early_checkout.view',
         'early_checkout.request',
         'early_checkout.approve',
+        'stay_extension.view',
+        'stay_extension.approve',
         'reports.financial.view',
         'transactions.view',
         'audit_logs.view',
@@ -54,6 +56,7 @@ const HOTEL_ROLE_PERMISSIONS = [
         'discounts.apply',
         'early_checkout.view',
         'early_checkout.request',
+        'stay_extension.view',
         'account.password.change',
     ],
     'cashier' => [
@@ -287,6 +290,20 @@ const HOTEL_ALL_PERMISSIONS = [
         'module' => 'early-checkouts'
     ],
     [
+        'category' => 'Discounts & Approvals',
+        'key' => 'stay_extension.view',
+        'label' => 'View Stay Extension Requests',
+        'description' => 'View guest requests to extend a stay past the planned checkout date',
+        'module' => 'early-checkouts'
+    ],
+    [
+        'category' => 'Discounts & Approvals',
+        'key' => 'stay_extension.approve',
+        'label' => 'Stay Extension Approvals',
+        'description' => 'Approve or reject stay extensions; approval moves the checkout date and posts the extra room nights to the folio',
+        'module' => 'early-checkouts'
+    ],
+    [
         'category' => 'Department Services',
         'key' => 'service_requests.view',
         'label' => 'Department Requests Queue',
@@ -402,6 +419,9 @@ const HOTEL_ACTION_PERMISSIONS = [
     'early_checkout_requests' => 'early_checkout.view',
     'early_checkout_decision' => 'early_checkout.approve',
     'early_checkout_finalize' => 'early_checkout.view',
+    'stay_extension_requests' => 'stay_extension.view',
+    'stay_extension_approve' => 'stay_extension.approve',
+    'stay_extension_reject' => 'stay_extension.approve',
     'checkout' => 'stays.checkout',
     'room_status' => 'rooms.status',
     'reports' => 'reports.financial.view',
@@ -618,7 +638,7 @@ function hotel_get_allowed_modules_for_role(string $role, ?PDO $pdo = null): arr
     if ($has('discounts.approve')) {
         $modules[] = 'discount-approvals';
     }
-    if ($has('early_checkout.approve') || $has('early_checkout.view')) {
+    if ($has('early_checkout.approve') || $has('early_checkout.view') || $has('stay_extension.approve') || $has('stay_extension.view')) {
         $modules[] = 'early-checkouts';
     }
     if ($has('service_requests.view') || $has('service_requests.fulfill') || $has('service_requests.assign')) {

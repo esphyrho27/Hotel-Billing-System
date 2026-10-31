@@ -724,6 +724,7 @@
           ('discounts' in a) ? approvalRow('Discount approvals', a.discounts, 'discount-approvals', 'percent') : '',
 
           ('early_checkouts' in a) ? approvalRow('Early checkout approvals', a.early_checkouts, 'early-checkouts', 'clock-history') : '',
+          ('stay_extensions' in a) ? approvalRow('Stay extension approvals', a.stay_extensions, 'early-checkouts', 'calendar-plus') : '',
 
         ].join('');
 
@@ -4387,6 +4388,28 @@ async function confirmCheckinPayment(cpId) {
 
       const canDecideEc = ecPerms.length ? (ecPerms.includes('*') || ecPerms.includes('early_checkout.approve')) : !isFrontdesk;
 
+      // Stay extensions live in this same panel. A user without the extension
+      // permission simply does not see the section instead of breaking the page.
+      let erows=[], extOk=true;
+      try{ const ed=await api('stay_extension_requests',{},'GET'); erows=ed.requests||[]; }catch(e){ extOk=false; }
+      const extPending=erows.filter(r=>r.status==='REQUESTED').length;
+      const canDecideExt = ecPerms.length ? (ecPerms.includes('*') || ecPerms.includes('stay_extension.approve')) : !isFrontdesk;
+
+      const renderExtAction = (r) => {
+        if (r.status === 'REQUESTED') {
+          return canDecideExt
+            ? `<div class="d-flex gap-1"><button class="btn btn-sm btn-success" onclick="HotelBilling.decideStayExtension(${Number(r.id)},'APPROVE')">Approve</button><button class="btn btn-sm btn-outline-danger" onclick="HotelBilling.decideStayExtension(${Number(r.id)},'REJECT')">Reject</button></div>`
+            : '<span class="badge text-bg-warning text-dark"><i class="bi bi-clock me-1"></i>Pending Manager Review</span>';
+        }
+        if (r.status === 'APPROVED') {
+          return `<div class="d-flex gap-1 align-items-center"><span class="badge text-bg-success"><i class="bi bi-check2-all me-1"></i>Approved</span> <button class="btn btn-sm btn-outline-primary" onclick="HotelBilling.folio(${Number(r.folio_id)})"><i class="bi bi-receipt me-1"></i>Folio</button></div>`;
+        }
+        if (r.status === 'REJECTED') {
+          return '<span class="badge text-bg-danger"><i class="bi bi-x-circle me-1"></i>Rejected</span>';
+        }
+        return '—';
+      };
+
 
 
       const renderEarlyAction = (r) => {
@@ -4467,11 +4490,39 @@ async function confirmCheckinPayment(cpId) {
 
 
 
+      const extBody=erows.map(r=>`<tr><td><strong>#${Number(r.id)} · ${esc(r.stay_code)}</strong><div class="small text-muted">Room ${esc(r.room_number)} · Folio ${esc(r.folio_number)}</div></td><td>${esc(r.current_checkout)} → <strong>${esc(r.requested_checkout)}</strong></td><td>${esc(r.extra_nights)} night${Number(r.extra_nights)===1?'':'s'}</td><td>${php(r.proposed_charge)}</td><td>${esc(r.reason||'—')}${r.status==='REJECTED'&&r.review_note?`<div class="small text-muted">Note: ${esc(r.review_note)}</div>`:''}</td><td>${esc(r.requested_by_name||'Guest portal')}</td><td>${pill(r.status)}</td><td>${renderExtAction(r)}</td></tr>`).join('');
+      const extCards=erows.map(r=>`
+        <div class="card border-0 shadow-sm p-3 mb-2">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="fw-bold fs-6">${esc(r.stay_code)}</span>
+              <div class="small text-muted">Room ${esc(r.room_number)} · Folio ${esc(r.folio_number)}</div>
+            </div>
+            ${pill(r.status)}
+          </div>
+          <div class="p-2 bg-light rounded small mb-2">
+            <div class="fw-semibold text-dark">${esc(r.current_checkout)} → ${esc(r.requested_checkout)} · <span class="text-muted fw-normal">${esc(r.extra_nights)} night${Number(r.extra_nights)===1?'':'s'}</span></div>
+            <div class="text-muted mt-1">${esc(r.reason||'No reason given')}</div>
+            ${r.status==='REJECTED'&&r.review_note?`<div class="text-muted mt-1">Note: ${esc(r.review_note)}</div>`:''}
+          </div>
+          <div class="row g-2 mb-2 small text-muted">
+            <div class="col-6">Requested by: <strong class="text-dark">${esc(r.requested_by_name||'Guest portal')}</strong></div>
+            <div class="col-6 text-end">Proposed: <strong class="text-primary fs-6">${php(r.proposed_charge)}</strong></div>
+          </div>
+          <div class="pt-2 border-top">
+            ${renderExtAction(r)}
+          </div>
+        </div>
+      `).join('') || '<div class="card border-0 shadow-sm p-3 text-center text-muted">No stay extension requests found.</div>';
+      const extSection = extOk ? `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 mt-4"><div><h5 class="fw-bold mb-1">Stay Extension Requests</h5><p class="text-muted mb-0">Approve or reject guest requests to stay past the planned checkout date. Approval moves the checkout date and posts the extra nights to the folio; the guest settles at checkout.</p></div><div class="d-flex align-items-center gap-2"><span class="badge text-bg-warning">${extPending} pending</span></div></div>
+      <div class="d-none d-md-block">${table(['Stay / Folio','Checkout change','Extra nights','Proposed charge','Reason','Requested by','Status','Action'],extBody,'No stay extension requests found.')}</div>
+      <div class="d-md-none">${extCards}</div>` : '';
+
       host.innerHTML=`${topBar}
 
       <div class="d-none d-md-block">${table(['Stay / Folio','Request','Reason','Requested by','Requested departure','Proposed charge','Status','Action'],body,'No early-checkout requests found.')}</div>
 
-      <div class="d-md-none">${mobileEarlyCards}</div>`;
+      <div class="d-md-none">${mobileEarlyCards}</div>${extSection}`;
 
     }catch(e){host.innerHTML=`<div class="alert alert-danger">${esc(e.message||'Unable to load early-checkout requests.')}</div>`;}
 
@@ -4493,6 +4544,16 @@ async function confirmCheckinPayment(cpId) {
 
     catch(e){notify(e.message,true);}
 
+  }
+
+  async function decideStayExtension(id,decision){
+    const action=decision==='APPROVE'?'approve':'reject';
+    const note=await window.HotelDialogs.input({title:`${action[0].toUpperCase()+action.slice(1)} stay extension request`,text:`Optional note for request #${id}.`,label:'Note',type:'textarea',placeholder:'Enter an optional note'});
+    if(note===null)return;
+    const confirmed=await window.HotelDialogs.confirm({title:`${action[0].toUpperCase()+action.slice(1)} request #${id}?`,text:decision==='APPROVE'?'The checkout date will move and the extra nights will be posted to the folio.':'The guest will see this decision in the guest portal.',confirmButtonText:action[0].toUpperCase()+action.slice(1)});
+    if(!confirmed)return;
+    try{const r=await api(decision==='APPROVE'?'stay_extension_approve':'stay_extension_reject',{request_id:id,note});notify(r.message||`Request ${r.status}.`);await renderEarlyCheckoutRequests();}
+    catch(e){notify(e.message,true);}
   }
 
   async function finalizeEarlyCheckout(id){
@@ -7333,7 +7394,7 @@ async function transfer(id) {
     }
   }
 
-  window.HotelBilling={api,open,getActiveModule:()=>activeModule,notify,refreshRequestBadge,checkin,guestDetails,approveCheckinPayment,approveGroupCheckinPayment,confirmCheckinPayment,cancelPendingCheckin,renderWalkinCheckin,renderCheckoutDashboard,renderEarlyCheckoutRequests,selectRoomForWalkin:(roomId)=>{const sel=document.getElementById('wkd-room-id');if(sel){sel.value=String(roomId);sel.dispatchEvent(new Event('change'));sel.scrollIntoView({behavior:'smooth',block:'center'});sel.focus();}},folio,addCharge,pay,earlyCheckout,decideEarlyCheckout,finalizeEarlyCheckout,editEarlyPolicy,editDiscountPolicy,deleteDiscountPolicy,transfer,checkout,roomStatus,requestStatus,assignRequest,handleRequestAction,viewHistory,addRoom,editRoom,addRoomType,editRoomType,addMenuItem,editMenuItem,toggleMenuItem,reportDetails,savedGuestLinks,showCheckinComplete,showStayQr,showReceiptModal};
+  window.HotelBilling={api,open,getActiveModule:()=>activeModule,notify,refreshRequestBadge,checkin,guestDetails,approveCheckinPayment,approveGroupCheckinPayment,confirmCheckinPayment,cancelPendingCheckin,renderWalkinCheckin,renderCheckoutDashboard,renderEarlyCheckoutRequests,selectRoomForWalkin:(roomId)=>{const sel=document.getElementById('wkd-room-id');if(sel){sel.value=String(roomId);sel.dispatchEvent(new Event('change'));sel.scrollIntoView({behavior:'smooth',block:'center'});sel.focus();}},folio,addCharge,pay,earlyCheckout,decideEarlyCheckout,finalizeEarlyCheckout,decideStayExtension,editEarlyPolicy,editDiscountPolicy,deleteDiscountPolicy,transfer,checkout,roomStatus,requestStatus,assignRequest,handleRequestAction,viewHistory,addRoom,editRoom,addRoomType,editRoomType,addMenuItem,editMenuItem,toggleMenuItem,reportDetails,savedGuestLinks,showCheckinComplete,showStayQr,showReceiptModal};
 
   document.addEventListener('hotel:authenticated',(event)=>{
 
