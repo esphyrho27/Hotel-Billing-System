@@ -186,6 +186,18 @@ try {
                  WHERE sr.stay_id = ? ORDER BY sr.created_at DESC LIMIT 30'
             );
             $liveRequestsQuery->execute([(int)$stay['id']]);
+            $liveExtensions = [];
+            try {
+                $liveExtensionsQuery = $pdo->prepare(
+                    "SELECT id, current_checkout, requested_checkout, extra_nights, nightly_rate, proposed_charge, reason, review_note, status, created_at
+                     FROM stay_extension_requests WHERE stay_id=? ORDER BY created_at DESC, id DESC LIMIT 30"
+                );
+                $liveExtensionsQuery->execute([(int)$stay['id']]);
+                $liveExtensions = $liveExtensionsQuery->fetchAll();
+            } catch (Throwable $liveExtensionError) {
+                // Stay-extension table not migrated yet: live updates still work.
+                $liveExtensions = [];
+            }
             $liveFolioQuery = $pdo->prepare('SELECT id FROM folios WHERE stay_id=? LIMIT 1');
             $liveFolioQuery->execute([(int)$stay['id']]);
             $liveFolioId = (int)$liveFolioQuery->fetchColumn();
@@ -235,6 +247,7 @@ try {
                 'billing' => $liveBilling,
                 'orders' => $liveOrders,
                 'requests' => $liveRequestsQuery->fetchAll(),
+                'extensions' => $liveExtensions,
             ], JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
         } catch (Throwable $liveError) {
             error_log('[guest-portal-live] ' . $liveError->getMessage());
@@ -946,6 +959,28 @@ try {
             $pendingExtension = null;
             $latestRejectedExtension = null;
         }
+        $extensionRequests = [];
+        try {
+            $extensionListQuery = $pdo->prepare(
+                "SELECT id, current_checkout, requested_checkout, extra_nights, nightly_rate, proposed_charge, reason, review_note, status, created_at
+                 FROM stay_extension_requests
+                 WHERE stay_id=? ORDER BY created_at DESC, id DESC"
+            );
+            $extensionListQuery->execute([(int)$stay['id']]);
+            $extensionRequests = $extensionListQuery->fetchAll();
+        } catch (Throwable $extensionListError) {
+            // Stay-extension table not migrated yet: the portal still loads.
+            $extensionRequests = [];
+        }
+        $recentActivity = [];
+        foreach ($requests as $request) {
+            $recentActivity[] = ['kind' => 'request', 'created_at' => (string)$request['created_at'], 'data' => $request];
+        }
+        foreach ($extensionRequests as $extensionRow) {
+            $recentActivity[] = ['kind' => 'extension', 'created_at' => (string)$extensionRow['created_at'], 'data' => $extensionRow];
+        }
+        usort($recentActivity, static fn(array $a, array $b): int => strcmp((string)$b['created_at'], (string)$a['created_at']));
+        $recentActivity = array_slice($recentActivity, 0, 3);
         if ($stay['status'] === 'ACTIVE') {
             $rateQuery = $pdo->prepare(
                 'SELECT rt.nightly_rate FROM stays s JOIN rooms r ON r.id=s.room_id JOIN room_types rt ON rt.id=r.room_type_id WHERE s.id=?'
@@ -1096,7 +1131,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     .dialog-body form{display:grid;gap:14px}
     .service-intro{display:flex;align-items:center;gap:12px;margin:0 0 2px}.service-intro p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}.service-room-chip{flex:none;padding:8px 10px;border:1px solid #e5d7b5;border-radius:999px;background:#fbf7ed;color:#765c26;font-size:11px;font-weight:800;white-space:nowrap}
     .service-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.service-choice{display:grid;grid-template-columns:38px 1fr;align-items:center;gap:2px 10px;min-height:88px;padding:12px;text-align:left;border:1px solid #dce4eb;border-radius:13px;background:#fff;color:var(--ink);cursor:pointer;transition:border-color .16s,background .16s,box-shadow .16s}.service-choice:hover{border-color:#b8a16a;background:#fdfbf6}.service-choice.is-selected{border-color:#b08b3c;background:#fbf7ed;box-shadow:inset 0 0 0 1px #b08b3c}.service-choice-icon{grid-row:1 / span 2;display:grid;width:38px;height:38px;place-items:center;border-radius:11px;background:#edf2f6;color:#17344e;font-size:20px}.service-choice.is-selected .service-choice-icon{background:#e9dfc8;color:#765c26}.service-choice strong{font-size:13px}.service-choice>span:last-child{color:var(--muted);font-size:11px;line-height:1.4}.service-type-fallback{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}.service-assurance{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid #e7e2d5;border-radius:12px;background:#faf8f2;color:#4e5b65}.service-assurance>span{display:grid;flex:none;width:23px;height:23px;place-items:center;border-radius:50%;background:#e7ddc3;color:#6f5625;font-weight:800}.service-assurance p{margin:0;font-size:11px;line-height:1.55}.service-assurance strong{color:var(--ink);font-size:12px}.service-dialog-footer .button{gap:9px;background:#17344e}.service-dialog-footer .button:hover{background:#244a69}
-    .stay-activity-intro{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px;padding:13px 14px;border:1px solid #e6dcc5;border-radius:13px;background:linear-gradient(120deg,#fbf7ed,#fff)}.stay-activity-intro strong{display:block;color:var(--ink);font:600 17px Georgia,"Times New Roman",serif}.stay-activity-intro p{margin:4px 0 0;color:var(--muted);font-size:11px}.stay-room-tag{flex:none;padding:7px 10px;border-radius:999px;background:#e9dfc8;color:#705723;font-size:10px;font-weight:800}.activity-tabs{display:flex;gap:7px;margin:0 0 16px;padding:4px;overflow-x:auto;border:1px solid #e6ebf0;border-radius:12px;background:#edf1f5}.activity-tab{flex:1;min-height:38px;padding:8px 10px;border:1px solid transparent;border-radius:9px;background:transparent;color:#52657a;font-size:11px;font-weight:750;white-space:nowrap;cursor:pointer}.activity-tab[aria-pressed="true"]{border-color:#e8dfca;background:#fff;color:#17344e;box-shadow:0 2px 5px rgba(23,43,69,.06)}.activity-section{margin-top:18px}.activity-section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}.activity-section-heading h3{margin:0;color:var(--ink);font-size:13px;font-weight:800}.activity-count{display:inline-grid;min-width:25px;height:25px;place-items:center;padding:0 7px;border-radius:999px;background:#eef2f6;color:#53677c;font-size:10px;font-weight:800}.activity-record{border-color:#e1e7ed;box-shadow:0 3px 10px rgba(23,43,69,.025)}.activity-record .record-top{align-items:center}.activity-record .status{flex:none;max-width:45%;white-space:normal;text-align:center;line-height:1.4}.activity-record .record-title{font-size:13px;line-height:1.45}.activity-record[data-kind="order"]{border-left:3px solid #b08b3c}.activity-record[data-kind="request"]{border-left:3px solid #b8c7d5}.activity-empty{padding:24px 16px;border:1px dashed #d6dfe7;border-radius:13px;background:#fff;text-align:center}.activity-empty-icon{display:grid;width:42px;height:42px;place-items:center;margin:0 auto 10px;border-radius:13px;background:#f2f5f8;color:#765c26;font-size:20px}.activity-empty strong{display:block;color:var(--ink);font-size:13px}.activity-empty p{margin:5px 0 0;color:var(--muted);font-size:11px;line-height:1.5}
+    .stay-activity-intro{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px;padding:13px 14px;border:1px solid #e6dcc5;border-radius:13px;background:linear-gradient(120deg,#fbf7ed,#fff)}.stay-activity-intro strong{display:block;color:var(--ink);font:600 17px Georgia,"Times New Roman",serif}.stay-activity-intro p{margin:4px 0 0;color:var(--muted);font-size:11px}.stay-room-tag{flex:none;padding:7px 10px;border-radius:999px;background:#e9dfc8;color:#705723;font-size:10px;font-weight:800}.activity-tabs{display:flex;gap:7px;margin:0 0 16px;padding:4px;overflow-x:auto;border:1px solid #e6ebf0;border-radius:12px;background:#edf1f5}.activity-tab{flex:1;min-height:38px;padding:8px 10px;border:1px solid transparent;border-radius:9px;background:transparent;color:#52657a;font-size:11px;font-weight:750;white-space:nowrap;cursor:pointer}.activity-tab[aria-pressed="true"]{border-color:#e8dfca;background:#fff;color:#17344e;box-shadow:0 2px 5px rgba(23,43,69,.06)}.activity-section{margin-top:18px}.activity-section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}.activity-section-heading h3{margin:0;color:var(--ink);font-size:13px;font-weight:800}.activity-count{display:inline-grid;min-width:25px;height:25px;place-items:center;padding:0 7px;border-radius:999px;background:#eef2f6;color:#53677c;font-size:10px;font-weight:800}.activity-record{border-color:#e1e7ed;box-shadow:0 3px 10px rgba(23,43,69,.025)}.activity-record .record-top{align-items:center}.activity-record .status{flex:none;max-width:45%;white-space:normal;text-align:center;line-height:1.4}.activity-record .record-title{font-size:13px;line-height:1.45}.activity-record[data-kind="order"]{border-left:3px solid #b08b3c}.activity-record[data-kind="request"]{border-left:3px solid #b8c7d5}.activity-record[data-kind="extension"],.record[data-kind="extension"]{border-left:3px solid #16734b}.activity-empty{padding:24px 16px;border:1px dashed #d6dfe7;border-radius:13px;background:#fff;text-align:center}.activity-empty-icon{display:grid;width:42px;height:42px;place-items:center;margin:0 auto 10px;border-radius:13px;background:#f2f5f8;color:#765c26;font-size:20px}.activity-empty strong{display:block;color:var(--ink);font-size:13px}.activity-empty p{margin:5px 0 0;color:var(--muted);font-size:11px;line-height:1.5}
     .folio-intro{margin-bottom:15px}.folio-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:17px}.folio-metric{min-width:0;padding:13px;border:1px solid #e3e9ef;border-radius:13px;background:#fff}.folio-metric-label{display:block;color:var(--muted);font-size:10px;font-weight:750;letter-spacing:.04em;text-transform:uppercase}.folio-metric-value{display:block;margin-top:7px;color:var(--ink);font-size:18px;font-weight:850;overflow-wrap:anywhere}.folio-metric.balance-due{grid-column:1/-1;padding:18px;border-color:#e4d7b7;background:linear-gradient(125deg,#142d46,#1c3b57);color:#fff}.folio-metric.balance-due .folio-metric-label{color:#e3d2a7}.folio-metric.balance-due .folio-metric-value{margin-top:5px;color:#fff;font-size:clamp(27px,6vw,35px);letter-spacing:-.03em}.folio-settled-note{display:flex;align-items:center;gap:7px;margin-top:10px;color:#d9e9df;font-size:11px}.folio-settled-note.is-due{color:#f2ddb0}.folio-section{margin-top:19px}.folio-section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}.folio-section-heading h3{margin:0;color:var(--ink);font-size:13px;font-weight:800}.folio-section-heading span{color:var(--muted);font-size:10px}.folio-record{padding:13px;border-color:#e1e7ed}.folio-record .record-top{align-items:center}.folio-record .record-title{font-size:12px;line-height:1.45}.folio-record .record-price{font-size:13px;white-space:nowrap}.folio-record.payment-record{border-left:3px solid #7da68e}.folio-record.charge-record{border-left:3px solid #b08b3c}.folio-note{margin-top:16px;padding:12px;border:1px solid #e4eaf0;border-radius:11px;background:#f1f5f8;color:#53677c;font-size:11px;line-height:1.55}.folio-note strong{color:var(--ink)}
     .field{display:grid;gap:7px;color:#3b5066;font-size:12px;font-weight:700}
     .field input,.field select,.field textarea{width:100%;min-height:46px;padding:11px 12px;border:1px solid #d6e0e9;border-radius:10px;background:#fff;color:var(--ink);font-size:16px}
@@ -1385,11 +1420,18 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
       <section aria-labelledby="recent-title">
         <div class="section-heading"><div><p class="eyebrow">Stay activity</p><h2 id="recent-title">Recent requests</h2></div></div>
         <div class="card request-list">
-          <?php if (!$requests): ?><div class="empty">No requests yet. Hotel assistance is just a tap away.</div><?php endif; ?>
-          <?php foreach (array_slice($requests, 0, 3) as $request): ?>
+          <?php if (!$recentActivity): ?><div class="empty">No requests yet. Hotel assistance is just a tap away.</div><?php endif; ?>
+          <?php foreach ($recentActivity as $activityItem): ?>
+            <?php if ($activityItem['kind'] === 'extension'): $extension = $activityItem['data']; ?>
+            <article class="record" data-kind="extension">
+              <div class="record-top"><div><h3 class="record-title">Stay extension to <?=portal_escape(date('M j, Y', strtotime($extension['requested_checkout'])))?></h3><p class="record-meta"><?=portal_escape((int)$extension['extra_nights'])?> night(s) · ₱<?=number_format((float)$extension['proposed_charge'], 2)?> · requested <?=portal_escape(date('M j, g:i A', strtotime($extension['created_at'])))?></p></div><span class="status"><?= $extension['status'] === 'APPROVED' ? 'Approved' : ($extension['status'] === 'REJECTED' ? 'Declined' : 'Pending') ?></span></div>
+              <?php if ($extension['status'] === 'REJECTED' && ($extension['review_note'] ?? '') !== ''): ?><p class="record-meta">Declined: <?=portal_escape($extension['review_note'])?></p><?php endif; ?>
+            </article>
+            <?php else: $request = $activityItem['data']; ?>
             <article class="record">
               <div class="record-top"><div><h3 class="record-title"><?=portal_escape($request['description'])?></h3><p class="record-meta"><?=portal_escape($request['request_code'])?> · <?=portal_escape(date('M j, g:i A', strtotime($request['created_at'])))?></p></div><span class="status"><?=portal_escape($request['status'])?></span></div>
             </article>
+            <?php endif; ?>
           <?php endforeach; ?>
         </div>
       </section>
@@ -1570,6 +1612,13 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           <div class="order-list">
             <?php if (!$orders): ?><div class="activity-empty"><span class="activity-empty-icon" aria-hidden="true">♨</span><strong>No room-service orders yet</strong><p>Browse food and drinks to place an order. Its status and serving estimate will appear here.</p></div><?php endif; ?>
             <?php foreach ($orders as $order): ?><article class="record activity-record" data-kind="order" data-live-order="<?=portal_escape($order['id'])?>"><div class="record-top"><div><h3 class="record-title"><?=portal_escape($order['order_code'])?></h3><p class="record-meta"><?php foreach ($order['items'] as $line): ?><?=portal_escape($line['quantity'])?>× <?=portal_escape($line['item_name'])?><br><?php endforeach; ?><?=portal_escape(date('M j, Y · g:i A', strtotime($order['created_at'])))?></p></div><span class="status" data-live-status><?=portal_escape($order['order_status'])?></span></div><p class="record-meta">₱<?=number_format((float)$order['total_amount'], 2)?> · <?=portal_escape($order['payment_status'])?></p><p class="record-meta" data-ready-estimate data-ready-at="<?=portal_escape($order['estimated_ready_at'] ?? '')?>">Estimated serving time: <strong data-ready-label>Calculating…</strong></p></article><?php endforeach; ?>
+          </div>
+        </section>
+        <section class="activity-section" data-activity-section="extension">
+          <div class="activity-section-heading"><h3>Stay extensions</h3><span class="activity-count"><?=count($extensionRequests)?></span></div>
+          <div class="extension-list">
+            <?php if (!$extensionRequests): ?><div class="activity-empty"><span class="activity-empty-icon" aria-hidden="true">◷</span><strong>No stay extensions yet</strong><p>Extend your stay from the journey timeline and track the request here.</p></div><?php endif; ?>
+            <?php foreach ($extensionRequests as $extension): ?><article class="record activity-record" data-kind="extension" data-live-extension="<?=portal_escape($extension['id'])?>"><div class="record-top"><div><h3 class="record-title">Stay extension to <?=portal_escape(date('M j, Y', strtotime($extension['requested_checkout'])))?></h3><p class="record-meta"><?=portal_escape((int)$extension['extra_nights'])?> night(s) · ₱<?=number_format((float)$extension['proposed_charge'], 2)?> · requested <?=portal_escape(date('M j, Y · g:i A', strtotime($extension['created_at'])))?></p></div><span class="status" data-live-status><?= $extension['status'] === 'APPROVED' ? 'Approved' : ($extension['status'] === 'REJECTED' ? 'Declined' : 'Pending') ?></span></div><?php if ($extension['status'] === 'REJECTED' && ($extension['review_note'] ?? '') !== ''): ?><p class="record-meta extension-decline-note">Declined: <?=portal_escape($extension['review_note'])?></p><?php endif; ?></article><?php endforeach; ?>
           </div>
         </section>
       </div>
@@ -2006,6 +2055,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
       liveUrl.searchParams.set("portal_live", "1");
       const seenOrderStatuses = new Map();
       const seenRequestStatuses = new Map();
+      const seenExtensionStatuses = new Map();
       const alertDialog = document.getElementById("live-order-alert");
       const alertTitle = document.getElementById("live-order-alert-title");
       const alertMessage = document.getElementById("live-order-alert-message");
@@ -2026,6 +2076,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
       let alertShowing = false;
       const requestList = document.querySelector('[data-activity-section="request"] .request-list');
       const orderList = document.querySelector('[data-activity-section="order"] .order-list');
+      const extensionList = document.querySelector('[data-activity-section="extension"] .extension-list');
       const recentRequestList = document.querySelector('section[aria-labelledby="recent-title"] .request-list');
       const liveCurrency = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
       let previousBillingState = "";
@@ -2126,16 +2177,30 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           const copy = document.createElement("div");
           const title = document.createElement("h3");
           title.className = "record-title";
-          title.textContent = String(request.description || "Service request");
           const meta = document.createElement("p");
           meta.className = "record-meta";
-          meta.textContent = `${request.request_code || ""} · ${formatCreatedAt(request.created_at)}`;
-          copy.append(title, meta);
           const status = document.createElement("span");
           status.className = "status";
-          status.textContent = friendlyStatus(request.status);
+          if (request._kind === "extension") {
+            card.dataset.kind = "extension";
+            title.textContent = `Stay extension to ${formatExtensionDate(request.requested_checkout)}`;
+            const nights = Number(request.extra_nights || 0);
+            meta.textContent = `${nights} night${nights === 1 ? "" : "s"} · ${liveCurrency.format(Number(request.proposed_charge) || 0)} · requested ${formatCreatedAt(request.created_at)}`;
+            status.textContent = extensionStatusLabel(request.status);
+          } else {
+            title.textContent = String(request.description || "Service request");
+            meta.textContent = `${request.request_code || ""} · ${formatCreatedAt(request.created_at)}`;
+            status.textContent = friendlyStatus(request.status);
+          }
+          copy.append(title, meta);
           top.append(copy, status);
           card.append(top);
+          if (request._kind === "extension" && String(request.status || "").toUpperCase() === "REJECTED" && request.review_note) {
+            const note = document.createElement("p");
+            note.className = "record-meta";
+            note.textContent = `Declined: ${String(request.review_note)}`;
+            card.append(note);
+          }
           recentRequestList.append(card);
         });
       };
@@ -2170,6 +2235,54 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         }
         requestList.prepend(card);
         updateActivityCount("request", requestList.querySelectorAll("[data-live-request]").length);
+        return card;
+      };
+      const extensionStatusLabel = (status) => {
+        const upper = String(status || "").toUpperCase();
+        if (upper === "APPROVED") return "Approved";
+        if (upper === "REJECTED") return "Declined";
+        return "Pending";
+      };
+      const formatExtensionDate = (value) => {
+        const parts = String(value || "").split("-");
+        if (parts.length !== 3) return String(value || "—");
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const month = Number(parts[1]);
+        if (!month || month < 1 || month > 12) return String(value);
+        return `${months[month - 1]} ${Number(parts[2])}, ${parts[0]}`;
+      };
+      const addLiveExtension = (extension) => {
+        if (!(extensionList instanceof HTMLElement)) return null;
+        extensionList.querySelector(".activity-empty")?.remove();
+        const card = document.createElement("article");
+        card.className = "record activity-record";
+        card.dataset.kind = "extension";
+        card.dataset.liveExtension = String(extension.id || "");
+        const top = document.createElement("div");
+        top.className = "record-top";
+        const copy = document.createElement("div");
+        const title = document.createElement("h3");
+        title.className = "record-title";
+        title.textContent = `Stay extension to ${formatExtensionDate(extension.requested_checkout)}`;
+        const meta = document.createElement("p");
+        meta.className = "record-meta";
+        const nights = Number(extension.extra_nights || 0);
+        meta.textContent = `${nights} night${nights === 1 ? "" : "s"} · ${liveCurrency.format(Number(extension.proposed_charge) || 0)} · requested ${formatCreatedAt(extension.created_at)}`;
+        copy.append(title, meta);
+        const badge = document.createElement("span");
+        badge.className = "status";
+        badge.dataset.liveStatus = "";
+        badge.textContent = extensionStatusLabel(extension.status);
+        top.append(copy, badge);
+        card.append(top);
+        if (String(extension.status || "").toUpperCase() === "REJECTED" && extension.review_note) {
+          const note = document.createElement("p");
+          note.className = "record-meta extension-decline-note";
+          note.textContent = `Declined: ${String(extension.review_note)}`;
+          card.append(note);
+        }
+        extensionList.prepend(card);
+        updateActivityCount("extension", extensionList.querySelectorAll("[data-live-extension]").length);
         return card;
       };
       const addLiveOrder = (order) => {
@@ -2394,7 +2507,12 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           ).length;
           const openRequestValue = document.querySelector(".stats .stat:nth-child(3) .stat-value");
           if (openRequestValue) openRequestValue.textContent = String(openRequestCount);
-          updateRecentRequests(liveRequests);
+          const liveExtensions = payload.extensions || [];
+          const mergedRecent = [
+            ...liveRequests.map((request) => ({ ...request, _kind: "request" })),
+            ...liveExtensions.map((extension) => ({ ...extension, _kind: "extension" })),
+          ].sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+          updateRecentRequests(mergedRecent);
 
           liveRequests.forEach((request) => {
             const key = String(request.request_code || "");
@@ -2420,6 +2538,38 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
             }
             seenRequestStatuses.set(key, status);
           });
+
+          liveExtensions.forEach((extension) => {
+            const key = String(extension.id || "");
+            const status = String(extension.status || "REQUESTED");
+            const previous = seenExtensionStatuses.get(key);
+            let card = document.querySelector('[data-live-extension="' + CSS.escape(key) + '"]');
+            const isNewExtension = hasBaseline && previous === undefined;
+            if (!card) card = addLiveExtension(extension);
+            const badge = card?.querySelector("[data-live-status]");
+            if (badge instanceof HTMLElement) badge.textContent = extensionStatusLabel(status);
+            if (card) {
+              card.querySelector(".extension-decline-note")?.remove();
+              if (status.toUpperCase() === "REJECTED" && extension.review_note) {
+                const note = document.createElement("p");
+                note.className = "record-meta extension-decline-note";
+                note.textContent = `Declined: ${String(extension.review_note)}`;
+                card.append(note);
+              }
+            }
+            if (isNewExtension) {
+              showToast("Stay extension requested", `To ${formatExtensionDate(extension.requested_checkout)} · ${Number(extension.extra_nights || 0)} night(s).`);
+            }
+            if (hasBaseline && previous !== undefined && normalizeStatus(previous) !== normalizeStatus(status)) {
+              if (status.toUpperCase() === "APPROVED") {
+                queueStatusAlert("Stay extension approved", `Your stay now ends on ${formatExtensionDate(extension.requested_checkout)}. The extra nights were added to your folio.`);
+              } else if (status.toUpperCase() === "REJECTED") {
+                queueStatusAlert("Stay extension declined", extension.review_note ? `Reason: ${String(extension.review_note)}` : "Contact the front desk for details.");
+              }
+            }
+            seenExtensionStatuses.set(key, status);
+          });
+          if (extensionList) updateActivityCount("extension", extensionList.querySelectorAll("[data-live-extension]").length);
           hasBaseline = true;
           lastLiveFailureNotice = false;
           updateCountdowns();

@@ -142,6 +142,38 @@
         }
         break;
       }
+      case 'EXTENSION_REQUESTED': {
+        if (['admin', 'manager', 'frontdesk'].includes(curRole)) {
+          const nights = Number(data.extra_nights || 0);
+          const amount = Number(data.proposed_charge || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 });
+          showNotification(
+            `Stay extension requested: Room ${data.room_number || '—'} · to ${formatShortDate(data.requested_checkout)} · ${nights} night${nights === 1 ? '' : 's'} · ₱${amount}`
+          );
+          const active = window.HotelBilling?.getActiveModule?.();
+          if (active === 'dashboard' || active === 'early-checkouts') {
+            window.HotelBilling?.open(active);
+          }
+          window.HotelBilling?.refreshRequestBadge?.();
+        }
+        break;
+      }
+      case 'STAY_EXTENSION_UPDATED': {
+        if (['admin', 'manager', 'frontdesk'].includes(curRole)) {
+          const roomPart = data.room_number ? `Room ${data.room_number} · ` : '';
+          if (String(data.status || '').toUpperCase() === 'APPROVED') {
+            showNotification(`Stay extension approved: ${roomPart}new checkout ${formatShortDate(data.planned_checkout)}`);
+          } else if (String(data.status || '').toUpperCase() === 'REJECTED') {
+            const roomSuffix = data.room_number ? `: Room ${data.room_number}` : '';
+            showNotification(`Stay extension declined${roomSuffix}`);
+          }
+          const active = window.HotelBilling?.getActiveModule?.();
+          if (['dashboard', 'early-checkouts', 'active-stays'].includes(active)) {
+            window.HotelBilling?.open(active);
+          }
+          window.HotelBilling?.refreshRequestBadge?.();
+        }
+        break;
+      }
       case 'REQUEST_ASSIGNED': {
         if (data.request_kind === 'ROOM_TRANSFER' && !['frontdesk', 'manager'].includes(curRole)) break;
         const isDept = matchDept(curRole, data.assigned_department);
@@ -407,6 +439,16 @@
         break;
       }
     }
+  }
+
+  // Format a 'Y-m-d' date as 'Nov 4, 2026' without timezone shifts.
+  function formatShortDate(value) {
+    const parts = String(value || '').split('-');
+    if (parts.length !== 3) return String(value || '—');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = Number(parts[1]);
+    if (!month || month < 1 || month > 12) return String(value);
+    return `${months[month - 1]} ${Number(parts[2])}, ${parts[0]}`;
   }
 
   function showNotification(text) {
