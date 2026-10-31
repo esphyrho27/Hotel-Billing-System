@@ -1757,7 +1757,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
       const audio = document.getElementById("portal-music-audio");
       const toggle = document.getElementById("portal-music-toggle");
       if (!(audio instanceof HTMLAudioElement) || !toggle) return;
-      audio.volume = 0.30;
+      audio.volume = 0.15;
       const setPlaying = (playing) => {
         toggle.textContent = playing ? "♫" : "♪";
         toggle.setAttribute("aria-pressed", playing ? "true" : "false");
