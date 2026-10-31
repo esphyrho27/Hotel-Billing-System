@@ -4,14 +4,14 @@ Next.js/React frontend with a PHP API, MariaDB/MySQL persistence, and a WebSocke
 
 ## Fresh database
 
-The repository now includes `database/fresh_install.sql`. It creates a **new, empty** database named `hotel_billing_system` from the supplied SQL structure, with operational/sample records omitted. It does not preserve the old database's guests, stays, payments, staff accounts, or audit history. Review [the fresh database installation guide](docs/FRESH_DATABASE_INSTALL.md) before importing it.
+The repository now includes `database/hotel_billing_system.sql`. It creates a **new, empty** database named `hotel_billing_system` from the supplied SQL structure, with operational/sample records omitted. It does not preserve the old database's guests, stays, payments, staff accounts, or audit history. Review [the fresh database installation guide](docs/FRESH_DATABASE_INSTALL.md) before importing it.
 
 The fresh schema intentionally uses `users` as the employee account source of truth and `room_types` as the room type source of truth. It includes the pending-payment stay state and matching check-in payment identifier types, and adds fresh-install foreign keys for restaurant orders and their items.
 
 ## Local setup
 
 1. Install PHP 8.2+, MariaDB/MySQL, Node.js, and npm.
-2. Import `database/fresh_install.sql` into phpMyAdmin or MariaDB.
+2. Import `database/hotel_billing_system.sql` into phpMyAdmin or MariaDB.
 3. Copy `api-hotel/.env.example` to `api-hotel/.env`; configure `HOTEL_DB_HOST`, `HOTEL_DB_NAME=hotel_billing_system`, `HOTEL_DB_USER`, and `HOTEL_DB_PASS`.
 4. Set a unique `HOTEL_BOOTSTRAP_ADMIN_USERNAME` and a strong `HOTEL_BOOTSTRAP_ADMIN_PASSWORD` in `api-hotel/.env` before the first API request. There are no default employee credentials. The app creates the first administrator only when the `users` table is empty.
 5. Copy `.env.local.example` to `.env.local` and set the PHP backend URL for your local setup.
