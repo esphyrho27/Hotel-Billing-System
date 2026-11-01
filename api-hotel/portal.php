@@ -702,7 +702,6 @@ try {
                     'Blanket',
                     'Bed sheets',
                     'Toiletries',
-                    'Room cleaning',
                 ];
                 $housekeepingQuantity = filter_var(
                     $_POST['housekeeping_quantity'] ?? null,
@@ -1330,7 +1329,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     .dialog-frame>form>.dialog-body{flex:1}
     .dialog-body form{display:grid;gap:14px}
     .service-intro{display:flex;align-items:center;gap:12px;margin:0 0 2px}.service-intro p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}.service-room-chip{flex:none;padding:8px 10px;border:1px solid #e5d7b5;border-radius:999px;background:#fbf7ed;color:#765c26;font-size:11px;font-weight:800;white-space:nowrap}
-    .service-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.service-choice{display:grid;grid-template-columns:38px 1fr;align-items:center;gap:2px 10px;min-height:88px;padding:12px;text-align:left;border:1px solid #dce4eb;border-radius:13px;background:#fff;color:var(--ink);cursor:pointer;transition:border-color .16s,background .16s,box-shadow .16s}.service-choice:hover{border-color:#b8a16a;background:#fdfbf6}.service-choice.is-selected{border-color:#b08b3c;background:#fbf7ed;box-shadow:inset 0 0 0 1px #b08b3c}.service-choice-icon{grid-row:1 / span 2;display:grid;width:38px;height:38px;place-items:center;border-radius:11px;background:#edf2f6;color:#17344e;font-size:20px}.service-choice.is-selected .service-choice-icon{background:#e9dfc8;color:#765c26}.service-choice strong{font-size:13px}.service-choice>span:last-child{color:var(--muted);font-size:11px;line-height:1.4}.service-type-fallback{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}.service-assurance{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid #e7e2d5;border-radius:12px;background:#faf8f2;color:#4e5b65}.service-assurance>span{display:grid;flex:none;width:23px;height:23px;place-items:center;border-radius:50%;background:#e7ddc3;color:#6f5625;font-weight:800}.service-assurance p{margin:0;font-size:11px;line-height:1.55}.service-assurance strong{color:var(--ink);font-size:12px}.service-dialog-footer .button{gap:9px;background:#17344e}.service-dialog-footer .button:hover{background:#244a69}.service-quick-picks{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}.service-quick-picks[hidden]{display:none}.service-quick-pick{padding:8px 13px;border:1px solid #dce4eb;border-radius:999px;background:#fff;color:var(--ink);font-size:12px;font-weight:700;cursor:pointer;transition:border-color .16s,background .16s}.service-quick-pick:hover{border-color:#b8a16a;background:#fdfbf6}.service-quick-pick.is-selected{border-color:#b08b3c;background:#fbf7ed;box-shadow:inset 0 0 0 1px #b08b3c;color:#765c26}.service-timing{margin:12px 0 0}.service-timing-label{display:block;margin:0 0 6px;color:var(--muted);font-size:11px;font-weight:700}.service-timing-options{display:flex;border:1px solid #dce4eb;border-radius:12px;overflow:hidden}.service-timing-option{flex:1;padding:10px 6px;border:0;border-right:1px solid #dce4eb;background:#fff;color:var(--ink);font-size:12px;font-weight:700;cursor:pointer}.service-timing-option:last-child{border-right:0}.service-timing-option.is-selected{background:#17344e;color:#fff}.quantity-stepper input[readonly]{opacity:.55;cursor:not-allowed}@media(max-width:480px){.service-quick-pick{font-size:11px;padding:7px 11px}.service-timing-option{font-size:11px;padding:9px 4px}}
+    .service-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.service-choice{display:grid;grid-template-columns:38px 1fr;align-items:center;gap:2px 10px;min-height:88px;padding:12px;text-align:left;border:1px solid #dce4eb;border-radius:13px;background:#fff;color:var(--ink);cursor:pointer;transition:border-color .16s,background .16s,box-shadow .16s}.service-choice:hover{border-color:#b8a16a;background:#fdfbf6}.service-choice.is-selected{border-color:#b08b3c;background:#fbf7ed;box-shadow:inset 0 0 0 1px #b08b3c}.service-choice-icon{grid-row:1 / span 2;display:grid;width:38px;height:38px;place-items:center;border-radius:11px;background:#edf2f6;color:#17344e;font-size:20px}.service-choice.is-selected .service-choice-icon{background:#e9dfc8;color:#765c26}.service-choice strong{font-size:13px}.service-choice>span:last-child{color:var(--muted);font-size:11px;line-height:1.4}.service-type-fallback{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}.service-assurance{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid #e7e2d5;border-radius:12px;background:#faf8f2;color:#4e5b65}.service-assurance>span{display:grid;flex:none;width:23px;height:23px;place-items:center;border-radius:50%;background:#e7ddc3;color:#6f5625;font-weight:800}.service-assurance p{margin:0;font-size:11px;line-height:1.55}.service-assurance strong{color:var(--ink);font-size:12px}.service-dialog-footer .button{gap:9px;background:#17344e}.service-dialog-footer .button:hover{background:#244a69}.service-quick-picks{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}.service-quick-picks[hidden]{display:none}.service-quick-pick{padding:8px 13px;border:1px solid #dce4eb;border-radius:999px;background:#fff;color:var(--ink);font-size:12px;font-weight:700;cursor:pointer;transition:border-color .16s,background .16s}.service-quick-pick:hover{border-color:#b8a16a;background:#fdfbf6}.service-quick-pick.is-selected{border-color:#b08b3c;background:#fbf7ed;box-shadow:inset 0 0 0 1px #b08b3c;color:#765c26}.service-timing{margin:12px 0 0}.service-timing-label{display:block;margin:0 0 6px;color:var(--muted);font-size:11px;font-weight:700}.service-timing-options{display:flex;border:1px solid #dce4eb;border-radius:12px;overflow:hidden}.service-timing-option{flex:1;padding:10px 6px;border:0;border-right:1px solid #dce4eb;background:#fff;color:var(--ink);font-size:12px;font-weight:700;cursor:pointer}.service-timing-option:last-child{border-right:0}.service-timing-option.is-selected{background:#17344e;color:#fff}@media(max-width:480px){.service-quick-pick{font-size:11px;padding:7px 11px}.service-timing-option{font-size:11px;padding:9px 4px}}
     .stay-activity-intro{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px;padding:13px 14px;border:1px solid #e6dcc5;border-radius:13px;background:linear-gradient(120deg,#fbf7ed,#fff)}.stay-activity-intro strong{display:block;color:var(--ink);font:600 17px Georgia,"Times New Roman",serif}.stay-activity-intro p{margin:4px 0 0;color:var(--muted);font-size:11px}.stay-room-tag{flex:none;padding:7px 10px;border-radius:999px;background:#e9dfc8;color:#705723;font-size:10px;font-weight:800}.activity-tabs{display:flex;gap:7px;margin:0 0 16px;padding:4px;overflow-x:auto;border:1px solid #e6ebf0;border-radius:12px;background:#edf1f5}.activity-tab{flex:1;min-height:38px;padding:8px 10px;border:1px solid transparent;border-radius:9px;background:transparent;color:#52657a;font-size:11px;font-weight:750;white-space:nowrap;cursor:pointer}.activity-tab[aria-pressed="true"]{border-color:#e8dfca;background:#fff;color:#17344e;box-shadow:0 2px 5px rgba(23,43,69,.06)}.activity-section{margin-top:18px}.activity-section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}.activity-section-heading h3{margin:0;color:var(--ink);font-size:13px;font-weight:800}.activity-count{display:inline-grid;min-width:25px;height:25px;place-items:center;padding:0 7px;border-radius:999px;background:#eef2f6;color:#53677c;font-size:10px;font-weight:800}.activity-record{border-color:#e1e7ed;box-shadow:0 3px 10px rgba(23,43,69,.025)}.activity-record .record-top{align-items:center}.activity-record .status{flex:none;max-width:45%;white-space:normal;text-align:center;line-height:1.4}.activity-record .record-title{font-size:13px;line-height:1.45}.activity-record[data-kind="order"]{border-left:3px solid #b08b3c}.activity-record[data-kind="request"]{border-left:3px solid #b8c7d5}.activity-record[data-kind="extension"],.record[data-kind="extension"]{border-left:3px solid #16734b}.activity-empty{padding:24px 16px;border:1px dashed #d6dfe7;border-radius:13px;background:#fff;text-align:center}.activity-empty-icon{display:grid;width:42px;height:42px;place-items:center;margin:0 auto 10px;border-radius:13px;background:#f2f5f8;color:#765c26;font-size:20px}.activity-empty strong{display:block;color:var(--ink);font-size:13px}.activity-empty p{margin:5px 0 0;color:var(--muted);font-size:11px;line-height:1.5}
     .chat-card{padding:14px}.chat-list{display:flex;flex-direction:column;gap:10px;max-height:320px;overflow-y:auto;padding:2px}.chat-empty{padding:18px;border:1px dashed #d6dfe7;border-radius:11px;background:#fff;text-align:center;color:var(--muted);font-size:13px}.chat-msg{max-width:75%;padding:10px 12px;border-radius:18px;background:#eef2f6}.chat-msg.staff{align-self:flex-start;background:#e9ecef;color:#17344e}.chat-msg.guest{align-self:flex-end;background:#17344e;color:#fff}.chat-msg.guest .chat-msg-head{color:rgba(255,255,255,.75)}.chat-msg.guest .chat-msg-head strong{color:#fff}.chat-msg-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:4px;font-size:11px;color:var(--muted)}.chat-msg-head strong{color:var(--ink)}.chat-msg-body{margin:0;font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}.chat-form{margin-top:14px}.chat-form textarea{width:100%}.chat-bubble-btn{position:fixed;right:18px;bottom:18px;z-index:80;width:48px;height:48px;border:0;border-radius:50%;background:#17344e;display:grid;place-items:center;box-shadow:0 6px 18px rgba(23,52,78,.35);cursor:pointer}.chat-bubble-btn svg{width:24px;height:24px}.chat-bubble-btn:focus-visible{outline:3px solid #e9b65f;outline-offset:2px}.chat-bubble-badge{position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:#c0392b;color:#fff;font-size:11px;font-weight:800;display:none;place-items:center}.chat-bubble-badge.show{display:grid}.chat-bubble-hint{position:fixed;right:76px;bottom:30px;z-index:80;padding:8px 12px;border-radius:999px;background:#fff;color:#17344e;font-size:13px;font-weight:700;box-shadow:0 4px 14px rgba(23,52,78,.25);display:none}.chat-bubble-hint.show{display:block}.chat-backdrop{position:fixed;inset:0;z-index:79;background:rgba(13,27,43,.28);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);display:none}.chat-backdrop.show{display:block}.chat-popup{position:fixed;right:16px;bottom:80px;z-index:80;width:min(380px,calc(100vw - 32px));max-height:70vh;background:#fff;border:1px solid #e1e7ed;border-radius:16px;box-shadow:0 12px 32px rgba(23,52,78,.30);display:none;flex-direction:column;overflow:hidden}.chat-popup.open{display:flex}.amenities{margin-top:26px}.amenities h2{margin:0 0 12px;font:600 21px Georgia,"Times New Roman",serif;color:#17344e}.amenities-carousel{position:relative;overflow:hidden;border-radius:16px;border:1px solid #e1e7ed;background:#0f2438}.amenities-track{display:flex;transition:transform .6s ease}.amenities-slide{flex:0 0 100%;position:relative;margin:0;cursor:pointer}.amenities-slide img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover}.amenities-slide figcaption{position:absolute;left:0;right:0;bottom:0;padding:30px 16px 14px;background:linear-gradient(transparent,rgba(10,20,35,.75));color:#fff}.amenities-slide figcaption strong{display:block;font:600 19px Georgia,"Times New Roman",serif}.amenities-slide figcaption span{font-size:13px;opacity:.9}.amenities-slide figcaption .amenities-action{display:block;margin-top:5px;font-size:12px;font-weight:700;opacity:1;color:#e9b65f}.amenities-arrow{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border:0;border-radius:50%;background:rgba(255,255,255,.92);color:#17344e;font-size:22px;line-height:1;cursor:pointer;z-index:2}.amenities-prev{left:10px}.amenities-next{right:10px}.amenities-dots{display:flex;justify-content:center;gap:8px;padding:10px;background:#0f2438}.amenities-dot{width:9px;height:9px;border:0;border-radius:50%;background:rgba(255,255,255,.4);cursor:pointer;padding:0}.amenities-dot.active{background:#e9b65f;width:26px;border-radius:999px}@media(max-width:520px){.amenities-slide img{aspect-ratio:4/3}}.chat-popup-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;background:#17344e;color:#fff}.chat-popup-head strong{font:600 16px Georgia,"Times New Roman",serif}.chat-popup-head button{border:1px solid rgba(255,255,255,.35);background:transparent;color:#fff;border-radius:8px;padding:4px 8px;cursor:pointer;font-size:14px}.chat-popup-body{padding:14px;overflow-y:auto}.chat-popup .chat-list{max-height:300px}@media(max-width:520px){.chat-popup{right:12px;bottom:76px;width:calc(100vw - 24px)}}@media print{.chat-bubble-btn,.chat-bubble-hint,.chat-popup,.chat-backdrop{display:none !important}}
     .folio-intro{margin-bottom:15px}.folio-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:17px}.folio-metric{min-width:0;padding:13px;border:1px solid #e3e9ef;border-radius:13px;background:#fff}.folio-metric-label{display:block;color:var(--muted);font-size:10px;font-weight:750;letter-spacing:.04em;text-transform:uppercase}.folio-metric-value{display:block;margin-top:7px;color:var(--ink);font-size:18px;font-weight:850;overflow-wrap:anywhere}.folio-metric.balance-due{grid-column:1/-1;padding:18px;border-color:#e4d7b7;background:linear-gradient(125deg,#142d46,#1c3b57);color:#fff}.folio-metric.balance-due .folio-metric-label{color:#e3d2a7}.folio-metric.balance-due .folio-metric-value{margin-top:5px;color:#fff;font-size:clamp(27px,6vw,35px);letter-spacing:-.03em}.folio-settled-note{display:flex;align-items:center;gap:7px;margin-top:10px;color:#d9e9df;font-size:11px}.folio-settled-note.is-due{color:#f2ddb0}.folio-section{margin-top:19px}.folio-section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}.folio-section-heading h3{margin:0;color:var(--ink);font-size:13px;font-weight:800}.folio-section-heading span{color:var(--muted);font-size:10px}.folio-record{padding:13px;border-color:#e1e7ed}.folio-record .record-top{align-items:center}.folio-record .record-title{font-size:12px;line-height:1.45}.folio-record .record-price{font-size:13px;white-space:nowrap}.folio-record.payment-record{border-left:3px solid #7da68e}.folio-record.charge-record{border-left:3px solid #b08b3c}.folio-note{margin-top:16px;padding:12px;border:1px solid #e4eaf0;border-radius:11px;background:#f1f5f8;color:#53677c;font-size:11px;line-height:1.55}.folio-note strong{color:var(--ink)}
@@ -1453,6 +1452,8 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     @media(max-width:520px){.live-stay-header{padding:15px 13px;gap:8px}.live-stay-content{padding:13px}.live-stay-food-icon{flex-basis:76px;height:76px;font-size:34px}.live-stay-item-copy>strong{font-size:14px}.live-stay-close{display:none}.live-stay-footer{padding:0 13px 13px}.live-stay-progress{padding:0 3px}}
     .live-update-toast{position:fixed;z-index:1200;right:20px;bottom:20px;display:flex;align-items:flex-start;gap:12px;width:min(420px,calc(100vw - 28px));padding:16px;border:1px solid #b9d9c7;border-radius:16px;background:#f2fbf5;color:#183b2a;box-shadow:0 16px 44px rgba(16,42,67,.22);animation:liveToastIn .2s ease-out}
     .live-update-toast[hidden]{display:none}
+    .live-update-toast.is-clickable{cursor:pointer}
+    .record.is-highlighted,.activity-record.is-highlighted{box-shadow:0 0 0 2px #e9b65f,0 3px 10px rgba(23,43,69,.08)}
     .live-update-icon{display:grid;place-items:center;flex:0 0 30px;height:30px;border-radius:50%;background:#d7f1e1;color:#17633a;font-weight:800}
     .live-update-copy{display:grid;gap:4px;min-width:0;flex:1;font-size:14px;line-height:1.45}
     .live-update-copy strong{font-size:14px}
@@ -1919,9 +1920,9 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
               <label class="field" style="margin:0">Housekeeping item
                 <select name="housekeeping_item" data-housekeeping-item required disabled>
                   <option value="">Choose an item</option>
-                  <?php foreach (['Extra towels', 'Pillow', 'Blanket', 'Bed sheets', 'Toiletries', 'Room cleaning'] as $itemName): ?>
+                  <?php foreach (['Extra towels', 'Pillow', 'Blanket', 'Bed sheets', 'Toiletries'] as $itemName): ?>
                     <?php $itemPrice = $housekeepingPrices[$itemName] ?? null; ?>
-                    <option value="<?=portal_escape($itemName)?>" data-price="<?= $itemPrice === null ? '' : portal_escape((string)$itemPrice) ?>"><?=portal_escape($itemName)?> — <?= $itemPrice === null ? 'Price not set' : ($itemPrice == 0 ? 'Free' : '₱' . number_format($itemPrice, 2) . ' each') ?></option>
+                    <option value="<?=portal_escape($itemName)?>" data-price="<?= $itemPrice === null ? '' : portal_escape((string)$itemPrice) ?>"><?=portal_escape($itemName)?> — <?= $itemPrice === null ? 'Price not set' : '₱' . number_format($itemPrice, 2) . ' each' ?></option>
                   <?php endforeach; ?>
                 </select>
               </label>
@@ -2069,7 +2070,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         <section class="live-stay-progress" aria-label="Order progress"><strong>Order progress</strong><div class="live-stay-progress-bars"><div data-progress-step="confirmed"><span></span><small>Confirmed</small></div><div data-progress-step="preparing"><span></span><small>Preparing</small></div><div data-progress-step="ready"><span></span><small>Ready</small></div></div></section>
         <p class="live-stay-message" id="live-order-alert-message" role="status" aria-live="polite">Your order status has changed.</p>
       </div>
-      <footer class="live-stay-footer"><button class="button" type="button" data-close>Got it</button></footer>
+      <footer class="live-stay-footer"><button class="button" type="button" id="live-order-alert-view" hidden>View details &rarr;</button><button class="button" type="button" data-close>Got it</button></footer>
     </div>
   </dialog>
 
@@ -2388,12 +2389,6 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         HOUSEKEEPING: ["Extra towels", "Extra pillows", "Toiletries", "Room cleaning"],
         MAINTENANCE: ["AC not cooling", "No hot water", "Light not working", "Leak"],
       };
-      const housekeepingItemByPick = {
-        "Extra towels": "Extra towels",
-        "Extra pillows": "Pillow",
-        "Toiletries": "Toiletries",
-        "Room cleaning": "Room cleaning",
-      };
       const quickPickSegments = (value) => String(value || "").split(",").map((part) => part.trim()).filter((part) => part !== "");
       const renderQuickPicks = () => {
         if (!(quickPicksContainer instanceof HTMLElement)) return;
@@ -2408,46 +2403,20 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           button.type = "button";
           button.className = "service-quick-pick";
           button.textContent = pick;
-          const mappedItem = team === "HOUSEKEEPING" ? housekeepingItemByPick[pick] : undefined;
-          const mappedOptionExists = mappedItem !== undefined
-            && housekeepingItem instanceof HTMLSelectElement
-            && [...housekeepingItem.options].some((option) => option.value === mappedItem);
-          const pressed = mappedOptionExists
-            ? housekeepingItem.value === mappedItem
-            : current.includes(pick);
+          const pressed = current.includes(pick);
           button.classList.toggle("is-selected", pressed);
           button.setAttribute("aria-pressed", String(pressed));
           button.addEventListener("click", () => {
             if (!(descriptionField instanceof HTMLTextAreaElement)) return;
             let segments = quickPickSegments(descriptionField.value);
-            const mapped = team === "HOUSEKEEPING" ? housekeepingItemByPick[pick] : undefined;
-            const useItemToggle = mapped !== undefined
-              && housekeepingItem instanceof HTMLSelectElement
-              && [...housekeepingItem.options].some((option) => option.value === mapped);
-            const textSelected = segments.includes(pick);
-            const wasSelected = useItemToggle
-              ? housekeepingItem.value === mapped
-              : textSelected;
-            if (wasSelected) {
+            if (segments.includes(pick)) {
               segments = segments.filter((segment) => segment !== pick);
-            } else if (!textSelected) {
+            } else {
               const next = segments.length === 0 ? pick : segments.join(", ") + ", " + pick;
               if (next.length > 500) return;
               segments = quickPickSegments(next);
             }
             descriptionField.value = segments.join(", ");
-            if (useItemToggle) {
-              const before = housekeepingItem.value;
-              if (wasSelected) {
-                if (before === mapped) housekeepingItem.value = "";
-              } else {
-                housekeepingItem.value = mapped;
-              }
-              if (housekeepingItem.value !== before) {
-                if (housekeepingQuantity instanceof HTMLInputElement) housekeepingQuantity.value = "1";
-                updateHousekeepingPrice();
-              }
-            }
             renderQuickPicks();
             const refocus = [...quickPicksContainer.querySelectorAll(".service-quick-pick")].find((candidate) => candidate.textContent === pick);
             if (refocus instanceof HTMLButtonElement) refocus.focus();
@@ -2477,30 +2446,16 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         const rawPrice = selectedOption?.dataset.price || "";
         const hasPrice = rawPrice !== "" && Number.isFinite(Number.parseFloat(rawPrice));
         const unitPrice = hasPrice ? Number.parseFloat(rawPrice) : null;
-        const isHousekeeping = departmentSelect instanceof HTMLSelectElement && departmentSelect.value === "HOUSEKEEPING";
-        const lockQuantity = isHousekeeping && selectedOption?.value === "Room cleaning";
-        // Room cleaning is one job per request: force quantity 1. The input stays
-        // submittable via readOnly (a disabled input would not POST and the backend
-        // would 422 on the missing quantity); only the stepper buttons are disabled.
-        if (lockQuantity) housekeepingQuantity.value = "1";
-        housekeepingQuantity.disabled = !isHousekeeping;
-        housekeepingQuantity.readOnly = lockQuantity;
-        serviceForm.querySelectorAll("[data-service-quantity-change]").forEach((button) => {
-          if (button instanceof HTMLButtonElement) button.disabled = lockQuantity;
-        });
         const quantity = Number.parseInt(housekeepingQuantity.value, 10) || 1;
         if (housekeepingUnitPrice instanceof HTMLElement) {
-          housekeepingUnitPrice.textContent = !selectedOption?.value
-            ? "—"
-            : (hasPrice ? (unitPrice === 0 ? "Free" : serviceCurrency.format(unitPrice)) : "Price not set");
+          housekeepingUnitPrice.textContent = hasPrice ? serviceCurrency.format(unitPrice) : "Price not set";
         }
         if (housekeepingTotal instanceof HTMLElement) {
-          housekeepingTotal.textContent = !selectedOption?.value
-            ? "—"
-            : (hasPrice ? serviceCurrency.format(unitPrice * quantity) : "To be confirmed by staff");
+          housekeepingTotal.textContent = hasPrice ? serviceCurrency.format(unitPrice * quantity) : "Not available";
         }
         if (housekeepingSubmit instanceof HTMLButtonElement) {
-          housekeepingSubmit.disabled = isHousekeeping
+          housekeepingSubmit.disabled = departmentSelect instanceof HTMLSelectElement
+            && departmentSelect.value === "HOUSEKEEPING"
             && (!selectedOption?.value || !hasPrice || housekeepingItem.disabled);
         }
       };
@@ -2576,11 +2531,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         transferEstimate.textContent = `Destination rate: ${serviceCurrency.format(rate)} per night; ${adjustmentText} for the remaining stay. Staff will confirm the final amount.`;
       };
       departmentSelect?.addEventListener("change", updateHousekeepingFields);
-      housekeepingItem?.addEventListener("change", () => {
-        if (housekeepingQuantity instanceof HTMLInputElement) housekeepingQuantity.value = "1";
-        updateHousekeepingPrice();
-        renderQuickPicks();
-      });
+      housekeepingItem?.addEventListener("change", updateHousekeepingPrice);
       transferRoom?.addEventListener("change", updateTransferEstimate);
       updateHousekeepingFields();
       serviceForm.querySelectorAll("[data-service-quantity-change]").forEach((button) => {
@@ -3006,6 +2957,8 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         if (alertProgressSection instanceof HTMLElement) alertProgressSection.style.display = isServiceAlert ? "none" : "";
         alertTitle.textContent = next.title;
         alertMessage.textContent = next.message;
+        currentAlertDestination = next.destination || null;
+        if (alertViewButton instanceof HTMLButtonElement) alertViewButton.hidden = currentAlertDestination === null;
         if (isServiceAlert) {
           if (next.photo) {
             setAlertPhoto(next.photo);
@@ -3032,17 +2985,116 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         alertShowing = true;
         if (!alertDialog.open) alertDialog.showModal();
       };
-      const showToast = (title, message) => {
+      // Clickable notifications (owner directive 2026-11-02): every live
+      // notification carries a destination, and tapping it goes there.
+      // Destinations are plain objects, no backend change:
+      //  { type: "activity", filter: "order"|"request"|"all", target: "[data-live-order=...]" }
+      //  { type: "dialog", id: "billing-dialog"|"service-dialog", preselect: "ROOM_TRANSFER" }
+      //  { type: "chat" } | { type: "scroll", selectors: [".journey", "[data-live-room-status]"] }
+      // A missing target still opens the right dialog/list at the top, never an error.
+      let currentToastDestination = null;
+      let currentAlertDestination = null;
+      const alertViewButton = document.getElementById("live-order-alert-view");
+      const highlightCard = (card) => {
+        if (!(card instanceof HTMLElement)) return;
+        card.classList.add("is-highlighted");
+        window.setTimeout(() => card.classList.remove("is-highlighted"), 3000);
+      };
+      const openActivityDialog = (filter, targetSelector) => {
+        const activityDialog = document.getElementById("requests-dialog");
+        if (!(activityDialog instanceof HTMLDialogElement)) return false;
+        if (!activityDialog.open) activityDialog.showModal();
+        if (filter) {
+          const filterButton = activityDialog.querySelector(`[data-activity-filter="${filter}"]`);
+          if (filterButton instanceof HTMLElement) filterButton.click();
+        }
+        if (targetSelector) {
+          const card = activityDialog.querySelector(targetSelector);
+          if (card instanceof HTMLElement) {
+            card.scrollIntoView({ block: "center", behavior: "smooth" });
+            highlightCard(card);
+          }
+        }
+        return true;
+      };
+      const navigateToDestination = (destination) => {
+        if (!destination || typeof destination !== "object") return false;
+        // A destination dialog cannot open while the alert dialog is modal:
+        // close the alert first and drop its queue, so the next queued alert
+        // cannot pop up on top of the destination (the list shows it all anyway).
+        if (alertDialog instanceof HTMLDialogElement && alertDialog.open) {
+          pendingAlerts.length = 0;
+          alertShowing = false;
+          alertDialog.close();
+        }
+        if (destination.type === "activity") return openActivityDialog(destination.filter, destination.target);
+        if (destination.type === "chat") { openChatPopup(); return true; }
+        if (destination.type === "scroll") {
+          const selectors = Array.isArray(destination.selectors) ? destination.selectors : [destination.selector];
+          for (const selector of selectors) {
+            if (!selector) continue;
+            const element = document.querySelector(selector);
+            if (element instanceof HTMLElement) { element.scrollIntoView({ block: "center", behavior: "smooth" }); return true; }
+          }
+          return false;
+        }
+        if (destination.type === "dialog") {
+          const targetDialog = document.getElementById(destination.id);
+          if (!(targetDialog instanceof HTMLDialogElement)) return false;
+          if (!targetDialog.open) targetDialog.showModal();
+          if (destination.preselect === "ROOM_TRANSFER") {
+            const choice = targetDialog.querySelector('[data-service-choice="ROOM_TRANSFER"]');
+            if (choice instanceof HTMLButtonElement && !choice.disabled) choice.click();
+          }
+          return true;
+        }
+        return false;
+      };
+      const showToast = (title, message, destination = null) => {
         if (!(toast instanceof HTMLElement) || !(toastTitle instanceof HTMLElement) || !(toastMessage instanceof HTMLElement)) return;
         toastTitle.textContent = title;
         toastMessage.textContent = message;
+        currentToastDestination = destination;
+        toast.classList.toggle("is-clickable", destination !== null);
+        if (destination !== null) toast.setAttribute("tabindex", "0"); else toast.removeAttribute("tabindex");
         toast.hidden = false;
         window.clearTimeout(toastHideTimer);
         toastHideTimer = window.setTimeout(() => { toast.hidden = true; }, 9000);
       };
-      toastDismiss?.addEventListener("click", () => {
-        if (toast instanceof HTMLElement) toast.hidden = true;
+      toast?.addEventListener("click", (event) => {
+        if (event.target instanceof HTMLElement && event.target.closest("#live-update-toast-dismiss")) return;
+        if (!currentToastDestination) return;
+        const destination = currentToastDestination;
+        currentToastDestination = null;
+        toast.hidden = true;
         window.clearTimeout(toastHideTimer);
+        navigateToDestination(destination);
+      });
+      toast?.addEventListener("keydown", (event) => {
+        if (!currentToastDestination) return;
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        const destination = currentToastDestination;
+        currentToastDestination = null;
+        toast.hidden = true;
+        window.clearTimeout(toastHideTimer);
+        navigateToDestination(destination);
+      });
+      toastDismiss?.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (toast instanceof HTMLElement) toast.hidden = true;
+        currentToastDestination = null;
+        window.clearTimeout(toastHideTimer);
+      });
+      alertViewButton?.addEventListener("click", () => {
+        const destination = currentAlertDestination;
+        currentAlertDestination = null;
+        // Clear the queue first: the close handler below would otherwise
+        // show the next queued alert on top of the destination dialog.
+        pendingAlerts.length = 0;
+        alertShowing = false;
+        if (alertDialog instanceof HTMLDialogElement && alertDialog.open) alertDialog.close();
+        if (destination) navigateToDestination(destination);
       });
       const queueStatusAlert = (title, message, details = {}) => {
         showToast(title, message);
@@ -3160,7 +3212,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         (messages || []).forEach((message) => {
           const isStaff = String(message.sender_type || "").toUpperCase() === "STAFF";
           if (appendChatMessage(message) && hadBaseline && isStaff) {
-            showToast("New message from front desk", "The front desk replied to your message.");
+            showToast("New message from front desk", "The front desk replied to your message.", { type: "chat" });
             if (!(chatPopup instanceof HTMLElement) || !chatPopup.classList.contains("open")) { chatUnread += 1; setChatBadge(); }
             playChatSound();
           }
@@ -3261,7 +3313,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
             if (hasBaseline && previousRoomStatus && previousRoomStatus !== currentRoomStatus && currentRoomStatus === "AVAILABLE") {
               const prevStayForRoom = previousStayState ? JSON.parse(previousStayState) : {};
               if (prevStayForRoom.status === payload.stay?.status && prevStayForRoom.room_number === payload.stay?.room_number) {
-                showToast("Your room is now available", "Your room status changed to Available.");
+                showToast("Your room is now available", "Your room status changed to Available.", { type: "scroll", selectors: [".journey", "[data-live-room-status]"] });
               }
             }
           }
@@ -3269,7 +3321,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           const transfer = payload.transfer || {};
           const transferRooms = Array.isArray(transfer.rooms) ? transfer.rooms : [];
           if (hasBaseline && previousAvailableRoomCount === 0 && transferRooms.length > 0 && transfer.has_pending !== true) {
-            showToast("A room is now available", "A room is now available for a room change. Open Request a service to choose one.");
+            showToast("A room is now available", "A room is now available for a room change. Open Request a service to choose one.", { type: "dialog", id: "service-dialog", preselect: "ROOM_TRANSFER" });
           }
           if (previousAvailableRoomCount !== -1 || transferRooms.length > 0) previousAvailableRoomCount = transferRooms.length;
           updateLiveTransferAvailability(transfer);
@@ -3277,7 +3329,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
 
           const checkinStatus = String(payload.checkin_payment?.status || "");
           if (hasBaseline && previousCheckinStatus !== checkinStatus && checkinStatus) {
-            showToast("Check-in payment update", `Your check-in payment is now ${friendlyStatus(checkinStatus)}.`);
+            showToast("Check-in payment update", `Your check-in payment is now ${friendlyStatus(checkinStatus)}.`, { type: "dialog", id: "billing-dialog" });
           }
           previousCheckinStatus = checkinStatus;
 
@@ -3285,7 +3337,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           const billingState = JSON.stringify([billing.totals, billing.charges, billing.discounts, billing.payments]);
           if (hasBaseline && previousBillingState && billingState !== previousBillingState) {
             const due = Number(billing.totals?.balance) || 0;
-            showToast("Your hotel folio was updated", `Charges, discounts and payments are refreshed. Balance: ${liveCurrency.format(due)}.`);
+            showToast("Your hotel folio was updated", `Charges, discounts and payments are refreshed. Balance: ${liveCurrency.format(due)}.`, { type: "dialog", id: "billing-dialog" });
           }
           previousBillingState = billingState;
           updateLiveBilling(billing);
@@ -3307,7 +3359,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
             }
             if (isNewOrder) {
               const copy = orderStatusCopy(order, status);
-              showToast("New room-service order", copy.message);
+              showToast("New room-service order", copy.message, { type: "activity", filter: "order", target: `[data-live-order="${CSS.escape(key)}"]` });
             }
             if (hasBaseline && previous !== undefined && normalizeStatus(previous) !== normalizeStatus(status)) {
               const copy = orderStatusCopy(order, status);
@@ -3324,7 +3376,8 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
                 status: friendlyStatus(status),
                 estimate: estimateText,
                 progress,
-                photo: String(order.photo || "")
+                photo: String(order.photo || ""),
+                destination: { type: "activity", filter: "order", target: `[data-live-order="${CSS.escape(key)}"]` }
               });
             }
             seenOrderStatuses.set(key, status);
@@ -3356,7 +3409,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
             const badge = card?.querySelector("[data-live-status]");
             if (badge instanceof HTMLElement) badge.textContent = friendlyStatus(status);
             if (isNewRequest) {
-              showToast("New service request", String(request.description || `Request ${key}`));
+              showToast("New service request", String(request.description || `Request ${key}`), { type: "activity", filter: "request", target: `[data-live-request="${CSS.escape(key)}"]` });
             }
             if (hasBaseline && previous !== undefined && normalizeStatus(previous) !== normalizeStatus(status)) {
               const description = String(request.description || card?.querySelector(".record-title")?.textContent || "").trim();
@@ -3375,7 +3428,8 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
                 service_type: String(request.service_type || ""),
                 assigned_department: String(request.assigned_department || ""),
                 request_kind: String(request.request_kind || ""),
-                photo: String(request.photo || "")
+                photo: String(request.photo || ""),
+                destination: { type: "activity", filter: "request", target: `[data-live-request="${CSS.escape(key)}"]` }
               });
             }
             seenRequestStatuses.set(key, status);
@@ -3400,13 +3454,13 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
               }
             }
             if (isNewExtension) {
-              showToast("Stay extension requested", `To ${formatExtensionDate(extension.requested_checkout)} · ${Number(extension.extra_nights || 0)} night(s).`);
+              showToast("Stay extension requested", `To ${formatExtensionDate(extension.requested_checkout)} · ${Number(extension.extra_nights || 0)} night(s).`, { type: "activity", filter: "all", target: `[data-live-extension="${CSS.escape(key)}"]` });
             }
             if (hasBaseline && previous !== undefined && normalizeStatus(previous) !== normalizeStatus(status)) {
               if (status.toUpperCase() === "APPROVED") {
-                queueStatusAlert("Stay extension approved", `Your stay now ends on ${formatExtensionDate(extension.requested_checkout)}. The extra nights were added to your folio.`, { kind: "extension" });
+                queueStatusAlert("Stay extension approved", `Your stay now ends on ${formatExtensionDate(extension.requested_checkout)}. The extra nights were added to your folio.`, { kind: "extension", destination: { type: "activity", filter: "all", target: `[data-live-extension="${CSS.escape(key)}"]` } });
               } else if (status.toUpperCase() === "REJECTED") {
-                queueStatusAlert("Stay extension declined", extension.review_note ? `Reason: ${String(extension.review_note)}` : "Contact the front desk for details.", { kind: "extension" });
+                queueStatusAlert("Stay extension declined", extension.review_note ? `Reason: ${String(extension.review_note)}` : "Contact the front desk for details.", { kind: "extension", destination: { type: "activity", filter: "all", target: `[data-live-extension="${CSS.escape(key)}"]` } });
               }
             }
             seenExtensionStatuses.set(key, status);
