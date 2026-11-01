@@ -1363,8 +1363,9 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     .order-review-remove:focus-visible{outline:3px solid #fda4af;outline-offset:2px}
     .order-review-remove svg{width:17px;height:17px;pointer-events:none}
     .order-review-photo{flex:none;width:56px;height:56px;border-radius:10px;object-fit:cover;background:#f3ead3}
+    .record-photo{flex:none;width:56px;height:56px;border-radius:10px;object-fit:cover;background:#f3ead3}
     .order-review-photo-fallback{flex:none;display:grid;place-items:center;width:56px;height:56px;border-radius:10px;background:#f3ead3;color:#17344e;font-size:22px}
-    @media(max-width:520px){.order-review-photo,.order-review-photo-fallback{width:48px;height:48px}}
+    @media(max-width:520px){.order-review-photo,.order-review-photo-fallback,.record-photo{width:48px;height:48px}}
     .order-review-empty{padding:20px 12px;text-align:center;color:var(--muted);font-size:13px}
     .order-review-notes{margin-top:14px;padding:12px;border-radius:11px;background:#eef3f7;color:#455b70;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
     .order-review-total{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);color:var(--ink);font-size:14px;font-weight:800}
@@ -1649,9 +1650,9 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
               <div class="record-top"><div><h3 class="record-title">Stay extension to <?=portal_escape(date('M j, Y', strtotime($extension['requested_checkout'])))?></h3><p class="record-meta"><?=portal_escape((int)$extension['extra_nights'])?> night(s) · ₱<?=number_format((float)$extension['proposed_charge'], 2)?> · requested <?=portal_escape(date('M j, g:i A', strtotime($extension['created_at'])))?></p></div><span class="status"><?= $extension['status'] === 'APPROVED' ? 'Approved' : ($extension['status'] === 'REJECTED' ? 'Declined' : 'Pending') ?></span></div>
               <?php if ($extension['status'] === 'REJECTED' && ($extension['review_note'] ?? '') !== ''): ?><p class="record-meta">Declined: <?=portal_escape($extension['review_note'])?></p><?php endif; ?>
             </article>
-            <?php else: $request = $activityItem['data']; ?>
+            <?php else: $request = $activityItem['data']; $recentRequestPhoto = portal_menu_photo_match((string)$request['description']); $recentRequestPhotoUrl = $recentRequestPhoto !== null ? $publicAssetUrlPrefix . substr($recentRequestPhoto, strlen('/assets')) : ''; ?>
             <article class="record">
-              <div class="record-top"><div><h3 class="record-title"><?=portal_escape($request['description'])?></h3><p class="record-meta"><?=portal_escape($request['request_code'])?> · <?=portal_escape(date('M j, g:i A', strtotime($request['created_at'])))?></p></div><span class="status"><?=portal_escape($request['status'])?></span></div>
+              <div class="record-top"><?php if ($recentRequestPhotoUrl !== ''): ?><img class="record-photo" src="<?=portal_escape($recentRequestPhotoUrl)?>" alt="" aria-hidden="true" onerror="this.remove()"><?php endif; ?><div><h3 class="record-title"><?=portal_escape($request['description'])?></h3><p class="record-meta"><?=portal_escape($request['request_code'])?> · <?=portal_escape(date('M j, g:i A', strtotime($request['created_at'])))?></p></div><span class="status"><?=portal_escape($request['status'])?></span></div>
             </article>
             <?php endif; ?>
           <?php endforeach; ?>
@@ -1980,14 +1981,14 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           <div class="activity-section-heading"><h3>Service requests</h3><span class="activity-count"><?=count($requests)?></span></div>
           <div class="request-list">
             <?php if (!$requests): ?><div class="activity-empty"><span class="activity-empty-icon" aria-hidden="true">✦</span><strong>No service requests yet</strong><p>Need towels, assistance, or something fixed? Send a request and track it here.</p></div><?php endif; ?>
-            <?php foreach ($requests as $request): ?><article class="record activity-record" data-kind="request" data-live-request="<?=portal_escape($request['request_code'])?>"><div class="record-top"><div><h3 class="record-title"><?=portal_escape($request['description'])?></h3><p class="record-meta">Reference <?=portal_escape($request['request_code'])?><br><?=portal_escape(date('M j, Y · g:i A', strtotime($request['created_at'])))?></p></div><span class="status" data-live-status><?=portal_escape($request['status'])?></span></div><?php if ((int)$request['chargeable']): ?><p class="record-meta">Charge: ₱<?=number_format((float)$request['price'], 2)?></p><?php endif; ?></article><?php endforeach; ?>
+            <?php foreach ($requests as $request): $activityRequestPhoto = portal_menu_photo_match((string)$request['description']); $activityRequestPhotoUrl = $activityRequestPhoto !== null ? $publicAssetUrlPrefix . substr($activityRequestPhoto, strlen('/assets')) : ''; ?><article class="record activity-record" data-kind="request" data-live-request="<?=portal_escape($request['request_code'])?>"><div class="record-top"><?php if ($activityRequestPhotoUrl !== ''): ?><img class="record-photo" src="<?=portal_escape($activityRequestPhotoUrl)?>" alt="" aria-hidden="true" onerror="this.remove()"><?php endif; ?><div><h3 class="record-title"><?=portal_escape($request['description'])?></h3><p class="record-meta">Reference <?=portal_escape($request['request_code'])?><br><?=portal_escape(date('M j, Y · g:i A', strtotime($request['created_at'])))?></p></div><span class="status" data-live-status><?=portal_escape($request['status'])?></span></div><?php if ((int)$request['chargeable']): ?><p class="record-meta">Charge: ₱<?=number_format((float)$request['price'], 2)?></p><?php endif; ?></article><?php endforeach; ?>
           </div>
         </section>
         <section class="activity-section" data-activity-section="order">
           <div class="activity-section-heading"><h3>Room-service orders</h3><span class="activity-count"><?=count($orders)?></span></div>
           <div class="order-list">
             <?php if (!$orders): ?><div class="activity-empty"><span class="activity-empty-icon" aria-hidden="true">♨</span><strong>No room-service orders yet</strong><p>Browse food and drinks to place an order. Its status and serving estimate will appear here.</p></div><?php endif; ?>
-            <?php foreach ($orders as $order): ?><article class="record activity-record" data-kind="order" data-live-order="<?=portal_escape($order['id'])?>"><div class="record-top"><div><h3 class="record-title"><?=portal_escape($order['order_code'])?></h3><p class="record-meta"><?php foreach ($order['items'] as $line): ?><?=portal_escape($line['quantity'])?>× <?=portal_escape($line['item_name'])?><br><?php endforeach; ?><?=portal_escape(date('M j, Y · g:i A', strtotime($order['created_at'])))?></p></div><span class="status" data-live-status><?=portal_escape($order['order_status'])?></span></div><p class="record-meta">₱<?=number_format((float)$order['total_amount'], 2)?> · <?=portal_escape($order['payment_status'])?></p><p class="record-meta" data-ready-estimate data-ready-at="<?=portal_escape($order['estimated_ready_at'] ?? '')?>">Estimated serving time: <strong data-ready-label>Calculating…</strong></p></article><?php endforeach; ?>
+            <?php foreach ($orders as $order): $activityOrderPhotoUrl = ''; $activityFirstItem = $order['items'][0]['item_name'] ?? ''; foreach ($menuItems as $activityMenuItem) { if (strcasecmp((string)($activityMenuItem['item_name'] ?? ''), (string)$activityFirstItem) === 0) { $activityOrderPhotoUrl = (string)($activityMenuItem['image_path'] ?? ''); break; } } ?><article class="record activity-record" data-kind="order" data-live-order="<?=portal_escape($order['id'])?>"><div class="record-top"><?php if ($activityOrderPhotoUrl !== ''): ?><img class="record-photo" src="<?=portal_escape($activityOrderPhotoUrl)?>" alt="" aria-hidden="true" onerror="this.remove()"><?php endif; ?><div><h3 class="record-title"><?=portal_escape($order['order_code'])?></h3><p class="record-meta"><?php foreach ($order['items'] as $line): ?><?=portal_escape($line['quantity'])?>× <?=portal_escape($line['item_name'])?><br><?php endforeach; ?><?=portal_escape(date('M j, Y · g:i A', strtotime($order['created_at'])))?></p></div><span class="status" data-live-status><?=portal_escape($order['order_status'])?></span></div><p class="record-meta">₱<?=number_format((float)$order['total_amount'], 2)?> · <?=portal_escape($order['payment_status'])?></p><p class="record-meta" data-ready-estimate data-ready-at="<?=portal_escape($order['estimated_ready_at'] ?? '')?>">Estimated serving time: <strong data-ready-label>Calculating…</strong></p></article><?php endforeach; ?>
           </div>
         </section>
         <section class="activity-section" data-activity-section="extension">
@@ -2652,7 +2653,17 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
             status.textContent = friendlyStatus(request.status);
           }
           copy.append(title, meta);
-          top.append(copy, status);
+          if (request._kind !== "extension" && request.photo) {
+            const photo = document.createElement("img");
+            photo.className = "record-photo";
+            photo.src = String(request.photo);
+            photo.alt = "";
+            photo.setAttribute("aria-hidden", "true");
+            photo.addEventListener("error", () => photo.remove());
+            top.append(photo, copy, status);
+          } else {
+            top.append(copy, status);
+          }
           card.append(top);
           if (request._kind === "extension" && String(request.status || "").toUpperCase() === "REJECTED" && request.review_note) {
             const note = document.createElement("p");
@@ -2684,7 +2695,17 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         badge.className = "status";
         badge.dataset.liveStatus = "";
         badge.textContent = friendlyStatus(request.status);
-        top.append(copy, badge);
+        if (request.photo) {
+          const photo = document.createElement("img");
+          photo.className = "record-photo";
+          photo.src = String(request.photo);
+          photo.alt = "";
+          photo.setAttribute("aria-hidden", "true");
+          photo.addEventListener("error", () => photo.remove());
+          top.append(photo, copy, badge);
+        } else {
+          top.append(copy, badge);
+        }
         card.append(top);
         if (Number(request.chargeable) > 0) {
           const charge = document.createElement("p");
@@ -2768,7 +2789,17 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         badge.className = "status";
         badge.dataset.liveStatus = "";
         badge.textContent = friendlyStatus(order.order_status);
-        top.append(copy, badge);
+        if (order.photo) {
+          const photo = document.createElement("img");
+          photo.className = "record-photo";
+          photo.src = String(order.photo);
+          photo.alt = "";
+          photo.setAttribute("aria-hidden", "true");
+          photo.addEventListener("error", () => photo.remove());
+          top.append(photo, copy, badge);
+        } else {
+          top.append(copy, badge);
+        }
         const amount = document.createElement("p");
         amount.className = "record-meta";
         amount.dataset.orderAmount = "";
