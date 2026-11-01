@@ -3722,6 +3722,10 @@ if ($action === 'folio') {
     $q = $pdo->prepare("SELECT ad.*, u.username AS applied_by_username, u.role AS applied_by_role FROM applied_discounts ad LEFT JOIN users u ON u.id=ad.applied_by WHERE ad.folio_id=? AND ad.status IN ('APPLIED','APPROVED','PENDING') ORDER BY ad.created_at, ad.id");
     $q->execute([$id]);
     $discounts = $q->fetchAll();
+
+    $q = $pdo->prepare("SELECT t.*, fr.room_number AS from_room_number, tr.room_number AS to_room_number FROM room_transfers t JOIN rooms fr ON fr.id=t.from_room_id JOIN rooms tr ON tr.id=t.to_room_id WHERE t.stay_id=? ORDER BY t.effective_date, t.id");
+    $q->execute([$f['stay_id']]);
+    $transfers = $q->fetchAll();
     $discountTotal = array_sum(array_map(fn($d) => in_array($d['status'], ['APPLIED', 'APPROVED'], true) ? (float)$d['amount'] : 0, $discounts));
 
     $tax = htl_folio_vat_breakdown($pdo, $id);
@@ -3735,6 +3739,7 @@ if ($action === 'folio') {
         'charges' => $charges,
         'payments' => $payments,
         'discounts' => $discounts,
+        'transfers' => $transfers,
         'total' => money($total),
         'discount_total' => money($discountTotal),
         'net_total' => money($vatableSales),
