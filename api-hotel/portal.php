@@ -276,6 +276,19 @@ try {
                  WHERE sr.stay_id = ? ORDER BY sr.created_at DESC LIMIT 30'
             );
             $liveRequestsQuery->execute([(int)$stay['id']]);
+            // Request alerts get the same menu-photo treatment as order alerts:
+            // match the request description (e.g. "1x Leche Flan") against the
+            // shared photo rules. No match means no photo — the request keeps
+            // its type icon. No SVG fallback here, unlike orders.
+            $liveRequests = $liveRequestsQuery->fetchAll();
+            foreach ($liveRequests as &$liveRequest) {
+                $liveRequest['photo'] = '';
+                $liveRequestPhoto = portal_menu_photo_match((string)($liveRequest['description'] ?? ''));
+                if ($liveRequestPhoto !== null) {
+                    $liveRequest['photo'] = $publicAssetUrlPrefix . substr($liveRequestPhoto, strlen('/assets'));
+                }
+            }
+            unset($liveRequest);
             $liveExtensions = [];
             try {
                 $liveExtensionsQuery = $pdo->prepare(
@@ -413,7 +426,7 @@ try {
                 'checkin_payment' => $liveCheckinPayment,
                 'billing' => $liveBilling,
                 'orders' => $liveOrders,
-                'requests' => $liveRequestsQuery->fetchAll(),
+                'requests' => $liveRequests,
                 'extensions' => $liveExtensions,
                 'chat' => $liveChat,
             ], JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
@@ -2841,7 +2854,9 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         alertTitle.textContent = next.title;
         alertMessage.textContent = next.message;
         if (isServiceAlert) {
-          if (alertIcon instanceof HTMLElement) alertIcon.textContent = serviceIconFor(next.service_type, next.assigned_department, next.request_kind);
+          if (next.photo) {
+            setAlertPhoto(next.photo);
+          } else if (alertIcon instanceof HTMLElement) alertIcon.textContent = serviceIconFor(next.service_type, next.assigned_department, next.request_kind);
           if (alertItems) alertItems.textContent = next.items || "Service request";
           if (alertCode) alertCode.textContent = next.code ? "Request " + next.code : "Service request";
           if (alertQuantity) alertQuantity.textContent = next.quantity || "";
@@ -3206,7 +3221,8 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
                 status: statusLabel,
                 service_type: String(request.service_type || ""),
                 assigned_department: String(request.assigned_department || ""),
-                request_kind: String(request.request_kind || "")
+                request_kind: String(request.request_kind || ""),
+                photo: String(request.photo || "")
               });
             }
             seenRequestStatuses.set(key, status);
