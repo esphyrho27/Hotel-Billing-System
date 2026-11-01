@@ -194,6 +194,18 @@ if (in_array($action, ['chat_conversations', 'chat_messages', 'chat_send'], true
     }
 }
 
+// Room status is frontdesk view-only (owner directive 2026-11-01). Same
+// pattern as chat: this gate runs AFTER the permission check so a saved
+// role_permissions grant of rooms.status cannot re-enable manual edits for
+// frontdesk. Workflow-driven changes (check-in -> OCCUPIED, checkout ->
+// CLEANING, room transfer) use their own actions and are NOT blocked here.
+if ($action === 'room_status') {
+    $roomStatusRole = strtolower(trim(str_replace([' ', '_', '-'], '', (string)($u['role'] ?? ''))));
+    if ($roomStatusRole === 'frontdesk') {
+        out(['error' => 'Room status changes are not available to the front desk.'], 403);
+    }
+}
+
 // Verify CSRF token for mutating HTTP requests
 if (!in_array($_SERVER['REQUEST_METHOD'], ['GET', 'HEAD'], true)) {
     $csrf = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
@@ -681,11 +693,25 @@ if ($action === 'room_type_save') {
 if ($action === 'room_save') {
     // Rooms are created/edited by admin and manager only (owner directive
     // 2026-10-22: Add Room removed for Front Desk). Front desk keeps
-    // rooms.view + rooms.status (the status board) via their own actions.
+    // rooms.view only (owner directive 2026-11-01: no manual status edits).
     require_role(['admin', 'manager']);
     $id = (int)($in['id'] ?? 0);
     $number = trim((string)($in['room_number'] ?? ''));
-    $type = (int)($in['room_type_id'] ?? 0);
+    // A missing/blank type id used to surface as "Choose a valid room type."
+    // even when the type existed. Accept the alternate keys some clients send
+    // (type_id, or a type name) so a newly created type can never be lost
+    // just because the form field name differed.
+    $type = (int)($in['room_type_id'] ?? $in['type_id'] ?? 0);
+    if ($type < 1 && isset($in['room_type'])) {
+        $roomTypeRaw = trim((string)$in['room_type']);
+        if (ctype_digit($roomTypeRaw)) {
+            $type = (int)$roomTypeRaw;
+        } elseif ($roomTypeRaw !== '') {
+            $typeLookup = $pdo->prepare('SELECT id FROM room_types WHERE LOWER(name)=LOWER(?) LIMIT 1');
+            $typeLookup->execute([$roomTypeRaw]);
+            $type = (int)($typeLookup->fetchColumn() ?: 0);
+        }
+    }
     $floor = (int)($in['floor_number'] ?? 1);
 
     if (!preg_match('/^[1-9][0-9]{2,3}$/', $number)) {
@@ -747,7 +773,9 @@ if ($action === 'room_save') {
  * Updates operational room status for rooms without an active or pending stay.
  */
 if ($action === 'room_status') {
-    require_role(['admin', 'manager', 'frontdesk', 'service', 'maintenance', 'housekeeping']);
+    // Frontdesk is blocked by the explicit gate above; it is removed here
+    // too so the handler itself never offers frontdesk a path in.
+    require_role(['admin', 'manager', 'service', 'maintenance', 'housekeeping']);
     $id = (int)($in['room_id'] ?? 0);
     $status = (string)($in['status'] ?? '');
 

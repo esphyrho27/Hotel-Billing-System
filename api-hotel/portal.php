@@ -173,7 +173,7 @@ try {
     if ($token !== '' && preg_match('/\A[a-f0-9]{64}\z/i', $token)) {
         $stayQuery = $pdo->prepare(
             "SELECT s.id, s.room_id, s.guest_count, s.stay_code, s.status, s.checkin_at, s.planned_checkout, s.actual_checkout,
-                    r.room_number, c.first_name, c.last_name
+                    r.room_number, r.status AS room_status, c.first_name, c.last_name
              FROM portal_tokens pt
              JOIN stays s ON s.id = pt.stay_id
              JOIN rooms r ON r.id = s.room_id
@@ -300,6 +300,66 @@ try {
                 // Chat table not migrated yet: live updates still work.
                 $liveChat = [];
             }
+            // Live room availability (owner directive 2026-11-01): the same
+            // AVAILABLE-room eligibility as the page load, so a room that
+            // becomes Available shows up in the room-change list without a
+            // manual refresh. Wrapped in try/catch so a failure here never
+            // breaks the rest of the live poll.
+            $liveTransferRooms = [];
+            $liveHasPendingTransfer = false;
+            if (($stay['status'] ?? '') === 'ACTIVE' && !empty($stay['planned_checkout'])) {
+                try {
+                    $livePendingTransferQuery = $pdo->prepare(
+                        "SELECT COUNT(*) FROM service_requests
+                         WHERE stay_id=? AND request_kind='ROOM_TRANSFER'
+                           AND status IN ('NEW','PENDING','ASSIGNED','ACKNOWLEDGED','IN_PROGRESS','ON_HOLD')"
+                    );
+                    $livePendingTransferQuery->execute([(int)$stay['id']]);
+                    $liveHasPendingTransfer = (int)$livePendingTransferQuery->fetchColumn() > 0;
+                    $liveRateQuery = $pdo->prepare(
+                        'SELECT rt.nightly_rate FROM stays s JOIN rooms r ON r.id=s.room_id JOIN room_types rt ON rt.id=r.room_type_id WHERE s.id=?'
+                    );
+                    $liveRateQuery->execute([(int)$stay['id']]);
+                    $liveCurrentRate = (float)$liveRateQuery->fetchColumn();
+                    $liveToday = new DateTimeImmutable('today');
+                    $liveCheckout = new DateTimeImmutable((string)$stay['planned_checkout']);
+                    $liveRemainingNights = max(0, (int)$liveToday->diff($liveCheckout)->format('%r%a'));
+                    $liveAvailableRoomQuery = $pdo->prepare(
+                        "SELECT r.id, r.room_number, rt.capacity, rt.name AS room_type, rt.nightly_rate
+                         FROM rooms r
+                         JOIN room_types rt ON rt.id=r.room_type_id
+                         WHERE r.status='AVAILABLE' AND r.id<>?
+                           AND rt.capacity >= (SELECT guest_count FROM stays WHERE id=?)
+                           AND NOT EXISTS (
+                               SELECT 1 FROM service_requests pending_transfer
+                               WHERE pending_transfer.requested_room_id=r.id
+                                 AND pending_transfer.request_kind='ROOM_TRANSFER'
+                                 AND pending_transfer.status IN ('NEW','PENDING','ASSIGNED','ACKNOWLEDGED','IN_PROGRESS','ON_HOLD')
+                           )
+                           AND NOT EXISTS (
+                               SELECT 1 FROM stays occupied
+                               WHERE occupied.room_id=r.id
+                                 AND occupied.status IN ('ACTIVE','PENDING_PAYMENT')
+                                 AND DATE(occupied.checkin_at) < ?
+                                 AND occupied.planned_checkout > ?
+                           )
+                         ORDER BY r.room_number"
+                    );
+                    $liveAvailableRoomQuery->execute([
+                        (int)$stay['room_id'],
+                        (int)$stay['id'],
+                        $stay['planned_checkout'],
+                        $liveToday->format('Y-m-d'),
+                    ]);
+                    foreach ($liveAvailableRoomQuery->fetchAll() as $liveRoomRow) {
+                        $liveRoomRow['adjustment'] = round($liveRemainingNights * ((float)$liveRoomRow['nightly_rate'] - $liveCurrentRate), 2);
+                        $liveTransferRooms[] = $liveRoomRow;
+                    }
+                } catch (Throwable $liveTransferError) {
+                    $liveTransferRooms = [];
+                    $liveHasPendingTransfer = false;
+                }
+            }
             $liveFolioQuery = $pdo->prepare('SELECT id FROM folios WHERE stay_id=? LIMIT 1');
             $liveFolioQuery->execute([(int)$stay['id']]);
             $liveFolioId = (int)$liveFolioQuery->fetchColumn();
@@ -344,6 +404,11 @@ try {
                     'planned_checkout' => $stay['planned_checkout'],
                     'actual_checkout' => $stay['actual_checkout'],
                     'room_number' => $stay['room_number'],
+                    'room_status' => $stay['room_status'] ?? null,
+                ],
+                'transfer' => [
+                    'has_pending' => $liveHasPendingTransfer,
+                    'rooms' => $liveTransferRooms,
                 ],
                 'checkin_payment' => $liveCheckinPayment,
                 'billing' => $liveBilling,
@@ -1113,11 +1178,11 @@ try {
             $transferRemainingNights = max(0, (int)$today->diff($checkout)->format('%r%a'));
             if (!$hasPendingTransfer) {
                 $availableRoomQuery = $pdo->prepare(
-                    "SELECT r.id, r.room_number, r.capacity, rt.name AS room_type, rt.nightly_rate
+                    "SELECT r.id, r.room_number, rt.capacity, rt.name AS room_type, rt.nightly_rate
                      FROM rooms r
                      JOIN room_types rt ON rt.id=r.room_type_id
                      WHERE r.status='AVAILABLE' AND r.id<>?
-                       AND r.capacity >= (SELECT guest_count FROM stays WHERE id=?)
+                       AND rt.capacity >= (SELECT guest_count FROM stays WHERE id=?)
                        AND NOT EXISTS (
                            SELECT 1 FROM service_requests pending_transfer
                            WHERE pending_transfer.requested_room_id=r.id
@@ -1535,7 +1600,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
       <?php endif; ?>
 
       <section class="stats" aria-label="Stay summary">
-        <article class="stat"><div class="stat-label">Your room</div><div class="stat-value"><?=portal_escape($stay['room_number'])?></div><p class="stat-note">Assigned room</p></article>
+        <article class="stat"><div class="stat-label">Your room</div><div class="stat-value"><?=portal_escape($stay['room_number'])?></div><p class="stat-note" data-live-room-status>Assigned room<?= !empty($stay['room_status']) ? ' · Room status: ' . portal_escape((string)$stay['room_status']) : '' ?></p></article>
         <article class="stat"><div class="stat-label">Stay reference</div><div class="stat-value"><?=portal_escape($stay['stay_code'])?></div><p class="stat-note">For front desk assistance</p></article>
         <article class="stat"><div class="stat-label">Open requests</div><div class="stat-value"><?=portal_escape($openRequests)?></div><p class="stat-note">Requests being handled</p></article>
       </section>
@@ -1810,31 +1875,26 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
               <select name="service_type" data-service-type required><option value="FRONT_DESK">Front desk</option><option value="HOUSEKEEPING">Housekeeping</option><option value="MAINTENANCE">Maintenance</option><option value="OTHER">Other assistance</option><?php if (!$hasPendingTransfer && $transferRooms): ?><option value="ROOM_TRANSFER">Request a room change</option><?php endif; ?></select>
             </label>
             <div class="field" data-transfer-fields hidden>
-              <?php if ($hasPendingTransfer): ?>
-                <p class="notice">A room-change request is already awaiting staff action. You can submit another request after it is approved or rejected.</p>
-              <?php elseif (!$transferRooms): ?>
-                <p class="notice">No other rooms are currently available. Please contact the front desk for assistance.</p>
-              <?php else: ?>
-                <label class="field" style="margin:0">Requested destination room
-                  <select name="requested_room_id" data-transfer-room disabled required>
-                    <option value="">Choose an available room</option>
-                    <?php foreach ($transferRooms as $room): ?>
-                      <?php $estimate = round($transferRemainingNights * ((float)$room['nightly_rate'] - $currentNightlyRate), 2); ?>
-                      <option value="<?= (int)$room['id'] ?>" data-rate="<?=portal_escape((string)$room['nightly_rate'])?>" data-adjustment="<?=portal_escape((string)$estimate)?>">
-                        Room <?=portal_escape($room['room_number'])?> · <?=portal_escape($room['room_type'])?> · ₱<?=number_format((float)$room['nightly_rate'], 2)?>/night
-                      </option>
-                    <?php endforeach; ?>
-                  </select>
-                </label>
-                <p class="stat-note" data-transfer-estimate>Select a destination to see the estimated remaining-stay rate adjustment.</p>
-                <label class="field" style="margin:8px 0 0">Reason for the change
-                  <textarea name="description" data-transfer-reason maxlength="400" disabled placeholder="Tell the front desk why you are requesting a room change."></textarea>
-                </label>
-                <label class="field" style="display:flex;align-items:flex-start;gap:9px;margin:10px 0 0">
-                  <input type="checkbox" name="accept_rate_change" value="1" data-transfer-accept disabled required style="width:auto;margin-top:3px">
-                  <span>I understand the room rate may change. A manager must approve this request before I am moved, and hotel staff will confirm the final adjustment.</span>
-                </label>
-              <?php endif; ?>
+              <p class="notice" data-transfer-notice <?= ($hasPendingTransfer || !$transferRooms) ? '' : 'hidden' ?>><?= $hasPendingTransfer ? 'A room-change request is already awaiting staff action. You can submit another request after it is approved or rejected.' : 'No other rooms are currently available. Please contact the front desk for assistance.' ?></p>
+              <label class="field" style="margin:0">Requested destination room
+                <select name="requested_room_id" data-transfer-room disabled required>
+                  <option value="">Choose an available room</option>
+                  <?php foreach ($transferRooms as $room): ?>
+                    <?php $estimate = round($transferRemainingNights * ((float)$room['nightly_rate'] - $currentNightlyRate), 2); ?>
+                    <option value="<?= (int)$room['id'] ?>" data-rate="<?=portal_escape((string)$room['nightly_rate'])?>" data-adjustment="<?=portal_escape((string)$estimate)?>">
+                      Room <?=portal_escape($room['room_number'])?> · <?=portal_escape($room['room_type'])?> · ₱<?=number_format((float)$room['nightly_rate'], 2)?>/night
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </label>
+              <p class="stat-note" data-transfer-estimate>Select a destination to see the estimated remaining-stay rate adjustment.</p>
+              <label class="field" style="margin:8px 0 0">Reason for the change
+                <textarea name="description" data-transfer-reason maxlength="400" disabled placeholder="Tell the front desk why you are requesting a room change."></textarea>
+              </label>
+              <label class="field" style="display:flex;align-items:flex-start;gap:9px;margin:10px 0 0">
+                <input type="checkbox" name="accept_rate_change" value="1" data-transfer-accept disabled required style="width:auto;margin-top:3px">
+                <span>I understand the room rate may change. A manager must approve this request before I am moved, and hotel staff will confirm the final adjustment.</span>
+              </label>
             </div>
             <div class="field" data-housekeeping-fields hidden>
               <label class="field" style="margin:0">Housekeeping item
@@ -2438,6 +2498,8 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
       let previousBillingState = "";
       let previousStayState = "";
       let previousCheckinStatus = "";
+      let previousRoomStatus = "";
+      let previousAvailableRoomCount = -1;
 
       const normalizeStatus = (status) => String(status || "Pending").trim().replaceAll("_", " ").replace(/\s+/g, " ").toLowerCase();
       const friendlyStatus = (status) => normalizeStatus(status).replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -2916,6 +2978,73 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           }
         });
       };
+      // Live room-status update (owner directive 2026-11-01): refreshes the
+      // room-change destination list and the room-change button in place from
+      // the portal_live payload, so a room becoming Available never needs a
+      // manual refresh. Never touches a form the guest is mid-way through:
+      // if ROOM_TRANSFER is currently selected, options are refreshed but
+      // the selection itself is left alone (the server re-checks availability
+      // at submit time and rejects a room that is no longer available).
+      const updateLiveTransferAvailability = (transfer) => {
+        const actionInput = document.querySelector('form input[name="portal_action"][value="service_request"]');
+        const serviceForm = actionInput?.form;
+        if (!(serviceForm instanceof HTMLFormElement)) return;
+        const rooms = Array.isArray(transfer?.rooms) ? transfer.rooms : [];
+        const hasPending = transfer?.has_pending === true;
+        const available = !hasPending && rooms.length > 0;
+        const departmentSelect = serviceForm.querySelector("[data-service-type]");
+        const isMidTransfer = departmentSelect instanceof HTMLSelectElement && departmentSelect.value === "ROOM_TRANSFER";
+        const choice = serviceForm.querySelector('[data-service-choice="ROOM_TRANSFER"]');
+        if (choice instanceof HTMLElement && !isMidTransfer) {
+          choice.disabled = !available;
+          const spans = choice.querySelectorAll("span");
+          const label = spans.length ? spans[spans.length - 1] : null;
+          if (label) label.textContent = hasPending ? "A request is already awaiting staff action" : (available ? "Ask the front desk to move you" : "No rooms are currently available");
+        }
+        if (departmentSelect instanceof HTMLSelectElement && !isMidTransfer) {
+          let option = departmentSelect.querySelector('option[value="ROOM_TRANSFER"]');
+          if (available && !option) {
+            option = document.createElement("option");
+            option.value = "ROOM_TRANSFER";
+            option.textContent = "Request a room change";
+            departmentSelect.append(option);
+          } else if (!available && option) {
+            option.remove();
+          }
+        }
+        const notice = serviceForm.querySelector("[data-transfer-notice]");
+        if (notice instanceof HTMLElement) {
+          if (hasPending) {
+            notice.textContent = "A room-change request is already awaiting staff action. You can submit another request after it is approved or rejected.";
+            notice.hidden = false;
+          } else if (!rooms.length) {
+            notice.textContent = "No other rooms are currently available. Please contact the front desk for assistance.";
+            notice.hidden = false;
+          } else {
+            notice.hidden = true;
+          }
+        }
+        const destination = serviceForm.querySelector("[data-transfer-room]");
+        if (destination instanceof HTMLSelectElement) {
+          const selected = destination.value;
+          destination.replaceChildren();
+          const placeholder = document.createElement("option");
+          placeholder.value = "";
+          placeholder.textContent = "Choose an available room";
+          destination.append(placeholder);
+          rooms.forEach((room) => {
+            const option = document.createElement("option");
+            option.value = String(room.id);
+            option.dataset.rate = String(room.nightly_rate ?? "");
+            option.dataset.adjustment = String(room.adjustment ?? "");
+            option.textContent = `Room ${room.room_number} · ${room.room_type} · ${liveCurrency.format(Number(room.nightly_rate) || 0)}/night`;
+            destination.append(option);
+          });
+          if (rooms.some((room) => String(room.id) === selected)) destination.value = selected;
+          else destination.value = "";
+          destination.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      };
       const poll = async () => {
         if (pollInProgress || document.visibilityState === "hidden") return;
         pollInProgress = true;
@@ -2935,6 +3064,27 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
               return;
             }
           }
+          // Room status + availability update in place (no reload): the
+          // guest's own room status line, and the room-change list/button.
+          const currentRoomStatus = String(payload.stay?.room_status || "");
+          if (currentRoomStatus) {
+            const roomStatusEl = document.querySelector("[data-live-room-status]");
+            if (roomStatusEl) roomStatusEl.textContent = `Assigned room · Room status: ${currentRoomStatus}`;
+            if (hasBaseline && previousRoomStatus && previousRoomStatus !== currentRoomStatus && currentRoomStatus === "AVAILABLE") {
+              const prevStayForRoom = previousStayState ? JSON.parse(previousStayState) : {};
+              if (prevStayForRoom.status === payload.stay?.status && prevStayForRoom.room_number === payload.stay?.room_number) {
+                showToast("Your room is now available", "Your room status changed to Available.");
+              }
+            }
+          }
+          previousRoomStatus = currentRoomStatus;
+          const transfer = payload.transfer || {};
+          const transferRooms = Array.isArray(transfer.rooms) ? transfer.rooms : [];
+          if (hasBaseline && previousAvailableRoomCount === 0 && transferRooms.length > 0 && transfer.has_pending !== true) {
+            showToast("A room is now available", "A room is now available for a room change. Open Request a service to choose one.");
+          }
+          if (previousAvailableRoomCount !== -1 || transferRooms.length > 0) previousAvailableRoomCount = transferRooms.length;
+          updateLiveTransferAvailability(transfer);
           previousStayState = stayState;
 
           const checkinStatus = String(payload.checkin_payment?.status || "");

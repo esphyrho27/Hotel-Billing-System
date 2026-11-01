@@ -42,13 +42,16 @@ const HOTEL_ROLE_PERMISSIONS = [
         'users.deactivate',
         'roles.assign',
     ],
+    // Front desk is view-only for room status (owner directive 2026-11-01):
+    // rooms.view lets them see the board, but rooms.status is intentionally
+    // absent here and room_status is hard-blocked for frontdesk in index.php,
+    // so a saved role_permissions grant cannot re-enable manual status edits.
     'frontdesk' => [
         'dashboard.view',
         'stays.checkin',
         'stays.view',
         'stays.checkout',
         'rooms.view',
-        'rooms.status',
         'rooms.transfer',
         'service_requests.view',
         'service_requests.assign',
