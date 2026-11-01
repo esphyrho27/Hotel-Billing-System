@@ -3701,7 +3701,7 @@ if ($action === 'checkout') {
  */
 if ($action === 'folio') {
     $id = (int)($in['folio_id'] ?? 0);
-    $q = $pdo->prepare('SELECT f.*, s.stay_code, s.status AS stay_status, s.planned_checkout, s.customer_id, r.room_number, c.first_name, c.middle_name, c.last_name, c.contact_number, c.email, TRIM(CONCAT_WS(" ", c.first_name, NULLIF(c.middle_name, ""), c.last_name)) AS guest_name FROM folios f JOIN stays s ON s.id=f.stay_id JOIN rooms r ON r.id=s.room_id LEFT JOIN customers c ON c.customer_id=s.customer_id WHERE f.id=?');
+    $q = $pdo->prepare('SELECT f.*, s.stay_code, s.status AS stay_status, s.checkin_at, s.planned_checkout, s.customer_id, r.room_number, c.first_name, c.middle_name, c.last_name, c.contact_number, c.email, TRIM(CONCAT_WS(" ", c.first_name, NULLIF(c.middle_name, ""), c.last_name)) AS guest_name FROM folios f JOIN stays s ON s.id=f.stay_id JOIN rooms r ON r.id=s.room_id LEFT JOIN customers c ON c.customer_id=s.customer_id WHERE f.id=?');
     $q->execute([$id]);
     $f = $q->fetch();
     if (!$f) {
