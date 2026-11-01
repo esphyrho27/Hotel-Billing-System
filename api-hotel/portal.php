@@ -1349,6 +1349,9 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     .order-review-remove:hover{background:#ffe4e6;transform:translateY(-1px)}
     .order-review-remove:focus-visible{outline:3px solid #fda4af;outline-offset:2px}
     .order-review-remove svg{width:17px;height:17px;pointer-events:none}
+    .order-review-photo{flex:none;width:56px;height:56px;border-radius:10px;object-fit:cover;background:#f3ead3}
+    .order-review-photo-fallback{flex:none;display:grid;place-items:center;width:56px;height:56px;border-radius:10px;background:#f3ead3;color:#17344e;font-size:22px}
+    @media(max-width:520px){.order-review-photo,.order-review-photo-fallback{width:48px;height:48px}}
     .order-review-empty{padding:20px 12px;text-align:center;color:var(--muted);font-size:13px}
     .order-review-notes{margin-top:14px;padding:12px;border-radius:11px;background:#eef3f7;color:#455b70;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
     .order-review-total{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);color:var(--ink);font-size:14px;font-weight:800}
@@ -2200,6 +2203,24 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           itemCount += quantity;
           const row = document.createElement("article");
           row.className = "order-review-item";
+          const photo = document.createElement("img");
+          photo.className = "order-review-photo";
+          photo.alt = name;
+          const cardPhoto = card?.querySelector(".menu-photo img");
+          photo.src = cardPhoto?.getAttribute("src") || "";
+          const photoFallback = document.createElement("span");
+          photoFallback.className = "order-review-photo-fallback";
+          photoFallback.hidden = true;
+          photoFallback.setAttribute("aria-hidden", "true");
+          photoFallback.textContent = "🍽";
+          photo.addEventListener("error", () => {
+            photo.hidden = true;
+            photoFallback.hidden = false;
+          });
+          if (!photo.getAttribute("src")) {
+            photo.hidden = true;
+            photoFallback.hidden = false;
+          }
           const details = document.createElement("div");
           details.className = "order-review-details";
           const title = document.createElement("p");
@@ -2219,7 +2240,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           removeButton.setAttribute("aria-label", `Remove ${name} from order`);
           removeButton.title = `Remove ${name}`;
           removeButton.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/></svg>';
-          row.append(details, lineTotal, removeButton);
+          row.append(photo, photoFallback, details, lineTotal, removeButton);
           reviewItems.append(row);
         });
         if (itemCount === 0) {
