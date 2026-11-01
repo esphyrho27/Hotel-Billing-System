@@ -1999,7 +1999,6 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           <div class="folio-metric"><span class="folio-metric-label">VAT-free charges</span><strong class="folio-metric-value" data-live-total="vat_exempt_sales">₱<?=number_format($vatExemptSales, 2)?></strong></div>
           <div class="folio-metric"><span class="folio-metric-label">Total to pay</span><strong class="folio-metric-value" data-live-total="total">₱<?=number_format($finalTotal, 2)?></strong></div>
           <div class="folio-metric"><span class="folio-metric-label">Payments made</span><strong class="folio-metric-value" data-live-total="payments">₱<?=number_format($totalPayments, 2)?></strong></div>
-          <div class="folio-metric"><span class="folio-metric-label">Extra payment to refund</span><strong class="folio-metric-value" data-live-total="credit_balance">₱<?=number_format($creditBalance, 2)?></strong></div>
         </section>
         <p class="folio-settled-line" data-live-settled-line <?= ($balance <= 0 && $totalPayments > 0) ? '' : 'hidden' ?>>You paid ₱<?=number_format($totalPayments, 2)?>. Nothing left to pay.</p>
         <section class="folio-section">
@@ -2014,7 +2013,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           <div class="folio-section-heading"><h3>Payments made</h3><span data-live-count="payments"><?=count($payments)?> entries</span></div>
           <div class="bill-list" data-live-list="payments"><?php if (!$payments): ?><div class="activity-empty"><span class="activity-empty-icon" aria-hidden="true">✓</span><strong>No payments recorded yet</strong><p>Payments will be listed here once recorded by the hotel.</p></div><?php endif; ?><?php foreach ($payments as $payment): ?><article class="record folio-record payment-record"><div class="record-top"><div><h3 class="record-title"><?=portal_escape($payment['payment_method'] ?: 'Payment')?></h3><p class="record-meta"><?=portal_escape($payment['receipt_number'] ?: 'Receipt not provided')?> · <?=portal_escape(date('M j, Y · g:i A', strtotime($payment['created_at'])))?></p></div><span class="record-price">− ₱<?=number_format((float)$payment['amount'], 2)?></span></div></article><?php endforeach; ?></div>
         </section>
-        <p class="folio-note"><strong>Billing information</strong><br>This summary includes charges, discounts, payments, and any extra payment to refund currently recorded for your stay. For questions about an entry or your final bill, please contact the front desk.</p>
+        <p class="folio-note"><strong>Billing information</strong><br>This summary includes charges, discounts, and payments currently recorded for your stay. For questions about an entry or your final bill, please contact the front desk.</p>
       </div>
     </div>
   </dialog>
@@ -3097,8 +3096,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           const billingState = JSON.stringify([billing.totals, billing.charges, billing.discounts, billing.payments]);
           if (hasBaseline && previousBillingState && billingState !== previousBillingState) {
             const due = Number(billing.totals?.balance) || 0;
-            const credit = Number(billing.totals?.credit_balance) || 0;
-            showToast("Your hotel folio was updated", `Charges, discounts, payments and account credit are refreshed. Balance: ${liveCurrency.format(due)} · Extra payment to refund: ${liveCurrency.format(credit)}.`);
+            showToast("Your hotel folio was updated", `Charges, discounts and payments are refreshed. Balance: ${liveCurrency.format(due)}.`);
           }
           previousBillingState = billingState;
           updateLiveBilling(billing);
