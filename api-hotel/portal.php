@@ -289,6 +289,14 @@ try {
                 }
             }
             unset($liveRequest);
+            // Guest dedupe (2026-11-02): a room-service order also creates a
+            // service_requests shadow row with the SAME code. The guest must
+            // see that order once, under Room-service orders — so drop any
+            // live request whose code matches a restaurant order. This is a
+            // code match, not a type filter: a genuine MINIBAR request (RQ…)
+            // has no restaurant order and stays visible. Staff side untouched.
+            $liveOrderCodes = array_map(static fn(array $order): string => (string)($order['order_code'] ?? ''), $liveOrders);
+            $liveRequests = array_values(array_filter($liveRequests, static fn(array $liveRequestRow): bool => !in_array((string)($liveRequestRow['request_code'] ?? ''), $liveOrderCodes, true)));
             $liveExtensions = [];
             try {
                 $liveExtensionsQuery = $pdo->prepare(
@@ -1172,9 +1180,35 @@ try {
             // Chat table not migrated yet: the portal still loads.
             $chatMessages = [];
         }
+        // Guest dedupe (2026-11-02): orders are fetched BEFORE Recent is
+        // built (they used to be fetched after it). A service_requests row
+        // whose code matches a restaurant order is that order's shadow row,
+        // not a second activity — drop it from the guest Service list, so
+        // My Requests shows the order once, under Room-service orders.
+        // Code match, not a type filter: a genuine MINIBAR request (RQ…)
+        // has no restaurant order and stays visible. Staff side untouched.
+        $orderQuery = $pdo->prepare(
+            "SELECT id, order_code, order_status, payment_status, total_amount, {$estimatedReadyAtSelect}, created_at
+             FROM restaurant_orders WHERE stay_id = ? ORDER BY created_at DESC LIMIT 15"
+        );
+        $orderQuery->execute([(int)$stay['id']]);
+        $orders = $orderQuery->fetchAll();
+        $orderLines = $pdo->prepare(
+            'SELECT item_name, quantity, subtotal FROM restaurant_order_items WHERE order_id = ? ORDER BY id'
+        );
+        foreach ($orders as &$order) {
+            $orderLines->execute([(int)$order['id']]);
+            $order['items'] = $orderLines->fetchAll();
+        }
+        unset($order);
+        $orderCodes = array_map(static fn(array $orderRow): string => (string)($orderRow['order_code'] ?? ''), $orders);
+        $requests = array_values(array_filter($requests, static fn(array $requestRow): bool => !in_array((string)($requestRow['request_code'] ?? ''), $orderCodes, true)));
         $recentActivity = [];
         foreach ($requests as $request) {
             $recentActivity[] = ['kind' => 'request', 'created_at' => (string)$request['created_at'], 'data' => $request];
+        }
+        foreach ($orders as $orderRow) {
+            $recentActivity[] = ['kind' => 'order', 'created_at' => (string)$orderRow['created_at'], 'data' => $orderRow];
         }
         foreach ($extensionRequests as $extensionRow) {
             $recentActivity[] = ['kind' => 'extension', 'created_at' => (string)$extensionRow['created_at'], 'data' => $extensionRow];
@@ -1222,20 +1256,7 @@ try {
             }
         }
 
-        $orderQuery = $pdo->prepare(
-            "SELECT id, order_code, order_status, payment_status, total_amount, {$estimatedReadyAtSelect}, created_at
-             FROM restaurant_orders WHERE stay_id = ? ORDER BY created_at DESC LIMIT 15"
-        );
-        $orderQuery->execute([(int)$stay['id']]);
-        $orders = $orderQuery->fetchAll();
-        $orderLines = $pdo->prepare(
-            'SELECT item_name, quantity, subtotal FROM restaurant_order_items WHERE order_id = ? ORDER BY id'
-        );
-        foreach ($orders as &$order) {
-            $orderLines->execute([(int)$order['id']]);
-            $order['items'] = $orderLines->fetchAll();
-        }
-        unset($order);
+        // Orders were already fetched above, before Recent was built.
     }
 } catch (Throwable $error) {
     error_log('[guest-portal] ' . get_class($error) . ': ' . $error->getMessage());
@@ -1253,8 +1274,12 @@ try {
 
 $firstName = trim((string)($stay['first_name'] ?? ''));
 $isActive = $stay && $stay['status'] === 'ACTIVE';
+// Dedupe-aware: $requests no longer contains order shadows, so an open
+// food order is counted here once, via $orders, instead of vanishing.
 $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     in_array($request['status'], ['NEW', 'PENDING', 'ASSIGNED', 'ACKNOWLEDGED', 'ACCEPTED', 'IN_PROGRESS', 'ON_HOLD'], true)
+)) + count(array_filter($orders, static fn(array $orderRow): bool =>
+    in_array($orderRow['order_status'], ['Pending', 'Confirmed', 'Preparing', 'Ready for Serving'], true)
 ));
 ?><!doctype html>
 <html lang="en">
@@ -1652,6 +1677,10 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
             <article class="record" data-kind="extension">
               <div class="record-top"><div><h3 class="record-title">Stay extension to <?=portal_escape(date('M j, Y', strtotime($extension['requested_checkout'])))?></h3><p class="record-meta"><?=portal_escape((int)$extension['extra_nights'])?> night(s) · ₱<?=number_format((float)$extension['proposed_charge'], 2)?> · requested <?=portal_escape(date('M j, g:i A', strtotime($extension['created_at'])))?></p></div><span class="status"><?= $extension['status'] === 'APPROVED' ? 'Approved' : ($extension['status'] === 'REJECTED' ? 'Declined' : 'Pending') ?></span></div>
               <?php if ($extension['status'] === 'REJECTED' && ($extension['review_note'] ?? '') !== ''): ?><p class="record-meta">Declined: <?=portal_escape($extension['review_note'])?></p><?php endif; ?>
+            </article>
+            <?php elseif ($activityItem['kind'] === 'order'): $recentOrder = $activityItem['data']; $recentOrderItems = []; foreach (($recentOrder['items'] ?? []) as $recentOrderLine) { $recentOrderItems[] = ((int)$recentOrderLine['quantity']) . 'x ' . (string)$recentOrderLine['item_name']; } $recentOrderTitle = $recentOrderItems ? implode(', ', $recentOrderItems) : (string)$recentOrder['order_code']; $recentOrderPhotoUrl = ''; $recentFirstItem = ($recentOrder['items'][0]['item_name'] ?? ''); foreach ($menuItems as $recentMenuItem) { if (strcasecmp((string)($recentMenuItem['item_name'] ?? ''), (string)$recentFirstItem) === 0) { $recentOrderPhotoUrl = (string)($recentMenuItem['image_path'] ?? ''); break; } } ?>
+            <article class="record" data-kind="order">
+              <div class="record-top"><?php if ($recentOrderPhotoUrl !== ''): ?><img class="record-photo" src="<?=portal_escape($recentOrderPhotoUrl)?>" alt="" aria-hidden="true" onerror="this.remove()"><?php endif; ?><div><h3 class="record-title"><?=portal_escape($recentOrderTitle)?></h3><p class="record-meta"><?=portal_escape($recentOrder['order_code'])?> · <?=portal_escape(date('M j, g:i A', strtotime($recentOrder['created_at'])))?></p></div><span class="status"><?=portal_escape($recentOrder['order_status'])?></span></div>
             </article>
             <?php else: $request = $activityItem['data']; $recentRequestPhoto = portal_menu_photo_match((string)$request['description']); $recentRequestPhotoUrl = $recentRequestPhoto !== null ? $publicAssetUrlPrefix . substr($recentRequestPhoto, strlen('/assets')) : ''; ?>
             <article class="record">
@@ -2771,6 +2800,18 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
             const nights = Number(request.extra_nights || 0);
             meta.textContent = `${nights} night${nights === 1 ? "" : "s"} · ${liveCurrency.format(Number(request.proposed_charge) || 0)} · requested ${formatCreatedAt(request.created_at)}`;
             status.textContent = extensionStatusLabel(request.status);
+          } else if (request._kind === "order") {
+            // Dedupe: a live order is its own Recent card. Its shadow
+            // request is already filtered out server-side, so this is the
+            // order's single Recent appearance, with the same photo rule
+            // as the order list below (payload photo, already resolved).
+            card.dataset.kind = "order";
+            const itemSummary = (Array.isArray(request.items) ? request.items : []).map((item) =>
+              `${Number(item.quantity) || 1}× ${String(item.name || "Menu item")}`
+            ).join(", ");
+            title.textContent = itemSummary || String(request.order_code || "Room-service order");
+            meta.textContent = `${request.order_code || ""} · ${formatCreatedAt(request.created_at)}`;
+            status.textContent = friendlyStatus(request.order_status);
           } else {
             title.textContent = String(request.description || "Service request");
             meta.textContent = `${request.request_code || ""} · ${formatCreatedAt(request.created_at)}`;
@@ -3435,22 +3476,32 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           });
 
           const liveRequests = payload.requests || [];
+          // Dedupe guard, mirroring the server filter: if a request code
+          // matches a live order code, it is that order's shadow row —
+          // skip it here too, so a stale or unfiltered payload can never
+          // re-create the duplicate card, toast, or alert.
+          const liveOrderCodes = new Set((payload.orders || []).map((order) => String(order.order_code || "")));
+          const dedupedLiveRequests = liveRequests.filter((request) => !liveOrderCodes.has(String(request.request_code || "")));
           const openRequestStatuses = new Set([
             "new", "pending", "assigned", "acknowledged", "accepted", "in progress", "on hold"
           ]);
-          const openRequestCount = liveRequests.filter((request) =>
+          const openOrderStatuses = new Set(["pending", "confirmed", "preparing", "ready for serving"]);
+          const openRequestCount = dedupedLiveRequests.filter((request) =>
             openRequestStatuses.has(normalizeStatus(request.status))
+          ).length + (payload.orders || []).filter((order) =>
+            openOrderStatuses.has(normalizeStatus(order.order_status))
           ).length;
           const openRequestValue = document.querySelector(".stats .stat:nth-child(3) .stat-value");
           if (openRequestValue) openRequestValue.textContent = String(openRequestCount);
           const liveExtensions = payload.extensions || [];
           const mergedRecent = [
-            ...liveRequests.map((request) => ({ ...request, _kind: "request" })),
+            ...dedupedLiveRequests.map((request) => ({ ...request, _kind: "request" })),
+            ...(payload.orders || []).map((order) => ({ ...order, _kind: "order" })),
             ...liveExtensions.map((extension) => ({ ...extension, _kind: "extension" })),
           ].sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
           updateRecentRequests(mergedRecent);
 
-          liveRequests.forEach((request) => {
+          dedupedLiveRequests.forEach((request) => {
             const key = String(request.request_code || "");
             const status = String(request.status || "Pending");
             const previous = seenRequestStatuses.get(key);
