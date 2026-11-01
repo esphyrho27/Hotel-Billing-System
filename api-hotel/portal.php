@@ -1329,7 +1329,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     .dialog-frame>form>.dialog-body{flex:1}
     .dialog-body form{display:grid;gap:14px}
     .service-intro{display:flex;align-items:center;gap:12px;margin:0 0 2px}.service-intro p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}.service-room-chip{flex:none;padding:8px 10px;border:1px solid #e5d7b5;border-radius:999px;background:#fbf7ed;color:#765c26;font-size:11px;font-weight:800;white-space:nowrap}
-    .service-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.service-choice{display:grid;grid-template-columns:38px 1fr;align-items:center;gap:2px 10px;min-height:88px;padding:12px;text-align:left;border:1px solid #dce4eb;border-radius:13px;background:#fff;color:var(--ink);cursor:pointer;transition:border-color .16s,background .16s,box-shadow .16s}.service-choice:hover{border-color:#b8a16a;background:#fdfbf6}.service-choice.is-selected{border-color:#b08b3c;background:#fbf7ed;box-shadow:inset 0 0 0 1px #b08b3c}.service-choice-icon{grid-row:1 / span 2;display:grid;width:38px;height:38px;place-items:center;border-radius:11px;background:#edf2f6;color:#17344e;font-size:20px}.service-choice.is-selected .service-choice-icon{background:#e9dfc8;color:#765c26}.service-choice strong{font-size:13px}.service-choice>span:last-child{color:var(--muted);font-size:11px;line-height:1.4}.service-type-fallback{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}.service-assurance{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid #e7e2d5;border-radius:12px;background:#faf8f2;color:#4e5b65}.service-assurance>span{display:grid;flex:none;width:23px;height:23px;place-items:center;border-radius:50%;background:#e7ddc3;color:#6f5625;font-weight:800}.service-assurance p{margin:0;font-size:11px;line-height:1.55}.service-assurance strong{color:var(--ink);font-size:12px}.service-dialog-footer .button{gap:9px;background:#17344e}.service-dialog-footer .button:hover{background:#244a69}
+    .service-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.service-choice{display:grid;grid-template-columns:38px 1fr;align-items:center;gap:2px 10px;min-height:88px;padding:12px;text-align:left;border:1px solid #dce4eb;border-radius:13px;background:#fff;color:var(--ink);cursor:pointer;transition:border-color .16s,background .16s,box-shadow .16s}.service-choice:hover{border-color:#b8a16a;background:#fdfbf6}.service-choice.is-selected{border-color:#b08b3c;background:#fbf7ed;box-shadow:inset 0 0 0 1px #b08b3c}.service-choice-icon{grid-row:1 / span 2;display:grid;width:38px;height:38px;place-items:center;border-radius:11px;background:#edf2f6;color:#17344e;font-size:20px}.service-choice.is-selected .service-choice-icon{background:#e9dfc8;color:#765c26}.service-choice strong{font-size:13px}.service-choice>span:last-child{color:var(--muted);font-size:11px;line-height:1.4}.service-type-fallback{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}.service-assurance{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid #e7e2d5;border-radius:12px;background:#faf8f2;color:#4e5b65}.service-assurance>span{display:grid;flex:none;width:23px;height:23px;place-items:center;border-radius:50%;background:#e7ddc3;color:#6f5625;font-weight:800}.service-assurance p{margin:0;font-size:11px;line-height:1.55}.service-assurance strong{color:var(--ink);font-size:12px}.service-dialog-footer .button{gap:9px;background:#17344e}.service-dialog-footer .button:hover{background:#244a69}.service-quick-picks{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}.service-quick-picks[hidden]{display:none}.service-quick-pick{padding:8px 13px;border:1px solid #dce4eb;border-radius:999px;background:#fff;color:var(--ink);font-size:12px;font-weight:700;cursor:pointer;transition:border-color .16s,background .16s}.service-quick-pick:hover{border-color:#b8a16a;background:#fdfbf6}.service-quick-pick.is-selected{border-color:#b08b3c;background:#fbf7ed;box-shadow:inset 0 0 0 1px #b08b3c;color:#765c26}.service-timing{margin:12px 0 0}.service-timing-label{display:block;margin:0 0 6px;color:var(--muted);font-size:11px;font-weight:700}.service-timing-options{display:flex;border:1px solid #dce4eb;border-radius:12px;overflow:hidden}.service-timing-option{flex:1;padding:10px 6px;border:0;border-right:1px solid #dce4eb;background:#fff;color:var(--ink);font-size:12px;font-weight:700;cursor:pointer}.service-timing-option:last-child{border-right:0}.service-timing-option.is-selected{background:#17344e;color:#fff}@media(max-width:480px){.service-quick-pick{font-size:11px;padding:7px 11px}.service-timing-option{font-size:11px;padding:9px 4px}}
     .stay-activity-intro{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px;padding:13px 14px;border:1px solid #e6dcc5;border-radius:13px;background:linear-gradient(120deg,#fbf7ed,#fff)}.stay-activity-intro strong{display:block;color:var(--ink);font:600 17px Georgia,"Times New Roman",serif}.stay-activity-intro p{margin:4px 0 0;color:var(--muted);font-size:11px}.stay-room-tag{flex:none;padding:7px 10px;border-radius:999px;background:#e9dfc8;color:#705723;font-size:10px;font-weight:800}.activity-tabs{display:flex;gap:7px;margin:0 0 16px;padding:4px;overflow-x:auto;border:1px solid #e6ebf0;border-radius:12px;background:#edf1f5}.activity-tab{flex:1;min-height:38px;padding:8px 10px;border:1px solid transparent;border-radius:9px;background:transparent;color:#52657a;font-size:11px;font-weight:750;white-space:nowrap;cursor:pointer}.activity-tab[aria-pressed="true"]{border-color:#e8dfca;background:#fff;color:#17344e;box-shadow:0 2px 5px rgba(23,43,69,.06)}.activity-section{margin-top:18px}.activity-section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}.activity-section-heading h3{margin:0;color:var(--ink);font-size:13px;font-weight:800}.activity-count{display:inline-grid;min-width:25px;height:25px;place-items:center;padding:0 7px;border-radius:999px;background:#eef2f6;color:#53677c;font-size:10px;font-weight:800}.activity-record{border-color:#e1e7ed;box-shadow:0 3px 10px rgba(23,43,69,.025)}.activity-record .record-top{align-items:center}.activity-record .status{flex:none;max-width:45%;white-space:normal;text-align:center;line-height:1.4}.activity-record .record-title{font-size:13px;line-height:1.45}.activity-record[data-kind="order"]{border-left:3px solid #b08b3c}.activity-record[data-kind="request"]{border-left:3px solid #b8c7d5}.activity-record[data-kind="extension"],.record[data-kind="extension"]{border-left:3px solid #16734b}.activity-empty{padding:24px 16px;border:1px dashed #d6dfe7;border-radius:13px;background:#fff;text-align:center}.activity-empty-icon{display:grid;width:42px;height:42px;place-items:center;margin:0 auto 10px;border-radius:13px;background:#f2f5f8;color:#765c26;font-size:20px}.activity-empty strong{display:block;color:var(--ink);font-size:13px}.activity-empty p{margin:5px 0 0;color:var(--muted);font-size:11px;line-height:1.5}
     .chat-card{padding:14px}.chat-list{display:flex;flex-direction:column;gap:10px;max-height:320px;overflow-y:auto;padding:2px}.chat-empty{padding:18px;border:1px dashed #d6dfe7;border-radius:11px;background:#fff;text-align:center;color:var(--muted);font-size:13px}.chat-msg{max-width:75%;padding:10px 12px;border-radius:18px;background:#eef2f6}.chat-msg.staff{align-self:flex-start;background:#e9ecef;color:#17344e}.chat-msg.guest{align-self:flex-end;background:#17344e;color:#fff}.chat-msg.guest .chat-msg-head{color:rgba(255,255,255,.75)}.chat-msg.guest .chat-msg-head strong{color:#fff}.chat-msg-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:4px;font-size:11px;color:var(--muted)}.chat-msg-head strong{color:var(--ink)}.chat-msg-body{margin:0;font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}.chat-form{margin-top:14px}.chat-form textarea{width:100%}.chat-bubble-btn{position:fixed;right:18px;bottom:18px;z-index:80;width:48px;height:48px;border:0;border-radius:50%;background:#17344e;display:grid;place-items:center;box-shadow:0 6px 18px rgba(23,52,78,.35);cursor:pointer}.chat-bubble-btn svg{width:24px;height:24px}.chat-bubble-btn:focus-visible{outline:3px solid #e9b65f;outline-offset:2px}.chat-bubble-badge{position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:#c0392b;color:#fff;font-size:11px;font-weight:800;display:none;place-items:center}.chat-bubble-badge.show{display:grid}.chat-bubble-hint{position:fixed;right:76px;bottom:30px;z-index:80;padding:8px 12px;border-radius:999px;background:#fff;color:#17344e;font-size:13px;font-weight:700;box-shadow:0 4px 14px rgba(23,52,78,.25);display:none}.chat-bubble-hint.show{display:block}.chat-backdrop{position:fixed;inset:0;z-index:79;background:rgba(13,27,43,.28);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);display:none}.chat-backdrop.show{display:block}.chat-popup{position:fixed;right:16px;bottom:80px;z-index:80;width:min(380px,calc(100vw - 32px));max-height:70vh;background:#fff;border:1px solid #e1e7ed;border-radius:16px;box-shadow:0 12px 32px rgba(23,52,78,.30);display:none;flex-direction:column;overflow:hidden}.chat-popup.open{display:flex}.amenities{margin-top:26px}.amenities h2{margin:0 0 12px;font:600 21px Georgia,"Times New Roman",serif;color:#17344e}.amenities-carousel{position:relative;overflow:hidden;border-radius:16px;border:1px solid #e1e7ed;background:#0f2438}.amenities-track{display:flex;transition:transform .6s ease}.amenities-slide{flex:0 0 100%;position:relative;margin:0;cursor:pointer}.amenities-slide img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover}.amenities-slide figcaption{position:absolute;left:0;right:0;bottom:0;padding:30px 16px 14px;background:linear-gradient(transparent,rgba(10,20,35,.75));color:#fff}.amenities-slide figcaption strong{display:block;font:600 19px Georgia,"Times New Roman",serif}.amenities-slide figcaption span{font-size:13px;opacity:.9}.amenities-slide figcaption .amenities-action{display:block;margin-top:5px;font-size:12px;font-weight:700;opacity:1;color:#e9b65f}.amenities-arrow{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border:0;border-radius:50%;background:rgba(255,255,255,.92);color:#17344e;font-size:22px;line-height:1;cursor:pointer;z-index:2}.amenities-prev{left:10px}.amenities-next{right:10px}.amenities-dots{display:flex;justify-content:center;gap:8px;padding:10px;background:#0f2438}.amenities-dot{width:9px;height:9px;border:0;border-radius:50%;background:rgba(255,255,255,.4);cursor:pointer;padding:0}.amenities-dot.active{background:#e9b65f;width:26px;border-radius:999px}@media(max-width:520px){.amenities-slide img{aspect-ratio:4/3}}.chat-popup-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;background:#17344e;color:#fff}.chat-popup-head strong{font:600 16px Georgia,"Times New Roman",serif}.chat-popup-head button{border:1px solid rgba(255,255,255,.35);background:transparent;color:#fff;border-radius:8px;padding:4px 8px;cursor:pointer;font-size:14px}.chat-popup-body{padding:14px;overflow-y:auto}.chat-popup .chat-list{max-height:300px}@media(max-width:520px){.chat-popup{right:12px;bottom:76px;width:calc(100vw - 24px)}}@media print{.chat-bubble-btn,.chat-bubble-hint,.chat-popup,.chat-backdrop{display:none !important}}
     .folio-intro{margin-bottom:15px}.folio-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:17px}.folio-metric{min-width:0;padding:13px;border:1px solid #e3e9ef;border-radius:13px;background:#fff}.folio-metric-label{display:block;color:var(--muted);font-size:10px;font-weight:750;letter-spacing:.04em;text-transform:uppercase}.folio-metric-value{display:block;margin-top:7px;color:var(--ink);font-size:18px;font-weight:850;overflow-wrap:anywhere}.folio-metric.balance-due{grid-column:1/-1;padding:18px;border-color:#e4d7b7;background:linear-gradient(125deg,#142d46,#1c3b57);color:#fff}.folio-metric.balance-due .folio-metric-label{color:#e3d2a7}.folio-metric.balance-due .folio-metric-value{margin-top:5px;color:#fff;font-size:clamp(27px,6vw,35px);letter-spacing:-.03em}.folio-settled-note{display:flex;align-items:center;gap:7px;margin-top:10px;color:#d9e9df;font-size:11px}.folio-settled-note.is-due{color:#f2ddb0}.folio-section{margin-top:19px}.folio-section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}.folio-section-heading h3{margin:0;color:var(--ink);font-size:13px;font-weight:800}.folio-section-heading span{color:var(--muted);font-size:10px}.folio-record{padding:13px;border-color:#e1e7ed}.folio-record .record-top{align-items:center}.folio-record .record-title{font-size:12px;line-height:1.45}.folio-record .record-price{font-size:13px;white-space:nowrap}.folio-record.payment-record{border-left:3px solid #7da68e}.folio-record.charge-record{border-left:3px solid #b08b3c}.folio-note{margin-top:16px;padding:12px;border:1px solid #e4eaf0;border-radius:11px;background:#f1f5f8;color:#53677c;font-size:11px;line-height:1.55}.folio-note strong{color:var(--ink)}
@@ -1888,6 +1888,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
               <button class="service-choice" type="button" data-service-choice="OTHER" aria-pressed="false"><span class="service-choice-icon" aria-hidden="true">⋯</span><strong>Other assistance</strong><span>Anything else we can help with</span></button>
               <button class="service-choice" type="button" data-service-choice="ROOM_TRANSFER" aria-pressed="false" <?= $hasPendingTransfer || !$transferRooms ? 'disabled' : '' ?>><span class="service-choice-icon" aria-hidden="true">⇄</span><strong>Request a room change</strong><span><?= $hasPendingTransfer ? 'A request is already awaiting staff action' : ($transferRooms ? 'Ask the front desk to move you' : 'No rooms are currently available') ?></span></button>
             </div>
+            <div class="service-quick-picks" data-service-quick-picks role="group" aria-label="Quick request options" hidden></div>
             <label class="field service-type-fallback">Department
               <select name="service_type" data-service-type required><option value="FRONT_DESK">Front desk</option><option value="HOUSEKEEPING">Housekeeping</option><option value="MAINTENANCE">Maintenance</option><option value="OTHER">Other assistance</option><?php if (!$hasPendingTransfer && $transferRooms): ?><option value="ROOM_TRANSFER">Request a room change</option><?php endif; ?></select>
             </label>
@@ -1935,7 +1936,15 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
               </div>
             </div>
             <label class="field" data-general-description-fields>Anything else we should know?<textarea name="description" data-service-description maxlength="500" required placeholder="Describe what you need and any helpful details."></textarea><span class="stat-note" data-service-description-hint>Include details that will help our team assist you.</span></label>
-            <div class="service-assurance"><span aria-hidden="true">✓</span><p><strong>Before you send</strong><br>We’ll route this to the right team. Any applicable charge is shown for housekeeping items before submission.</p></div>
+            <div class="service-timing" role="group" aria-label="When do you need it?">
+              <span class="service-timing-label">When do you need it?</span>
+              <div class="service-timing-options">
+                <button type="button" class="service-timing-option is-selected" data-service-timing="As soon as possible" aria-pressed="true">As soon as possible</button>
+                <button type="button" class="service-timing-option" data-service-timing="Within the hour" aria-pressed="false">Within the hour</button>
+                <button type="button" class="service-timing-option" data-service-timing="Today" aria-pressed="false">Today</button>
+              </div>
+            </div>
+            <div class="service-assurance"><span aria-hidden="true">✓</span><p><strong>Before you send</strong><br>We’ll route this to the right team.<span data-service-housekeeping-note hidden> Any applicable charge is shown for housekeeping items before submission.</span></p></div>
             <footer class="dialog-footer service-dialog-footer" style="margin:0 -21px -18px"><span class="stat-note">Usually reviewed by hotel staff shortly.</span><button class="button" type="submit">Send request <span aria-hidden="true">→</span></button></footer>
           </form>
         <?php endif; ?>
@@ -2369,6 +2378,60 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
       const descriptionField = serviceForm.querySelector("[data-service-description]");
       const descriptionHint = serviceForm.querySelector("[data-service-description-hint]");
       const generalDescriptionFields = serviceForm.querySelector("[data-general-description-fields]");
+      const quickPicksContainer = serviceForm.querySelector("[data-service-quick-picks]");
+      const housekeepingNote = serviceForm.querySelector("[data-service-housekeeping-note]");
+      const timingOptions = serviceForm.querySelectorAll("[data-service-timing]");
+      let selectedTiming = "As soon as possible";
+      const quickPickSets = {
+        FRONT_DESK: ["Wake-up call", "Extra key card", "Luggage help"],
+        HOUSEKEEPING: ["Extra towels", "Extra pillows", "Toiletries", "Room cleaning"],
+        MAINTENANCE: ["AC not cooling", "No hot water", "Light not working", "Leak"],
+      };
+      const quickPickSegments = (value) => String(value || "").split(",").map((part) => part.trim()).filter((part) => part !== "");
+      const renderQuickPicks = () => {
+        if (!(quickPicksContainer instanceof HTMLElement)) return;
+        const team = departmentSelect instanceof HTMLSelectElement ? departmentSelect.value : "FRONT_DESK";
+        const picks = quickPickSets[team] || [];
+        quickPicksContainer.replaceChildren();
+        quickPicksContainer.hidden = picks.length === 0;
+        if (picks.length === 0) return;
+        const current = descriptionField instanceof HTMLTextAreaElement ? quickPickSegments(descriptionField.value) : [];
+        picks.forEach((pick) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "service-quick-pick";
+          button.textContent = pick;
+          const pressed = current.includes(pick);
+          button.classList.toggle("is-selected", pressed);
+          button.setAttribute("aria-pressed", String(pressed));
+          button.addEventListener("click", () => {
+            if (!(descriptionField instanceof HTMLTextAreaElement)) return;
+            let segments = quickPickSegments(descriptionField.value);
+            if (segments.includes(pick)) {
+              segments = segments.filter((segment) => segment !== pick);
+            } else {
+              const next = segments.length === 0 ? pick : segments.join(", ") + ", " + pick;
+              if (next.length > 500) return;
+              segments = quickPickSegments(next);
+            }
+            descriptionField.value = segments.join(", ");
+            renderQuickPicks();
+            const refocus = [...quickPicksContainer.querySelectorAll(".service-quick-pick")].find((candidate) => candidate.textContent === pick);
+            if (refocus instanceof HTMLButtonElement) refocus.focus();
+          });
+          quickPicksContainer.append(button);
+        });
+      };
+      timingOptions.forEach((option) => {
+        option.addEventListener("click", () => {
+          selectedTiming = option.dataset.serviceTiming || "As soon as possible";
+          timingOptions.forEach((candidate) => {
+            const selected = candidate === option;
+            candidate.classList.toggle("is-selected", selected);
+            candidate.setAttribute("aria-pressed", String(selected));
+          });
+        });
+      });
       const transferFields = serviceForm.querySelector("[data-transfer-fields]");
       const transferRoom = serviceForm.querySelector("[data-transfer-room]");
       const transferReason = serviceForm.querySelector("[data-transfer-reason]");
@@ -2425,12 +2488,12 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           descriptionField.disabled = isTransfer;
           descriptionField.required = !isHousekeeping && !isTransfer;
           descriptionField.placeholder = isHousekeeping
-            ? "Optional note, such as where to leave the items."
+            ? "Anything else we should know?"
             : (departmentSelect?.value === "MAINTENANCE"
-              ? "Describe the issue and where it is in the room."
+              ? "What is broken, and where in the room?"
               : departmentSelect?.value === "FRONT_DESK"
-                ? "Tell us how we can help."
-                : "Describe what you need and any helpful details.");
+                ? "What do you need?"
+                : "Tell us how we can help.");
         }
         if (descriptionHint instanceof HTMLElement) {
           descriptionHint.textContent = isHousekeeping
@@ -2439,6 +2502,8 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
               ? "If possible, include where the issue is and when it started."
               : "Include details that will help our team assist you.";
         }
+        if (housekeepingNote instanceof HTMLElement) housekeepingNote.hidden = !isHousekeeping;
+        renderQuickPicks();
         serviceChoices.forEach((choice) => {
           const selected = choice.dataset.serviceChoice === departmentSelect?.value;
           choice.classList.toggle("is-selected", selected);
@@ -2483,6 +2548,12 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         updateHousekeepingPrice();
       });
       serviceForm.addEventListener("submit", () => {
+        if (selectedTiming !== "As soon as possible") {
+          const activeDescription = [...serviceForm.querySelectorAll('textarea[name="description"]')].find((field) => field instanceof HTMLTextAreaElement && !field.disabled);
+          if (activeDescription instanceof HTMLTextAreaElement && !activeDescription.value.startsWith("[Needed:")) {
+            activeDescription.value = `[Needed: ${selectedTiming}] ` + activeDescription.value;
+          }
+        }
         const submitButton = serviceForm.querySelector('button[type="submit"]');
         if (submitButton instanceof HTMLButtonElement) {
           submitButton.disabled = true;
