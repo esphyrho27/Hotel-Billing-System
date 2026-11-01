@@ -1,0 +1,11 @@
+-- No-refund early checkout house rule (2026-11-01).
+-- Only the manager-exception policy stays active: an approved manager exception
+-- authorizes early departure but posts no credit for un-stayed nights, so the
+-- guest pays the full booked stay. The other early-checkout policies
+-- (hourly / fixed-fee / minimum-nights recalculations) could still reduce the
+-- room charge, so they are deactivated here.
+-- Idempotent: safe to re-run. Re-enabling a policy is a deliberate admin
+-- action (set active=1 in early_checkout_policy_configs, or use the policy
+-- settings form); this migration never touches MANAGER_EXCEPTION rows and
+-- never inserts rows.
+UPDATE early_checkout_policy_configs SET active = 0 WHERE policy_key <> 'MANAGER_EXCEPTION';

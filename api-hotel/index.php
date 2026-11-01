@@ -5115,12 +5115,12 @@ if ($action === 'early_checkout_finalize') {
         $unusedNights = 0;
         $authorizationOnly = $e['policy'] === 'MANAGER_EXCEPTION';
         if ($authorizationOnly) {
-            // Manager exceptions used to leave billing untouched, so a guest
-            // who prepaid the full stay and left early got no credit for
-            // un-stayed nights. Credit those nights here, on the same
-            // calendar-date basis the checkout record uses, keyed so a
-            // re-finalize can never post it twice.
-            $sq = $pdo->prepare("SELECT s.checkin_at, s.planned_checkout, rt.nightly_rate FROM stays s JOIN rooms r ON r.id=s.room_id JOIN room_types rt ON rt.id=r.room_type_id WHERE s.id=? FOR UPDATE");
+            // No-refund house rule (2026-11-01): a manager exception authorizes
+            // early departure ONLY and posts no credit for un-stayed nights.
+            // The guest pays the full booked stay. unused_nights is still
+            // computed below, on the same calendar-date basis the checkout
+            // record uses, but for the audit record only (history, not money).
+            $sq = $pdo->prepare("SELECT s.checkin_at, s.planned_checkout FROM stays s JOIN rooms r ON r.id=s.room_id WHERE s.id=? FOR UPDATE");
             $sq->execute([(int)$e['stay_id']]);
             $stayRow = $sq->fetch();
             if ($stayRow) {
@@ -5130,12 +5130,6 @@ if ($action === 'early_checkout_finalize') {
                 $nightsStayed = max(1, (int)$checkinDate->diff($departureDate)->format('%a'));
                 $plannedNights = max(1, (int)$checkinDate->diff($plannedDate)->format('%a'));
                 $unusedNights = max(0, $plannedNights - $nightsStayed);
-                $nightlyRate = round((float)$stayRow['nightly_rate'], 2);
-                if ($unusedNights > 0 && $nightlyRate > 0) {
-                    $unusedNightCredit = round($unusedNights * $nightlyRate, 2);
-                    $pdo->prepare("INSERT IGNORE INTO charges(folio_id, category, description, quantity, unit_price, amount, idempotency_key, created_by) VALUES(?, 'ADJUSTMENT', ?, ?, ?, ?, ?, ?)")
-                        ->execute([(int)$e['folio_id'], 'Unused-night credit - early checkout (manager exception) - Request #' . $id, $unusedNights, -$nightlyRate, -$unusedNightCredit, 'early-checkout-credit-' . $id, $u['id']]);
-                }
             }
             $pdo->prepare("UPDATE early_checkout_requests SET status='FINALIZED', updated_at=CURRENT_TIMESTAMP WHERE id=?")
                 ->execute([$id]);
@@ -5190,9 +5184,7 @@ if ($action === 'early_checkout_finalize') {
             'recalculated_room_charge' => $newAmount === null ? null : money($newAmount),
             'unused_night_credit' => $authorizationOnly ? money($unusedNightCredit) : null,
             'message' => $authorizationOnly
-                ? ($unusedNightCredit > 0
-                    ? 'Manager-approved early departure authorized. Unused-night credit of ' . money($unusedNightCredit) . ' posted to the folio; settle any remaining balance before checkout.'
-                    : 'Manager-approved early departure authorized. No unused nights to credit; settle the folio before checkout.')
+                ? 'Manager-approved early departure authorized. Unused nights are not refunded; the full booked stay remains payable. Settle any remaining balance before checkout.'
                 : 'Room charge recalculated according to the approved early-checkout policy. No separate early-checkout fee was added. Review and settle any remaining folio balance; any excess payment remains a credit.'
         ]);
     } catch (Throwable $x) {

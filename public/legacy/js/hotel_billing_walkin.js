@@ -4536,10 +4536,12 @@ async function confirmCheckinPayment(cpId) {
             : '<span class="badge text-bg-warning text-dark"><i class="bi bi-clock me-1"></i>Pending Manager Review</span>';
         }
         if (r.status === 'APPROVED') {
-          return `<button class="btn btn-sm btn-primary fw-bold" onclick="HotelBilling.finalizeEarlyCheckout(${Number(r.id)})"><i class="bi bi-receipt me-1"></i>Post Charge to Folio</button>`;
+          return r.policy === 'MANAGER_EXCEPTION'
+            ? `<button class="btn btn-sm btn-primary fw-bold" onclick="HotelBilling.finalizeEarlyCheckout(${Number(r.id)},'MANAGER_EXCEPTION')"><i class="bi bi-check2-circle me-1"></i>Authorize Early Departure</button>`
+            : `<button class="btn btn-sm btn-primary fw-bold" onclick="HotelBilling.finalizeEarlyCheckout(${Number(r.id)})"><i class="bi bi-receipt me-1"></i>Post Charge to Folio</button>`;
         }
         if (r.status === 'FINALIZED') {
-          return `<div class="d-flex gap-1 align-items-center"><span class="badge text-bg-success"><i class="bi bi-check2-all me-1"></i>Posted</span> <button class="btn btn-sm btn-outline-primary" onclick="HotelBilling.folio(${Number(r.folio_id)})"><i class="bi bi-receipt me-1"></i>Folio</button></div>`;
+          return `<div class="d-flex gap-1 align-items-center"><span class="badge text-bg-success"><i class="bi bi-check2-all me-1"></i>${r.policy === 'MANAGER_EXCEPTION' ? 'Authorized' : 'Posted'}</span> <button class="btn btn-sm btn-outline-primary" onclick="HotelBilling.folio(${Number(r.folio_id)})"><i class="bi bi-receipt me-1"></i>Folio</button></div>`;
         }
         if (r.status === 'REJECTED') {
           return '<span class="badge text-bg-danger"><i class="bi bi-x-circle me-1"></i>Rejected</span>';
@@ -4673,12 +4675,13 @@ async function confirmCheckinPayment(cpId) {
     catch(e){notify(e.message,true);}
   }
 
-  async function finalizeEarlyCheckout(id){
-    const confirmed=await window.HotelDialogs.confirm({title:'Post charge to folio?',text:`Post the early-checkout charge for request #${id} to the folio? The room charge will be recalculated and the guest can settle the remaining balance before checkout. Any excess payment remains as a credit.`,confirmButtonText:'Post charge'});
+  async function finalizeEarlyCheckout(id,policy){
+    const isException=policy==='MANAGER_EXCEPTION';
+    const confirmed=await window.HotelDialogs.confirm(isException?{title:'Authorize early departure?',text:`Authorize early departure for request #${id}? No charge will be posted and unused nights are not refunded; the guest pays the full booked stay. Any remaining balance is still due before checkout.`,confirmButtonText:'Authorize departure'}:{title:'Post charge to folio?',text:`Post the early-checkout charge for request #${id} to the folio? The room charge will be recalculated and the guest can settle the remaining balance before checkout. Any excess payment remains as a credit.`,confirmButtonText:'Post charge'});
     if(!confirmed)return;
     try{
       const r=await api('early_checkout_finalize',{request_id:id});
-      notify(r.message||'Early-checkout charge posted to folio.');
+      notify(r.message||(isException?'Early departure authorized. Unused nights are not refunded.':'Early-checkout charge posted to folio.'));
       if (r.folio_id) {
         await folio(r.folio_id);
       } else {
