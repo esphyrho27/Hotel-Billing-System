@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Nov 01, 2026 at 01:23 AM
+-- Generation Time: Nov 01, 2026 at 05:35 PM
 -- Server version: 10.11.16-MariaDB
 -- PHP Version: 8.5.12
 
@@ -459,7 +459,15 @@ INSERT INTO `audit_logs` (`id`, `user_id`, `action`, `entity_type`, `entity_id`,
 (392, 3, 'LOGIN', 'user', 3, '[]', '::1', '2026-10-31 16:08:51'),
 (393, 3, 'CHAT_SENT', 'stay', 38, '{\"message_id\":9}', '::1', '2026-10-31 16:14:09'),
 (394, 3, 'CHAT_SENT', 'stay', 38, '{\"message_id\":11}', '::1', '2026-10-31 16:21:59'),
-(395, 3, 'GUEST_PORTAL_LINK_ISSUED', 'stay', 39, '{\"stay_code\":\"ST58D1943E95\",\"expires_at\":\"2026-11-03 23:59:59\"}', '::1', '2026-10-31 16:41:42');
+(395, 3, 'GUEST_PORTAL_LINK_ISSUED', 'stay', 39, '{\"stay_code\":\"ST58D1943E95\",\"expires_at\":\"2026-11-03 23:59:59\"}', '::1', '2026-10-31 16:41:42'),
+(396, 3, 'LOGIN', 'user', 3, '[]', '::1', '2026-11-01 14:16:36'),
+(397, 3, 'ROOM_TRANSFER', 'stay', 38, '{\"from\":\"203\",\"to\":\"401\",\"effective\":\"2026-11-01\"}', '::1', '2026-11-01 14:26:57'),
+(398, 2, 'LOGIN', 'user', 2, '[]', '::1', '2026-11-01 14:27:25'),
+(399, 3, 'LOGIN', 'user', 3, '[]', '::1', '2026-11-01 14:33:07'),
+(400, 7, 'LOGIN', 'user', 7, '[]', '::1', '2026-11-01 15:20:24'),
+(401, 3, 'LOGIN', 'user', 3, '[]', '::1', '2026-11-01 16:10:05');
+INSERT INTO `audit_logs` (`id`, `user_id`, `action`, `entity_type`, `entity_id`, `details`, `ip_address`, `created_at`) VALUES
+(402, 3, 'CHAT_SENT', 'stay', 37, '{\"message_id\":15}', '::1', '2026-11-01 16:12:29');
 
 -- --------------------------------------------------------
 
@@ -585,7 +593,9 @@ INSERT INTO `charges` (`id`, `folio_id`, `category`, `description`, `quantity`, 
 (52, 37, 'ROOM', 'Accommodation - 3 night(s)', 3.00, 1500.00, 4500.00, NULL, NULL, 3, '2026-10-31 12:48:40'),
 (53, 38, 'ROOM', 'Accommodation - 3 night(s)', 3.00, 2200.00, 6600.00, NULL, NULL, 3, '2026-10-31 14:02:55'),
 (54, 39, 'ROOM', 'Accommodation - 3 night(s)', 3.00, 2800.00, 8400.00, NULL, NULL, 3, '2026-10-31 14:02:55'),
-(55, 40, 'ROOM', 'Accommodation - 3 night(s)', 3.00, 5000.00, 15000.00, NULL, NULL, 3, '2026-10-31 14:02:55');
+(55, 40, 'ROOM', 'Accommodation - 3 night(s)', 3.00, 5000.00, 15000.00, NULL, NULL, 3, '2026-10-31 14:02:55'),
+(56, 38, 'ADJUSTMENT', 'Room rate increase from 2026-11-01', 2.00, 1300.00, 2600.00, NULL, NULL, 3, '2026-11-01 14:26:57'),
+(57, 37, 'FOOD', 'Restaurant Order RO-20261101-299EBA (Room Service)', 1.00, 90.00, 90.00, NULL, 'order-charge-RO-20261101-299EBA', 7, '2026-11-01 15:36:05');
 
 -- --------------------------------------------------------
 
@@ -635,7 +645,9 @@ INSERT INTO `chat_messages` (`id`, `stay_id`, `sender_type`, `sender_id`, `sende
 (10, 38, 'GUEST', NULL, 'Phil Degana', 'tonto k gd bla', 1, '2026-11-01 00:15:33', '2026-10-31 16:15:03'),
 (11, 38, 'STAFF', 3, 'frontdesk', 'mango', 0, NULL, '2026-10-31 16:21:59'),
 (12, 38, 'GUEST', NULL, 'Phil Degana', 'pwde pa ga-kotch?', 1, '2026-11-01 00:47:13', '2026-10-31 16:47:03'),
-(13, 38, 'GUEST', NULL, 'Phil Degana', 'pls', 1, '2026-11-01 00:49:11', '2026-10-31 16:49:04');
+(13, 38, 'GUEST', NULL, 'Phil Degana', 'pls', 1, '2026-11-01 00:49:11', '2026-10-31 16:49:04'),
+(14, 37, 'GUEST', NULL, 'Thera Benta', 'laaya', 1, '2026-11-02 00:12:14', '2026-11-01 16:12:08'),
+(15, 37, 'STAFF', 3, 'frontdesk', 'Thank you for your message.', 0, NULL, '2026-11-01 16:12:29');
 
 -- --------------------------------------------------------
 
@@ -1306,14 +1318,15 @@ CREATE TABLE `restaurant_orders` (
 INSERT INTO `restaurant_orders` (`id`, `order_code`, `customer_id`, `stay_id`, `room_number`, `order_type`, `notes`, `total_amount`, `order_status`, `payment_status`, `payment_method`, `paid_amount`, `payment_reference`, `paid_at`, `created_at`, `updated_at`, `estimated_ready_at`, `confirmed_at`, `preparing_at`, `ready_at`, `completed_at`) VALUES
 (0, 'RO-20261026-007B7A', 4, 5, '102', 'Room Service', NULL, 100.00, 'Completed', 'Billed to Room', 'Billed to Room', NULL, NULL, NULL, '2026-10-26 22:33:16', '2026-10-26 23:35:28', NULL, '2026-10-26 23:23:55', '2026-10-26 23:24:24', '2026-10-26 23:24:33', '2026-10-26 23:34:17'),
 (1, 'RO-EB9EBA20', 1, 1, '101', 'Room Service', NULL, 400.00, 'Completed', 'Billed to Room', 'Billed to Room', 400.00, NULL, '2026-10-25 14:07:30', '2026-10-25 13:58:00', '2026-10-26 23:35:44', NULL, NULL, NULL, NULL, '2026-10-26 23:35:44'),
-(4, 'RO-20261027-1B964D', 11, 14, '403', 'Room Service', NULL, 210.00, 'Served', 'Billed to Room', 'Billed to Room', NULL, NULL, NULL, '2026-10-27 12:44:27', '2026-10-29 17:59:44', '2026-10-27 13:04:27', '2026-10-28 21:30:20', '2026-10-29 17:59:08', '2026-10-29 17:59:22', '2026-10-29 17:59:44'),
-(5, 'RO-20261029-1B18A3', 11, 14, '403', 'Room Service', NULL, 360.00, 'Served', 'Billed to Room', 'Billed to Room', NULL, NULL, NULL, '2026-10-29 14:09:28', '2026-10-29 17:59:34', '2026-10-29 14:29:28', '2026-10-29 17:58:40', '2026-10-29 17:58:55', '2026-10-29 17:59:19', '2026-10-29 17:59:34'),
+(4, 'RO-20261027-1B964D', 11, 14, '403', 'Room Service', NULL, 210.00, 'Completed', 'Billed to Room', 'Billed to Room', NULL, NULL, NULL, '2026-10-27 12:44:27', '2026-11-01 23:21:25', '2026-10-27 13:04:27', '2026-10-28 21:30:20', '2026-10-29 17:59:08', '2026-10-29 17:59:22', '2026-10-29 17:59:44'),
+(5, 'RO-20261029-1B18A3', 11, 14, '403', 'Room Service', NULL, 360.00, 'Completed', 'Billed to Room', 'Billed to Room', NULL, NULL, NULL, '2026-10-29 14:09:28', '2026-11-01 23:21:24', '2026-10-29 14:29:28', '2026-10-29 17:58:40', '2026-10-29 17:58:55', '2026-10-29 17:59:19', '2026-10-29 17:59:34'),
 (6, 'RO-20261030-0C9038', 23, 36, '302', 'Room Service', NULL, 120.00, 'Pending', 'Unpaid', NULL, NULL, NULL, NULL, '2026-10-30 14:11:34', '2026-10-30 14:11:34', '2026-10-30 14:31:34', NULL, NULL, NULL, NULL),
 (8, 'RO-20261030-84A31C', 23, 35, '101', 'Room Service', NULL, 750.00, 'Served', 'Billed to Room', 'Billed to Room', NULL, NULL, NULL, '2026-10-30 14:17:19', '2026-10-30 14:18:52', '2026-10-30 14:37:19', '2026-10-30 14:17:50', '2026-10-30 14:18:15', '2026-10-30 14:18:35', '2026-10-30 14:18:52'),
 (9, 'RO-20261030-0DB2A5', 23, 35, '101', 'Room Service', NULL, 600.00, 'Pending', 'Unpaid', NULL, NULL, NULL, NULL, '2026-10-30 15:02:04', '2026-10-30 15:02:04', '2026-10-30 15:22:04', NULL, NULL, NULL, NULL),
 (10, 'RO-20261030-47B632', 23, 36, '302', 'Room Service', NULL, 280.00, 'Pending', 'Unpaid', NULL, NULL, NULL, NULL, '2026-10-30 15:43:32', '2026-10-30 15:43:32', '2026-10-30 16:03:32', NULL, NULL, NULL, NULL),
-(11, 'RO-20261030-39126C', 23, 35, '101', 'Room Service', NULL, 180.00, 'Served', 'Billed to Room', 'Billed to Room', NULL, NULL, NULL, '2026-10-30 15:55:21', '2026-10-30 16:13:54', '2026-10-30 16:15:21', '2026-10-30 16:06:19', '2026-10-30 16:11:50', '2026-10-30 16:13:39', '2026-10-30 16:13:54'),
-(12, 'RO-20261031-C6C31D', 12, 15, '202', 'Room Service', NULL, 400.00, 'Served', 'Billed to Room', 'Billed to Room', NULL, NULL, NULL, '2026-10-31 17:56:48', '2026-10-31 18:34:18', '2026-10-31 18:16:48', '2026-10-31 17:57:45', '2026-10-31 18:33:01', '2026-10-31 18:33:34', '2026-10-31 18:34:18');
+(11, 'RO-20261030-39126C', 23, 35, '101', 'Room Service', NULL, 180.00, 'Completed', 'Billed to Room', 'Billed to Room', NULL, NULL, NULL, '2026-10-30 15:55:21', '2026-11-01 23:21:20', '2026-10-30 16:15:21', '2026-10-30 16:06:19', '2026-10-30 16:11:50', '2026-10-30 16:13:39', '2026-10-30 16:13:54'),
+(12, 'RO-20261031-C6C31D', 12, 15, '202', 'Room Service', NULL, 400.00, 'Completed', 'Billed to Room', 'Billed to Room', NULL, NULL, NULL, '2026-10-31 17:56:48', '2026-11-01 23:21:11', '2026-10-31 18:16:48', '2026-10-31 17:57:45', '2026-10-31 18:33:01', '2026-10-31 18:33:34', '2026-10-31 18:34:18'),
+(13, 'RO-20261101-299EBA', 24, 37, '102', 'Room Service', NULL, 90.00, 'Completed', 'Billed to Room', 'Billed to Room', NULL, NULL, NULL, '2026-11-01 23:35:56', '2026-11-02 00:09:48', '2026-11-01 23:55:56', '2026-11-01 23:36:05', '2026-11-01 23:43:19', '2026-11-02 00:04:49', '2026-11-02 00:09:46');
 
 -- --------------------------------------------------------
 
@@ -1350,7 +1363,8 @@ INSERT INTO `restaurant_order_items` (`id`, `order_id`, `item_id`, `item_name`, 
 (13, 10, 34, 'Beef Steak', 'Main Course', 1, 280.00, 280.00),
 (14, 11, 41, 'Chicken Wings', 'Appetizers', 1, 180.00, 180.00),
 (15, 12, 40, 'French Fries', 'Appetizers', 1, 100.00, 100.00),
-(16, 12, 59, 'Tanduay Select Set', 'Cold Drinks', 1, 300.00, 300.00);
+(16, 12, 59, 'Tanduay Select Set', 'Cold Drinks', 1, 300.00, 300.00),
+(17, 13, 43, 'Leche Flan', 'Desserts', 1, 90.00, 90.00);
 
 -- --------------------------------------------------------
 
@@ -1389,7 +1403,7 @@ INSERT INTO `rooms` (`id`, `room_number`, `room_type_id`, `floor_number`, `capac
 (1, '103', 1, 1, 2, 'CLEANING'),
 (2, '102', 1, 1, 2, 'OCCUPIED'),
 (3, '101', 1, 1, 2, 'OCCUPIED'),
-(4, '203', 2, 2, 2, 'OCCUPIED'),
+(4, '203', 2, 2, 2, 'AVAILABLE'),
 (5, '202', 2, 2, 2, 'OCCUPIED'),
 (6, '201', 2, 2, 2, 'MAINTENANCE'),
 (7, '303', 3, 3, 2, 'MAINTENANCE'),
@@ -1397,7 +1411,7 @@ INSERT INTO `rooms` (`id`, `room_number`, `room_type_id`, `floor_number`, `capac
 (9, '301', 3, 3, 2, 'OCCUPIED'),
 (10, '403', 4, 4, 4, 'CLEANING'),
 (11, '402', 4, 4, 4, 'AVAILABLE'),
-(12, '401', 4, 4, 4, 'AVAILABLE'),
+(12, '401', 4, 4, 4, 'OCCUPIED'),
 (13, '503', 5, 5, 3, 'CLEANING'),
 (14, '502', 5, 5, 3, 'AVAILABLE'),
 (15, '501', 5, 5, 3, 'OCCUPIED'),
@@ -1430,7 +1444,8 @@ CREATE TABLE `room_transfers` (
 
 INSERT INTO `room_transfers` (`id`, `stay_id`, `from_room_id`, `to_room_id`, `effective_date`, `old_rate`, `new_rate`, `reason`, `authorized_by`, `created_at`) VALUES
 (1, 1, 3, 13, '2026-10-29', 1500.00, 5000.00, 'Guest portal transfer RQ7956839D', 2, '2026-10-29 13:48:41'),
-(4, 36, 9, 8, '2026-10-30', 2800.00, 2800.00, 'Guest portal transfer RTE9B8ECEA', 2, '2026-10-30 05:37:56');
+(4, 36, 9, 8, '2026-10-30', 2800.00, 2800.00, 'Guest portal transfer RTE9B8ECEA', 2, '2026-10-30 05:37:56'),
+(5, 38, 4, 12, '2026-11-01', 2200.00, 3500.00, 'fgcvh', 3, '2026-11-01 14:26:57');
 
 -- --------------------------------------------------------
 
@@ -1512,7 +1527,9 @@ INSERT INTO `service_catalog` (`id`, `name`, `category`, `description`, `price`,
 (0, 'Blanket', 'HOUSEKEEPING', 'Additional blanket per item', 300.00, 1, '2026-10-26 09:30:49', '2026-10-26 09:30:49', 'Guest Requests', 'SERVICE'),
 (0, 'Bed sheets', 'HOUSEKEEPING', 'Bed sheets per set', 300.00, 1, '2026-10-26 09:30:49', '2026-10-26 09:30:49', 'Guest Requests', 'SERVICE'),
 (0, 'Toiletries', 'HOUSEKEEPING', 'Toiletry set per item', 200.00, 1, '2026-10-26 09:30:49', '2026-10-26 09:30:49', 'Guest Requests', 'SERVICE'),
-(0, 'Drinking water', 'HOUSEKEEPING', 'Drinking water per bottle', 100.00, 1, '2026-10-26 09:30:49', '2026-10-26 09:30:49', 'Guest Requests', 'SERVICE');
+(0, 'Drinking water', 'HOUSEKEEPING', 'Drinking water per bottle', 100.00, 1, '2026-10-26 09:30:49', '2026-10-26 09:30:49', 'Guest Requests', 'SERVICE'),
+(0, 'Room cleaning', 'HOUSEKEEPING', NULL, 0.00, 1, '2026-11-01 16:23:49', '2026-11-01 16:23:49', NULL, 'FOOD'),
+(0, 'Room cleaning', 'HOUSEKEEPING', NULL, 0.00, 1, '2026-11-01 16:24:07', '2026-11-01 16:24:07', NULL, 'FOOD');
 
 -- --------------------------------------------------------
 
@@ -1574,7 +1591,9 @@ INSERT INTO `service_requests` (`id`, `stay_id`, `request_code`, `service_type`,
 (24, 36, 'RQD4C845BA', 'MAINTENANCE', 'maintenance', NULL, NULL, 10, '2026-10-30 15:33:35', 'SERVICE', NULL, 'ako pa ba?', 'COMPLETED', 'URGENT', 1, 'test', '2026-10-30 15:42:16', 10, 0, 0.00, '2026-10-30 15:42:42', 10, NULL, NULL, '2026-10-30 07:33:14'),
 (25, 36, 'RO-20261030-47B632', 'FOOD_BEVERAGE', 'restaurant', NULL, NULL, 7, '2026-10-30 15:43:43', 'SERVICE', NULL, '1x Beef Steak', 'COMPLETED', 'NORMAL', 0, NULL, NULL, NULL, 1, 280.00, '2026-10-30 15:48:20', 7, NULL, NULL, '2026-10-30 07:43:32'),
 (26, 35, 'RO-20261030-39126C', 'FOOD_BEVERAGE', 'restaurant', NULL, NULL, NULL, NULL, 'SERVICE', NULL, '1x Chicken Wings', 'COMPLETED', 'NORMAL', 0, NULL, NULL, NULL, 1, 180.00, NULL, NULL, NULL, NULL, '2026-10-30 07:55:21'),
-(27, 15, 'RO-20261031-C6C31D', 'FOOD_BEVERAGE', 'restaurant', NULL, NULL, NULL, NULL, 'SERVICE', NULL, '1x French Fries, 1x Tanduay Select Set', 'COMPLETED', 'NORMAL', 0, NULL, NULL, NULL, 1, 400.00, NULL, NULL, NULL, NULL, '2026-10-31 09:56:48');
+(27, 15, 'RO-20261031-C6C31D', 'FOOD_BEVERAGE', 'restaurant', NULL, NULL, NULL, NULL, 'SERVICE', NULL, '1x French Fries, 1x Tanduay Select Set', 'COMPLETED', 'NORMAL', 0, NULL, NULL, NULL, 1, 400.00, NULL, NULL, NULL, NULL, '2026-10-31 09:56:48'),
+(28, 38, 'RQF90AE5F6', 'FRONT_DESK', NULL, NULL, NULL, NULL, NULL, 'ROOM_TRANSFER', 12, 'Front desk initiated room transfer from room 203 to 401. Transfer effective immediately.', 'COMPLETED', 'NORMAL', 0, NULL, NULL, NULL, 0, 0.00, NULL, NULL, NULL, NULL, '2026-11-01 14:26:57'),
+(29, 37, 'RO-20261101-299EBA', 'FOOD_BEVERAGE', 'restaurant', NULL, NULL, NULL, NULL, 'SERVICE', NULL, '1x Leche Flan', 'COMPLETED', 'NORMAL', 0, NULL, NULL, NULL, 1, 90.00, NULL, NULL, NULL, NULL, '2026-11-01 15:35:56');
 
 -- --------------------------------------------------------
 
@@ -1669,7 +1688,8 @@ INSERT INTO `service_request_history` (`id`, `request_id`, `from_status`, `to_st
 (73, 25, 'ACKNOWLEDGED', 'IN_PROGRESS', 7, 'restaurant', 'restaurant', NULL, '2026-10-30 07:47:56'),
 (74, 25, 'IN_PROGRESS', 'COMPLETED', 7, 'restaurant', 'restaurant', NULL, '2026-10-30 07:48:20'),
 (75, 26, NULL, 'PENDING', NULL, NULL, 'restaurant', 'Created with room-service order from the guest portal.', '2026-10-30 07:55:21'),
-(76, 27, NULL, 'PENDING', NULL, NULL, 'restaurant', 'Created with room-service order from the guest portal.', '2026-10-31 09:56:48');
+(76, 27, NULL, 'PENDING', NULL, NULL, 'restaurant', 'Created with room-service order from the guest portal.', '2026-10-31 09:56:48'),
+(77, 29, NULL, 'PENDING', NULL, NULL, 'restaurant', 'Created with room-service order from the guest portal.', '2026-11-01 15:35:56');
 
 -- --------------------------------------------------------
 
@@ -1715,7 +1735,7 @@ INSERT INTO `stays` (`id`, `stay_code`, `room_id`, `customer_id`, `guest_count`,
 (35, 'ST2262F71769', 3, 23, 2, '2026-10-30 14:00:00', '2026-10-30 14:01:00', '2026-10-31', NULL, 'ACTIVE', 3, '2026-10-30 03:40:01', 18),
 (36, 'ST9CF65BC519', 8, 23, 2, '2026-10-30 14:00:00', '2026-10-30 14:01:00', '2026-10-31', NULL, 'ACTIVE', 3, '2026-10-30 03:40:01', 18),
 (37, 'ST8E305B993C', 2, 24, 1, '2026-10-31 14:00:00', '2026-10-31 20:51:24', '2026-11-03', NULL, 'ACTIVE', 3, '2026-10-31 12:48:40', NULL),
-(38, 'STC9CC80082B', 4, 25, 1, '2026-10-31 14:00:00', '2026-10-31 22:04:58', '2026-11-03', NULL, 'ACTIVE', 3, '2026-10-31 14:02:55', 19),
+(38, 'STC9CC80082B', 12, 25, 1, '2026-10-31 14:00:00', '2026-10-31 22:04:58', '2026-11-03', NULL, 'ACTIVE', 3, '2026-10-31 14:02:55', 19),
 (39, 'ST58D1943E95', 9, 25, 1, '2026-10-31 14:00:00', '2026-10-31 22:04:58', '2026-11-03', NULL, 'ACTIVE', 3, '2026-10-31 14:02:55', 19),
 (40, 'ST54FF6EC4E8', 15, 25, 1, '2026-10-31 14:00:00', '2026-10-31 22:04:58', '2026-11-03', NULL, 'ACTIVE', 3, '2026-10-31 14:02:55', 19);
 
@@ -2229,19 +2249,19 @@ ALTER TABLE `applied_discounts`
 -- AUTO_INCREMENT for table `audit_logs`
 --
 ALTER TABLE `audit_logs`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=396;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=403;
 
 --
 -- AUTO_INCREMENT for table `charges`
 --
 ALTER TABLE `charges`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=56;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=58;
 
 --
 -- AUTO_INCREMENT for table `chat_messages`
 --
 ALTER TABLE `chat_messages`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- AUTO_INCREMENT for table `checkin_payments`
@@ -2319,31 +2339,31 @@ ALTER TABLE `portal_tokens`
 -- AUTO_INCREMENT for table `restaurant_orders`
 --
 ALTER TABLE `restaurant_orders`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT for table `restaurant_order_items`
 --
 ALTER TABLE `restaurant_order_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
 
 --
 -- AUTO_INCREMENT for table `room_transfers`
 --
 ALTER TABLE `room_transfers`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `service_requests`
 --
 ALTER TABLE `service_requests`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=28;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=30;
 
 --
 -- AUTO_INCREMENT for table `service_request_history`
 --
 ALTER TABLE `service_request_history`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=77;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=78;
 
 --
 -- AUTO_INCREMENT for table `stays`
