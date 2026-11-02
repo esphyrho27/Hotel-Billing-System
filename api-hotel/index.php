@@ -164,7 +164,7 @@ $readActions = [
     'chat_conversations', 'chat_messages',
     'discount_policy_admin_list', 'pending_discounts', 'discount_policies',
     'vat_settings', 'reports', 'payment_history', 'receipt_details', 'report_transactions', 'audit_logs', 'users',
-    'permissions_get', 'my_permissions', 'checkin_payments', 'pending_checkins',
+    'permissions_get', 'my_permissions', 'checkin_payments', 'pending_checkins', 'customer_search',
     'inventory_list', 'menu_categories', 'department_reports',
     'restaurant_dashboard_stats', 'restaurant_menu_list', 'restaurant_orders_list'
 ];
@@ -2206,12 +2206,28 @@ if ($action === 'active_stays') {
     hotel_ensure_actual_checkin_column($pdo);
     $q = $pdo->query("SELECT s.id, s.stay_code, s.group_booking_id, gb.group_code, s.guest_count, s.checkin_at, s.actual_checkin_at, s.planned_checkout, s.room_id, r.room_number, f.id AS folio_id, f.folio_number, f.status AS folio_status, c.customer_id, c.first_name, c.middle_name, c.last_name, c.contact_number, c.email, TRIM(CONCAT_WS(' ', c.first_name, NULLIF(c.middle_name, ''), c.last_name)) AS guest_name, (SELECT al.details FROM audit_logs al WHERE al.entity_type='stay' AND al.entity_id=s.id AND al.action='GROUP_CHECK_IN' ORDER BY al.id DESC LIMIT 1) AS group_checkin_details, (SELECT COALESCE(SUM(amount),0) FROM charges WHERE folio_id=f.id) AS charges_total, (SELECT COALESCE(SUM(amount),0) FROM payments WHERE folio_id=f.id) AS paid_total FROM stays s JOIN rooms r ON r.id=s.room_id JOIN folios f ON f.stay_id=s.id LEFT JOIN customers c ON c.customer_id=s.customer_id LEFT JOIN group_bookings gb ON gb.id=s.group_booking_id WHERE s.status='ACTIVE' AND f.status='OPEN' ORDER BY s.checkin_at DESC");
     $stays = $q->fetchAll();
+    // Other active stays under the same guest (for the "also booked under
+    // this guest" line). One query for all listed stays; display-only.
+    $linkedByCustomer = [];
+    $linkedCustomerIds = array_values(array_unique(array_filter(array_map(static fn($row): int => (int)($row['customer_id'] ?? 0), $stays))));
+    if ($linkedCustomerIds) {
+        $linkPlaceholders = implode(',', array_fill(0, count($linkedCustomerIds), '?'));
+        $linkQ = $pdo->prepare("SELECT s2.id AS stay_id, s2.customer_id, s2.stay_code, r2.room_number FROM stays s2 JOIN rooms r2 ON r2.id=s2.room_id JOIN folios f2 ON f2.stay_id=s2.id WHERE s2.customer_id IN ($linkPlaceholders) AND s2.status='ACTIVE' AND f2.status='OPEN' ORDER BY s2.checkin_at DESC");
+        $linkQ->execute($linkedCustomerIds);
+        foreach ($linkQ->fetchAll() as $linkRow) {
+            $linkedByCustomer[(int)$linkRow['customer_id']][] = ['stay_id' => (int)$linkRow['stay_id'], 'stay_code' => $linkRow['stay_code'], 'room_number' => $linkRow['room_number']];
+        }
+    }
     foreach ($stays as &$s) {
         $groupDetails = json_decode((string)($s['group_checkin_details'] ?? ''), true);
         $s['occupant_names'] = is_array($groupDetails['occupant_names'] ?? null)
             ? array_values(array_filter($groupDetails['occupant_names'], static fn($name): bool => is_string($name) && trim($name) !== ''))
             : [];
         unset($s['group_checkin_details']);
+        $s['linked_stays'] = array_values(array_map(
+            static fn($link): array => ['stay_code' => $link['stay_code'], 'room_number' => $link['room_number']],
+            array_filter($linkedByCustomer[(int)($s['customer_id'] ?? 0)] ?? [], static fn($link): bool => $link['stay_id'] !== (int)$s['id'])
+        ));
 
         $fid = (int)$s['folio_id'];
         $qDiscountDetails = $pdo->prepare("SELECT name, category, discount_type, discount_value, amount FROM applied_discounts WHERE folio_id=? AND status IN ('APPLIED','APPROVED') ORDER BY created_at, id");
@@ -2548,6 +2564,23 @@ if ($action === 'group_checkin') {
  * Processes guest check-in: creates stay, opens folio, posts room charge, updates room to RESERVED,
  * generates guest portal token, and triggers real-time alerts.
  */
+/**
+ * Staff guest lookup for walk-in check-in: matches first name, last name, or
+ * contact number (active guests only, 10 most recent matches by name).
+ * An empty query returns an empty list, never the whole guest table.
+ */
+if ($action === 'customer_search') {
+    require_role(['admin', 'manager', 'frontdesk']);
+    $q = trim((string)($in['q'] ?? $_GET['q'] ?? ''));
+    if ($q === '' || strlen($q) > 100) {
+        out(['customers' => []]);
+    }
+    $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q) . '%';
+    $stmt = $pdo->prepare("SELECT customer_id, first_name, middle_name, last_name, contact_number, email FROM customers WHERE is_active=1 AND (first_name LIKE ? OR last_name LIKE ? OR contact_number LIKE ?) ORDER BY last_name ASC, first_name ASC LIMIT 10");
+    $stmt->execute([$like, $like, $like]);
+    out(['customers' => $stmt->fetchAll()]);
+}
+
 if ($action === 'checkin') {
     require_role(['admin', 'manager', 'frontdesk']);
     $policyNow = hotel_local_now();
@@ -2562,6 +2595,10 @@ if ($action === 'checkin') {
     $lastName = trim((string)($in['last_name'] ?? ''));
     $contact = trim((string)($in['contact_number'] ?? ''));
     $email = trim((string)($in['email'] ?? ''));
+    // Optional reuse of an existing guest (e.g. booking an additional room
+    // under a guest who is already staying). When supplied, the customer
+    // record is reused as-is; it is never edited from the check-in form.
+    $reuseCustomerId = (int)($in['customer_id'] ?? 0);
     // Discounts are cashier-controlled. Reject legacy/client-supplied front-desk discounts.
     $requestedDiscountGross = round((float)($in['discount_amount'] ?? 0), 2);
     if ($requestedDiscountGross !== 0.0) {
@@ -2601,6 +2638,22 @@ if ($action === 'checkin') {
         out(['error' => 'Choose Senior Citizen, PWD, or Other as the discount type.'], 400);
     }
 
+    // Validate a reused guest before any write: a bad id must fail loudly,
+    // never silently fall back to creating a duplicate guest record.
+    $customerReused = false;
+    if ($reuseCustomerId > 0) {
+        $custCheck = $pdo->prepare('SELECT customer_id, is_active FROM customers WHERE customer_id=?');
+        $custCheck->execute([$reuseCustomerId]);
+        $custRow = $custCheck->fetch();
+        if (!$custRow) {
+            out(['error' => 'Guest not found.'], 404);
+        }
+        if ((int)$custRow['is_active'] !== 1) {
+            out(['error' => 'Guest record is inactive.'], 400);
+        }
+        $customerReused = true;
+    }
+
     htl_ensure_checkin_payments($pdo);
     htl_ensure_applied_discounts_schema($pdo);
     $pdo->beginTransaction();
@@ -2621,9 +2674,13 @@ if ($action === 'checkin') {
             throw new RuntimeException('Room already has a stay overlapping those dates.');
         }
 
-        $cStmt = $pdo->prepare("INSERT INTO customers (first_name, middle_name, last_name, contact_number, email, emergency_contact, address, id_number, nationality, id_type, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)");
-        $cStmt->execute([$firstName, '', $lastName, $contact ?: '', $email ?: '', '', '', '', 'Filipino', '']);
-        $customerId = (int)$pdo->lastInsertId();
+        if ($customerReused) {
+            $customerId = $reuseCustomerId;
+        } else {
+            $cStmt = $pdo->prepare("INSERT INTO customers (first_name, middle_name, last_name, contact_number, email, emergency_contact, address, id_number, nationality, id_type, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)");
+            $cStmt->execute([$firstName, '', $lastName, $contact ?: '', $email ?: '', '', '', '', 'Filipino', '']);
+            $customerId = (int)$pdo->lastInsertId();
+        }
 
         $code = 'ST' . strtoupper(bin2hex(random_bytes(5)));
         $checkinAt = $policyNow->setTime(14, 0)->format('Y-m-d H:i:s');
@@ -2677,7 +2734,7 @@ if ($action === 'checkin') {
         $pdo->prepare('INSERT INTO portal_tokens(stay_id, token_hash, expires_at) VALUES(?, ?, ?)')
             ->execute([$sid, hash('sha256', $token), $checkout . ' 23:59:59']);
 
-        audit($pdo, $u['id'], 'CHECK_IN', 'stay', $sid, ['room' => $r['room_number'], 'nights' => $nights, 'customer_id' => $customerId, 'guest_name' => trim($firstName . ' ' . $lastName), 'checkin_payment_id' => $checkinPaymentId, 'required_amount' => $requiredAmount, 'required_percent' => $requiredPercent, 'discount_amount' => $discountGross]);
+        audit($pdo, $u['id'], 'CHECK_IN', 'stay', $sid, ['room' => $r['room_number'], 'nights' => $nights, 'customer_id' => $customerId, 'customer_reused' => $customerReused, 'guest_name' => trim($firstName . ' ' . $lastName), 'checkin_payment_id' => $checkinPaymentId, 'required_amount' => $requiredAmount, 'required_percent' => $requiredPercent, 'discount_amount' => $discountGross]);
         $pdo->commit();
 
         ws_broadcast('ROOM_STATUS_CHANGED', ['room_id' => $room, 'room_number' => $r['room_number'], 'status' => 'RESERVED'], null, null, null, true);
@@ -2716,6 +2773,7 @@ if ($action === 'checkin') {
             'folio_number' => $folio,
             'guest_portal_url' => htl_guest_portal_url($token),
             'customer_id' => $customerId,
+            'customer_reused' => $customerReused,
             'guest_name' => trim($firstName . ' ' . $lastName),
             'stay_status' => 'PENDING_PAYMENT',
             'checkin_payment_id' => $checkinPaymentId,

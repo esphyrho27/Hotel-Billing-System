@@ -406,6 +406,7 @@ const HOTEL_ACTION_PERMISSIONS = [
     'demo_clock_reset' => 'settings.manage',
     'guest_portal_link' => 'stays.view',
     'checkin' => 'stays.checkin',
+    'customer_search' => 'stays.checkin',
     'group_checkin' => 'stays.checkin',
     'update_stay_guest' => 'stays.checkin',
     'checkin_payments' => 'stays.view',
@@ -751,3 +752,4 @@ function normalize_department(string $deptOrType): string
     if (in_array($u, ['SERVICE', 'FRONT_DESK', 'FRONTDESK', 'OTHER', 'CONCIERGE'], true)) return 'service';
     return strtolower(trim(str_replace([' ', '_', '-'], '', $deptOrType)));
 }
+

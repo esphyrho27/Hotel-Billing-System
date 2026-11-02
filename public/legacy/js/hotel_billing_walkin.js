@@ -1597,6 +1597,8 @@
 
             <button class="btn btn-sm btn-outline-info" onclick="HotelBilling.guestDetails(${s.id})"><i class="bi bi-person-lines-fill me-1"></i>${isMobile ? 'Guest' : 'Guest details'}</button>
 
+            <button class="btn btn-sm btn-outline-primary" onclick="HotelBilling.bookAdditionalRoom(${s.id})"><i class="bi bi-person-plus me-1"></i>${isMobile ? 'Add room' : 'Book additional room'}</button>
+
           `;
 
         }
@@ -1609,6 +1611,8 @@
 
           <button class="btn btn-sm btn-outline-info" onclick="HotelBilling.guestDetails(${s.id})"><i class="bi bi-person-lines-fill me-1"></i>${isMobile ? 'Guest' : 'Guest details'}</button>
 
+          ${['admin','frontdesk'].includes(curRole) ? `<button class="btn btn-sm btn-outline-primary" onclick="HotelBilling.bookAdditionalRoom(${s.id})"><i class="bi bi-person-plus me-1"></i>${isMobile ? 'Add room' : 'Book additional room'}</button>` : ''}
+
           ${curRole === 'frontdesk' ? `<button class="btn btn-sm btn-outline-secondary" onclick="HotelBilling.transfer(${s.id})">Transfer</button>` : ''}
 
           <button class="btn btn-sm btn-outline-warning" onclick="HotelBilling.earlyCheckout(${s.id})">${isMobile ? 'Early' : 'Early checkout'}</button>
@@ -1618,6 +1622,14 @@
         `;
 
       };
+
+
+
+      // Other active stays under the same guest (display-only, from
+      // active_stays.linked_stays). Shown only when non-empty.
+      const linkedLine = (s) => (Array.isArray(s.linked_stays) && s.linked_stays.length)
+        ? `<div class="small text-muted">Also booked under this guest: ${s.linked_stays.map(l => `Room ${esc(l.room_number)} (${esc(l.stay_code)})`).join(', ')}</div>`
+        : '';
 
 
 
@@ -1655,6 +1667,8 @@
 
               <div class="small text-muted">Folio ${esc(s.folio_number)}</div>
 
+              ${linkedLine(s)}
+
             </td>
 
             <td><strong>Room ${esc(s.room_number)}</strong><div class="small text-muted">${s.guest_count} guest(s)</div></td>
@@ -1689,7 +1703,7 @@
 
         tableHeaders = ['Stay / Folio reference','Room','Guests','Scheduled / Actual Check-in','Planned checkout','Balance','Actions'];
 
-        rows = stays.map(s=>`<tr><td><strong>${esc(s.stay_code)}</strong>${s.guest_name?`<div class="fw-semibold text-primary" style="font-size:12.5px;"><i class="bi bi-person me-1"></i>${esc(s.guest_name)}</div>`:''}<div class="small text-muted">${esc(s.folio_number)}</div></td><td>${esc(s.room_number)}</td><td>${s.guest_count}</td><td><div>Scheduled: ${esc(s.checkin_at)}</div><div class="small text-muted">Actual: ${esc(s.actual_checkin_at||'Not recorded')}</div></td><td>${esc(s.planned_checkout)} at 12:00 PM</td><td>${php(Number(s.charges_total)-Number(s.paid_total))}</td><td><div class="d-flex flex-wrap gap-1">${renderStayActions(s, false)}</div></td></tr>`).join('');
+        rows = stays.map(s=>`<tr><td><strong>${esc(s.stay_code)}</strong>${s.guest_name?`<div class="fw-semibold text-primary" style="font-size:12.5px;"><i class="bi bi-person me-1"></i>${esc(s.guest_name)}</div>`:''}<div class="small text-muted">${esc(s.folio_number)}</div>${linkedLine(s)}</td><td>${esc(s.room_number)}</td><td>${s.guest_count}</td><td><div>Scheduled: ${esc(s.checkin_at)}</div><div class="small text-muted">Actual: ${esc(s.actual_checkin_at||'Not recorded')}</div></td><td>${esc(s.planned_checkout)} at 12:00 PM</td><td>${php(Number(s.charges_total)-Number(s.paid_total))}</td><td><div class="d-flex flex-wrap gap-1">${renderStayActions(s, false)}</div></td></tr>`).join('');
 
       }
 
@@ -1714,6 +1728,8 @@
           </div>
 
           ${s.guest_name?`<div class="fw-semibold text-primary mb-2" style="font-size:13px;"><i class="bi bi-person me-1"></i>${esc(s.guest_name)}</div>`:''}
+
+          ${linkedLine(s)}
 
           ${isCashier ? `
 
@@ -3395,7 +3411,7 @@
 
 
 
-  async function checkin() {
+  async function checkin(preselectedGuest = null) {
     try {
       const timePolicy = await api('hotel_time_policy', {}, 'GET');
       if (!timePolicy.checkin_open) {
@@ -3415,21 +3431,33 @@
             </div>
           </div>
 
+          <div class="col-12" id="ck-guest-search-wrap">
+            <label class="form-label">Book under an existing guest <span class="text-muted">(Optional)</span></label>
+            <input class="form-control" type="text" id="ck-guest-search" maxlength="100" placeholder="Search by name or contact number…" autocomplete="off">
+            <div id="ck-guest-results" class="list-group mt-2"></div>
+          </div>
+          <div class="col-12 d-none" id="ck-preselected-banner">
+            <div class="alert alert-primary py-2 mb-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <span>Booking under: <strong id="ck-preselected-name"></strong></span>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="ck-change-guest">Change guest</button>
+            </div>
+          </div>
+
           <div class="col-md-6">
             <label class="form-label fw-semibold">First name <span class="text-danger">*</span></label>
-            <input class="form-control" type="text" name="first_name" maxlength="100" placeholder="e.g. Juan" required autofocus>
+            <input class="form-control" type="text" name="first_name" id="ck-first-name" maxlength="100" placeholder="e.g. Juan" required autofocus>
           </div>
           <div class="col-md-6">
             <label class="form-label fw-semibold">Last name <span class="text-danger">*</span></label>
-            <input class="form-control" type="text" name="last_name" maxlength="100" placeholder="e.g. Dela Cruz" required>
+            <input class="form-control" type="text" name="last_name" id="ck-last-name" maxlength="100" placeholder="e.g. Dela Cruz" required>
           </div>
           <div class="col-md-6">
             <label class="form-label">Contact number <span class="text-muted">(Optional)</span></label>
-            <input class="form-control" type="tel" name="contact_number" maxlength="30" placeholder="e.g. 0917 123 4567">
+            <input class="form-control" type="tel" name="contact_number" id="ck-contact" maxlength="30" placeholder="e.g. 0917 123 4567">
           </div>
           <div class="col-md-6">
             <label class="form-label">Email <span class="text-muted">(Optional)</span></label>
-            <input class="form-control" type="email" name="email" maxlength="150" placeholder="e.g. juan@example.com">
+            <input class="form-control" type="email" name="email" id="ck-email" maxlength="150" placeholder="e.g. juan@example.com">
           </div>
           <!-- Room & Stay Details -->
           <div class="col-md-6">
@@ -3487,6 +3515,70 @@
       `;
 
       const {root, m} = modal('Walk-in Check-in', modalHtml);
+
+      // Existing-guest booking: preselect a guest (from "Book additional
+      // room" or from the search below), lock their details, and send
+      // customer_id so no duplicate guest record is created. Clearing
+      // returns the form to blank new-guest mode. The stored guest record
+      // is never edited here; corrections belong in Guest details.
+      let selectedCustomerId = null;
+      const searchWrap = root.querySelector('#ck-guest-search-wrap');
+      const searchInput = root.querySelector('#ck-guest-search');
+      const resultsBox = root.querySelector('#ck-guest-results');
+      const preselectedBanner = root.querySelector('#ck-preselected-banner');
+      const preselectedName = root.querySelector('#ck-preselected-name');
+      const firstNameInput = root.querySelector('#ck-first-name');
+      const lastNameInput = root.querySelector('#ck-last-name');
+      const contactInput = root.querySelector('#ck-contact');
+      const emailInput = root.querySelector('#ck-email');
+      const guestDetailInputs = [firstNameInput, lastNameInput, contactInput, emailInput];
+      const applyPreselection = (g) => {
+        selectedCustomerId = Number(g.customer_id) || null;
+        firstNameInput.value = g.first_name || '';
+        lastNameInput.value = g.last_name || '';
+        contactInput.value = g.contact_number || '';
+        emailInput.value = g.email || '';
+        guestDetailInputs.forEach(el => { el.readOnly = true; });
+        preselectedName.textContent = [g.first_name, g.last_name].filter(Boolean).join(' ') || 'Guest';
+        preselectedBanner.classList.remove('d-none');
+        searchWrap.classList.add('d-none');
+        resultsBox.innerHTML = '';
+      };
+      const clearPreselection = () => {
+        selectedCustomerId = null;
+        guestDetailInputs.forEach(el => { el.value = ''; el.readOnly = false; });
+        preselectedBanner.classList.add('d-none');
+        searchWrap.classList.remove('d-none');
+        resultsBox.innerHTML = '';
+        searchInput.value = '';
+      };
+      root.querySelector('#ck-change-guest').addEventListener('click', clearPreselection);
+      let guestSearchTimer = null;
+      let lastGuestResults = [];
+      searchInput.addEventListener('input', () => {
+        clearTimeout(guestSearchTimer);
+        const q = searchInput.value.trim();
+        if (q.length < 2) { resultsBox.innerHTML = ''; return; }
+        guestSearchTimer = setTimeout(async () => {
+          try {
+            const res = await api('customer_search', { q }, 'GET');
+            lastGuestResults = res.customers || [];
+            if (!lastGuestResults.length) {
+              resultsBox.innerHTML = `<div class="small text-muted px-1">No matching guest found.</div>`;
+              return;
+            }
+            resultsBox.innerHTML = lastGuestResults.map((c, i) => {
+              const name = [c.first_name, c.last_name].filter(Boolean).join(' ') || 'Guest';
+              const meta = [c.contact_number, c.email].filter(Boolean).join(' · ');
+              return `<button type="button" class="list-group-item list-group-item-action" data-idx="${i}"><strong>${esc(name)}</strong>${meta ? `<span class="small text-muted d-block">${esc(meta)}</span>` : ''}</button>`;
+            }).join('');
+            resultsBox.querySelectorAll('[data-idx]').forEach(btn => btn.addEventListener('click', () => applyPreselection(lastGuestResults[Number(btn.dataset.idx)])));
+          } catch (err) {
+            resultsBox.innerHTML = `<div class="small text-danger px-1">${esc(err.message || 'Guest search failed.')}</div>`;
+          }
+        }, 300);
+      });
+      if (preselectedGuest && preselectedGuest.customer_id) applyPreselection(preselectedGuest);
 
       const roomSelect = root.querySelector('#ck-room-id');
       const nightsInput = root.querySelector('#ck-nights');
@@ -3571,6 +3663,7 @@
             last_name: String(f.last_name || '').trim(),
             contact_number: String(f.contact_number || '').trim(),
             email: String(f.email || '').trim(),
+            ...(selectedCustomerId ? { customer_id: selectedCustomerId } : {}),
             discount_amount: 0
           });
           m.hide();
@@ -3582,6 +3675,27 @@
       };
     } catch (e) {
       notify(e.message, true);
+    }
+  }
+
+  // Opens walk-in check-in with an active stay's guest preselected, so an
+  // additional room is booked under the same guest record (no duplicate).
+  async function bookAdditionalRoom(stayId) {
+    try {
+      const d = await api('active_stays', {}, 'GET');
+      const s = (d.stays || []).find(x => Number(x.id) === Number(stayId));
+      if (!s) return notify('Stay not found.', true);
+      if (!s.customer_id) return notify('This stay has no guest record to reuse.', true);
+      checkin({
+        customer_id: Number(s.customer_id),
+        first_name: s.first_name || '',
+        middle_name: s.middle_name || '',
+        last_name: s.last_name || '',
+        contact_number: s.contact_number || '',
+        email: s.email || ''
+      });
+    } catch (err) {
+      notify(err.message, true);
     }
   }
 
@@ -3601,7 +3715,7 @@
       const occupantPanel = s.group_booking_id
         ? `<section class="col-12"><div class="card border-primary-subtle"><div class="card-header bg-light py-2"><strong><i class="bi bi-people me-1"></i>Room occupants</strong><span class="small text-muted ms-2">${esc(s.group_code || 'Group booking')} · Room ${esc(s.room_number)}</span></div><div class="card-body py-2">${occupantNames.length ? `<ol class="mb-0 ps-3">${occupantNames.map(name => `<li>${esc(name)}</li>`).join('')}</ol>` : `<span class="small text-muted">No occupant names were recorded for this room during group check-in.</span>`}</div></div></section>`
         : '';
-      const {root,m}=modal(`Guest details · Room ${esc(s.room_number)}`,`<form id="guest-details-form" class="row g-3"><div class="col-12"><div class="alert alert-light border mb-0"><strong>Booked by / Group contact</strong><div>${esc(s.guest_name || 'Guest')}</div><span class="small text-muted">First and last name are required. Contact number and email are optional. Changes reflect on the folio, receipt, and guest portal.</span></div></div>${occupantPanel}<div class="col-md-4"><label class="form-label">First name <span class="text-danger">*</span></label><input class="form-control" type="text" name="first_name" maxlength="100" value="${esc(s.first_name||'')}" required></div><div class="col-md-4"><label class="form-label">Middle name <span class="text-muted">(Optional)</span></label><input class="form-control" type="text" name="middle_name" maxlength="100" value="${esc(s.middle_name||'')}"></div><div class="col-md-4"><label class="form-label">Last name <span class="text-danger">*</span></label><input class="form-control" type="text" name="last_name" maxlength="100" value="${esc(s.last_name||'')}" required></div><div class="col-md-6"><label class="form-label">Contact number <span class="text-muted">(Optional)</span></label><input class="form-control" type="tel" name="contact_number" maxlength="30" value="${esc(s.contact_number||'')}"></div><div class="col-md-6"><label class="form-label">Email <span class="text-muted">(Optional)</span></label><input class="form-control" type="email" name="email" maxlength="150" value="${esc(s.email||'')}"></div><div class="col-12 text-end"><button class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Save guest details</button></div></form>`);
+      const {root,m}=modal(`Guest details · Room ${esc(s.room_number)}`,`<form id="guest-details-form" class="row g-3"><div class="col-12"><div class="alert alert-light border mb-0"><strong>Booked by / Group contact</strong><div>${esc(s.guest_name || 'Guest')}</div><span class="small text-muted">First and last name are required. Contact number and email are optional. Changes reflect on the folio, receipt, and guest portal.</span></div></div>${(Array.isArray(s.linked_stays) && s.linked_stays.length) ? `<div class="col-12"><div class="alert alert-light border mb-0 small text-muted">Also booked under this guest: ${s.linked_stays.map(l => `Room ${esc(l.room_number)} (${esc(l.stay_code)})`).join(', ')}</div></div>` : ''}${occupantPanel}<div class="col-md-4"><label class="form-label">First name <span class="text-danger">*</span></label><input class="form-control" type="text" name="first_name" maxlength="100" value="${esc(s.first_name||'')}" required></div><div class="col-md-4"><label class="form-label">Middle name <span class="text-muted">(Optional)</span></label><input class="form-control" type="text" name="middle_name" maxlength="100" value="${esc(s.middle_name||'')}"></div><div class="col-md-4"><label class="form-label">Last name <span class="text-danger">*</span></label><input class="form-control" type="text" name="last_name" maxlength="100" value="${esc(s.last_name||'')}" required></div><div class="col-md-6"><label class="form-label">Contact number <span class="text-muted">(Optional)</span></label><input class="form-control" type="tel" name="contact_number" maxlength="30" value="${esc(s.contact_number||'')}"></div><div class="col-md-6"><label class="form-label">Email <span class="text-muted">(Optional)</span></label><input class="form-control" type="email" name="email" maxlength="150" value="${esc(s.email||'')}"></div><div class="col-12 text-end"><button class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Save guest details</button></div></form>`);
 
       root.querySelector('#guest-details-form').onsubmit=async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));try{const r=await api('update_stay_guest',{stay_id:Number(stayId),first_name:String(f.first_name||'').trim(),middle_name:String(f.middle_name||'').trim(),last_name:String(f.last_name||'').trim(),contact_number:String(f.contact_number||'').trim(),email:String(f.email||'').trim()});m.hide();notify(`Guest details saved: ${r.guest_name}`);await open(activeModule);}catch(err){notify(err.message,true)}};
 
@@ -8049,7 +8163,7 @@ async function transfer(id) {
     }
   }
 
-  window.HotelBilling={api,open,getActiveModule:()=>activeModule,notify,refreshRequestBadge,checkin,guestDetails,approveCheckinPayment,approveGroupCheckinPayment,confirmCheckinPayment,cancelPendingCheckin,renderWalkinCheckin,renderCheckoutDashboard,renderEarlyCheckoutRequests,selectRoomForWalkin:(roomId)=>{const sel=document.getElementById('wkd-room-id');if(sel){sel.value=String(roomId);sel.dispatchEvent(new Event('change'));sel.scrollIntoView({behavior:'smooth',block:'center'});sel.focus();}},folio,addCharge,pay,earlyCheckout,decideEarlyCheckout,finalizeEarlyCheckout,decideStayExtension,editEarlyPolicy,editDiscountPolicy,deleteDiscountPolicy,transfer,checkout,roomStatus,requestStatus,assignRequest,handleRequestAction,viewHistory,addRoom,editRoom,addRoomType,editRoomType,addMenuItem,editMenuItem,toggleMenuItem,reportDetails,savedGuestLinks,showCheckinComplete,showStayQr,showReceiptModal,refreshChatBadge};
+  window.HotelBilling={api,open,getActiveModule:()=>activeModule,notify,refreshRequestBadge,checkin,bookAdditionalRoom,guestDetails,approveCheckinPayment,approveGroupCheckinPayment,confirmCheckinPayment,cancelPendingCheckin,renderWalkinCheckin,renderCheckoutDashboard,renderEarlyCheckoutRequests,selectRoomForWalkin:(roomId)=>{const sel=document.getElementById('wkd-room-id');if(sel){sel.value=String(roomId);sel.dispatchEvent(new Event('change'));sel.scrollIntoView({behavior:'smooth',block:'center'});sel.focus();}},folio,addCharge,pay,earlyCheckout,decideEarlyCheckout,finalizeEarlyCheckout,decideStayExtension,editEarlyPolicy,editDiscountPolicy,deleteDiscountPolicy,transfer,checkout,roomStatus,requestStatus,assignRequest,handleRequestAction,viewHistory,addRoom,editRoom,addRoomType,editRoomType,addMenuItem,editMenuItem,toggleMenuItem,reportDetails,savedGuestLinks,showCheckinComplete,showStayQr,showReceiptModal,refreshChatBadge};
 
   document.addEventListener('hotel:authenticated',(event)=>{
 
