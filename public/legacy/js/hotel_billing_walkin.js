@@ -7767,17 +7767,20 @@ async function transfer(id) {
       const simFinal=autoTotal>0.009 ? Number(d.final_amount_with_late_checkout ?? (Number(d.final_amount||0)+autoTotal)) : Number(d.final_amount||0);
       const newBalanceDue=Math.max(0,simFinal-Number(d.payments_received||0));
       const checkoutAllowed = Boolean(d.checkout_allowed);
+      const checkoutBlockers = Array.isArray(d.checkout_blockers) ? d.checkout_blockers : [];
+      const hasBlockers = checkoutBlockers.length > 0;
+      const checkoutBlockReason = String(d.checkout_block_reason || 'Resolve the open items before checkout.');
       // Note: posted settled is NOT required here. If a posted balance is
       // also due, confirming late charges first still posts the late
       // charges, after which the combined posted balance is payable in
       // one pay call. Requiring posted-settled first would re-create the
       // deadlock for the mixed case (and a disabled Confirm button cannot
       // be triggered by the Settle button).
-      const pendingOnly = autoTotal>0.009 && !pending && checkoutAllowed;
-      const canFinalize = postedSettled && autoTotal<=0.009 && !pending && checkoutAllowed;
+      const pendingOnly = autoTotal>0.009 && !pending && checkoutAllowed && !hasBlockers;
+      const canFinalize = postedSettled && autoTotal<=0.009 && !pending && checkoutAllowed && !hasBlockers;
       const canConfirm = pendingOnly || canFinalize;
       const confirmLabel = pendingOnly ? 'Confirm late charges' : 'Confirm checkout';
-      const disabledReason = !checkoutAllowed ? 'Checkout is before the scheduled noon time or approved exception time' : pending ? 'Resolve the early checkout request first' : postedBalanceDue>0.009 ? 'Make sure the posted payment is settled before checkout' : 'Make sure payment is settled before checkout';
+      const disabledReason = hasBlockers ? ('Checkout blocked: ' + checkoutBlockReason) : pending ? 'Resolve the early checkout request first' : !checkoutAllowed ? 'Checkout is before the scheduled noon time or approved exception time' : postedBalanceDue>0.009 ? 'Make sure the posted payment is settled before checkout' : 'Make sure payment is settled before checkout';
 
       let statusAlert = '';
 
@@ -7799,12 +7802,16 @@ async function transfer(id) {
 
       }
 
+      if (hasBlockers) {
+        statusAlert += `<div class="alert alert-danger mt-3 mb-0"><strong>Checkout blocked.</strong> Resolve these before checkout:<br>${checkoutBlockers.map(b=>esc(b.message || '')).join('<br>')}</div>`;
+      }
+
       if (autoTotal>0.009) {
         const lateLines=(latePreview.lines||[]).map(l=>`<div>${esc(l)} — ${php(l.indexOf('Late checkout fee')===0?latePreview.late_fee_amount:latePreview.nightly_rate)}</div>`).join('');
         statusAlert += `<div class="alert alert-info mt-3 mb-0"><strong>Automatic late charge pending (not yet posted):</strong> Scheduled checkout ${esc(latePreview.scheduled_checkout_at)}, hotel time ${esc(d.hotel_now)}, nightly rate ${php(latePreview.nightly_rate)}.${lateLines}<div class="mt-1">New total to pay if confirmed (VAT-recomputed): <strong>${php(simFinal)}</strong>. Confirming checkout will ask you to confirm these charges first; only a manager can waive them.</div>${(latePreview.notes||[]).map(n=>`<div class="small">${esc(n)}</div>`).join('')}</div>`;
       }
 
-      if (!checkoutAllowed) {
+      if (!checkoutAllowed && !hasBlockers && !pending) {
         const scheduled = d.scheduled_checkout_at || `${d.stay.planned_checkout} 12:00:00`;
         const exceptionMessage = d.early_checkout_exception
           ? ` The manager-approved departure time is ${esc(d.early_checkout_exception.requested_departure_at)}.`

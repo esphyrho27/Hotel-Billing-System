@@ -43,6 +43,73 @@ function htl_room_has_stay_conflict(PDO $pdo, int $roomId, string $checkin, stri
 }
 
 /**
+ * Open items that must be resolved before a stay can check out.
+ *
+ * Single source of truth for the checkout, Next checkouts, and final-bill
+ * preview surfaces, so a button never says "allowed" when checkout itself
+ * would refuse. Order matches the checkout guard: open service requests,
+ * then a pending extension, then open restaurant orders.
+ *
+ * Each blocker is ['kind' => ..., 'message' => ...]. Service and order
+ * messages name up to 5 codes so staff can find the item to resolve.
+ * Terminal states (service COMPLETED/CANCELLED/REJECTED, order
+ * Served/Completed/Cancelled, extension APPROVED/REJECTED) never block:
+ * an APPROVED extension has already moved planned_checkout and posted
+ * its extra-night charge. A pending ROOM_TRANSFER is an open service
+ * request, so it blocks too — only a manager can approve or reject it.
+ */
+function htl_checkout_blockers(PDO $pdo, int $stayId): array {
+    $blockers = [];
+
+    $q = $pdo->prepare("SELECT COUNT(*) n FROM service_requests WHERE stay_id=? AND status IN ('NEW','PENDING','ASSIGNED','ACKNOWLEDGED','ACCEPTED','IN_PROGRESS','ON_HOLD')");
+    $q->execute([$stayId]);
+    $serviceCount = (int)$q->fetch()['n'];
+    if ($serviceCount > 0) {
+        $cq = $pdo->prepare("SELECT request_code, request_kind FROM service_requests WHERE stay_id=? AND status IN ('NEW','PENDING','ASSIGNED','ACKNOWLEDGED','ACCEPTED','IN_PROGRESS','ON_HOLD') ORDER BY id LIMIT 5");
+        $cq->execute([$stayId]);
+        $rows = $cq->fetchAll(PDO::FETCH_ASSOC);
+        $codes = array_values(array_filter(array_column($rows, 'request_code')));
+        $hasTransfer = false;
+        foreach ($rows as $r) {
+            if (($r['request_kind'] ?? '') === 'ROOM_TRANSFER') { $hasTransfer = true; break; }
+        }
+        $detail = $codes ? ' (' . implode(', ', $codes) . ($serviceCount > count($codes) ? ', and ' . ($serviceCount - count($codes)) . ' more' : '') . ')' : '';
+        $msg = $serviceCount . ' open service request(s)' . $detail . '. Complete or cancel them in the service queue before checkout.';
+        if ($hasTransfer) {
+            $msg .= ' A room transfer among them needs manager approval in Room Transfer Requests.';
+        }
+        $blockers[] = ['kind' => 'service', 'count' => $serviceCount, 'message' => $msg];
+    }
+
+    $eq = $pdo->prepare("SELECT id FROM stay_extension_requests WHERE stay_id=? AND status='REQUESTED' ORDER BY created_at DESC LIMIT 1");
+    $eq->execute([$stayId]);
+    $ext = $eq->fetch();
+    if ($ext) {
+        $blockers[] = ['kind' => 'extension', 'count' => 1, 'message' => 'A stay extension request is waiting for approval. Approve or reject it in Early Checkout Approvals (Stay Extension Requests) before checkout.'];
+    }
+
+    $q = $pdo->prepare("SELECT COUNT(*) n FROM restaurant_orders WHERE stay_id=? AND order_status IN ('Pending','Confirmed','Preparing','Ready for Serving')");
+    $q->execute([$stayId]);
+    $orderCount = (int)$q->fetch()['n'];
+    if ($orderCount > 0) {
+        $oq = $pdo->prepare("SELECT order_code FROM restaurant_orders WHERE stay_id=? AND order_status IN ('Pending','Confirmed','Preparing','Ready for Serving') ORDER BY id LIMIT 5");
+        $oq->execute([$stayId]);
+        $codes = array_values(array_filter($oq->fetchAll(PDO::FETCH_COLUMN)));
+        $detail = $codes ? ' (' . implode(', ', $codes) . ($orderCount > count($codes) ? ', and ' . ($orderCount - count($codes)) . ' more' : '') . ')' : '';
+        $blockers[] = ['kind' => 'order', 'count' => $orderCount, 'message' => $orderCount . ' open restaurant order(s)' . $detail . '. Serve, complete or cancel them before checkout.'];
+    }
+
+    return $blockers;
+}
+
+function htl_checkout_block_reason(array $blockers): string {
+    if (!$blockers) {
+        return '';
+    }
+    return implode(' ', array_column($blockers, 'message'));
+}
+
+/**
  * Ensures the check-in payment queue table exists. The table is created lazily
  * so the FOR PAYMENT workflow works immediately after deployment without a
  * separate migration step; database/migrations/001_checkin_payments.sql
@@ -639,6 +706,12 @@ if ($action === 'dashboard') {
                             $ncBlockReason = 'Checkout is blocked until the manager-approved departure time of ' . $ncEarlyRow['requested_departure_at'] . '.';
                         } else {
                             $ncBlockReason = 'Checkout is available at 12:00 PM on the scheduled checkout date (' . $ncScheduledAt->format('Y-m-d H:i:s') . ') unless a finalized manager-approved early-checkout exception applies.';
+                        }
+                    } else {
+                        $ncBlockers = htl_checkout_blockers($pdo, (int)$ncRow['stay_id']);
+                        if ($ncBlockers) {
+                            $ncAllowed = false;
+                            $ncBlockReason = 'Checkout is blocked: ' . htl_checkout_block_reason($ncBlockers);
                         }
                     }
                 }
@@ -4149,10 +4222,9 @@ if ($action === 'checkout') {
             throw new RuntimeException('Checkout is available at 12:00 PM on the scheduled checkout date (' . $scheduledCheckoutAt->format('Y-m-d H:i:s') . ') unless a finalized manager-approved early-checkout exception applies.');
         }
 
-        $q = $pdo->prepare("SELECT COUNT(*) n FROM service_requests WHERE stay_id=? AND status IN ('NEW','PENDING','ASSIGNED','ACKNOWLEDGED','ACCEPTED','IN_PROGRESS','ON_HOLD')");
-        $q->execute([$sid]);
-        if ((int)$q->fetch()['n'] > 0) {
-            throw new RuntimeException('Complete or cancel open service requests before checkout.');
+        $checkoutBlockers = htl_checkout_blockers($pdo, $sid);
+        if ($checkoutBlockers) {
+            throw new RuntimeException('Checkout is blocked: ' . htl_checkout_block_reason($checkoutBlockers));
         }
 
         // Automatic late-checkout / overstay rule. This runs after every
@@ -4631,6 +4703,21 @@ if ($action === 'final_bill_preview') {
     $exceptionQuery->execute([$sid]);
     $earlyCheckoutException = $exceptionQuery->fetch(PDO::FETCH_ASSOC) ?: null;
     $checkoutAllowed = hotel_checkout_is_allowed((string)$stay['planned_checkout'], $actual, $earlyCheckoutException, $checkin);
+    // Same blockers as the checkout guard itself: an open service,
+    // a pending extension, or an open restaurant order blocks checkout
+    // even when the noon rule is satisfied. Early-checkout pendings are
+    // reported separately as pending_early_checkout_request and also
+    // keep checkout_allowed false here, matching the guard order.
+    $checkoutBlockers = htl_checkout_blockers($pdo, $sid);
+    $checkoutBlockReason = htl_checkout_block_reason($checkoutBlockers);
+    if ($pendingEarly || $checkoutBlockers) {
+        $checkoutAllowed = false;
+        if ($pendingEarly && !$checkoutBlockReason) {
+            $checkoutBlockReason = $pendingEarly['status'] === 'REQUESTED' ? 'Early checkout request is waiting for manager approval.' : 'Early checkout request is approved but not yet finalized.';
+        } elseif ($pendingEarly && $checkoutBlockReason) {
+            $checkoutBlockReason = ($pendingEarly['status'] === 'REQUESTED' ? 'Early checkout request is waiting for manager approval.' : 'Early checkout request is approved but not yet finalized.') . ' ' . $checkoutBlockReason;
+        }
+    }
     $stayNights = max(1, (int)$checkin->setTime(0, 0)->diff($actual->setTime(0, 0))->format('%a'));
     $plannedNights = max(1, (int)$checkin->setTime(0, 0)->diff($planned)->format('%a'));
     $originalRoomAmount = array_sum(array_map(fn($c) => (string)$c['category'] === 'ROOM' ? (float)$c['amount'] : 0.0, $charges));
@@ -4682,6 +4769,8 @@ if ($action === 'final_bill_preview') {
             'approved_at' => $earlyCheckoutException['approved_at'],
         ] : null,
         'checkout_allowed' => $checkoutAllowed,
+        'checkout_blockers' => $checkoutBlockers,
+        'checkout_block_reason' => $checkoutBlockReason,
         'hotel_now' => $actual->format('Y-m-d H:i:s'),
         'hotel_timezone' => hotel_timezone()->getName(),
         'scheduled_checkout_at' => $planned->format('Y-m-d H:i:s'),
