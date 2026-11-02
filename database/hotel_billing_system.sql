@@ -1494,10 +1494,12 @@ INSERT INTO `room_transfers` (`id`, `stay_id`, `from_room_id`, `to_room_id`, `ef
 --
 
 CREATE TABLE `room_types` (
-  `id` bigint(20) UNSIGNED NOT NULL,
+  `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
   `name` varchar(80) NOT NULL,
   `nightly_rate` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `capacity` int(11) NOT NULL DEFAULT 2
+  `capacity` int(11) NOT NULL DEFAULT 2,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --

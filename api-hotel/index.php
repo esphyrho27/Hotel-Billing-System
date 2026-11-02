@@ -686,6 +686,21 @@ if ($action === 'room_type_save') {
         out(['error' => 'Enter a valid room type, nightly rate, and capacity.'], 400);
     }
 
+    // Explicit duplicate check: the table may or may not carry a UNIQUE key
+    // on name (live does, the schema dump does not), so never rely on the
+    // constraint alone. Case-insensitive and whitespace-tolerant, matching
+    // how the live unique index compares names; the row itself is excluded
+    // on edit so keeping its own name is not a false duplicate.
+    $dup = $pdo->prepare('SELECT 1 FROM room_types WHERE LOWER(TRIM(name)) = LOWER(?)' . ($id ? ' AND id <> ?' : '') . ' LIMIT 1');
+    if ($id) {
+        $dup->execute([$name, $id]);
+    } else {
+        $dup->execute([$name]);
+    }
+    if ($dup->fetchColumn()) {
+        out(['error' => 'Room type name already exists.'], 409);
+    }
+
     try {
         if ($id) {
             $pdo->beginTransaction();
@@ -721,7 +736,14 @@ if ($action === 'room_type_save') {
         out(['error' => $e->getMessage()], 409);
     } catch (PDOException $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
-        out(['error' => 'Room type name already exists or is in use.'], 400);
+        error_log('[room-type-save] ' . $e->getMessage());
+        if ((string)$e->getCode() === '23000') {
+            out(['error' => 'Room type name already exists.'], 409);
+        }
+        // Any other database failure is reported honestly with the real
+        // reason instead of being relabelled as a duplicate name. This is a
+        // staff-only endpoint and driver messages carry no credentials.
+        out(['error' => 'Could not save room type: ' . $e->getMessage()], 500);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         error_log('[room-type-save] ' . $e->getMessage());
