@@ -5316,7 +5316,7 @@ async function confirmCheckinPayment(cpId) {
 
             <select class="form-select" name="category" required>
 
-              ${[['HOUSEKEEPING','Housekeeping'],['SERVICE','General Services'],['LAUNDRY','Laundry'],['MINIBAR','Minibar'],['OTHER','Other']].map(([v,l])=>`<option value="${v}" ${(existing?.category===v || (!existing && v==='SERVICE'))?'selected':''}>${l}</option>`).join('')}
+              ${[['HOUSEKEEPING','Housekeeping'],['SERVICE','General Services'],['LAUNDRY','Laundry'],['MINIBAR','Minibar'],['GYM','Gym'],['POOL','Pool'],['SPA','Spa & Massage'],['OTHER','Other']].map(([v,l])=>`<option value="${v}" ${(existing?.category===v || (!existing && v==='SERVICE'))?'selected':''}>${l}</option>`).join('')}
 
             </select>
 

@@ -1770,10 +1770,10 @@ if ($action === 'service_catalog_save') {
     if (!in_array($item_type, ['FOOD', 'DRINK', 'OTHER'], true)) $item_type = 'OTHER';
     $description = trim((string)($in['description'] ?? ''));
     $price = round((float)($in['price'] ?? 0), 2);
-    $allowed = ['HOUSEKEEPING', 'SERVICE', 'LAUNDRY', 'MINIBAR', 'OTHER'];
+    $allowed = ['HOUSEKEEPING', 'SERVICE', 'LAUNDRY', 'MINIBAR', 'OTHER', 'GYM', 'POOL', 'SPA'];
 
     if ($name === '' || strlen($name) > 120 || !in_array($category, $allowed, true) || $price < 0) {
-        out(['error' => 'Choose a hotel service/amenity category (Housekeeping, Service, Laundry, Minibar, or Other) and enter a non-negative price. Restaurant food and drink products must be managed in the Restaurant Menu.'], 400);
+        out(['error' => 'Choose a hotel service/amenity category (Housekeeping, Service, Laundry, Minibar, Gym, Pool, Spa & Massage, or Other) and enter a non-negative price. Restaurant food and drink products must be managed in the Restaurant Menu.'], 400);
     }
 
     try {

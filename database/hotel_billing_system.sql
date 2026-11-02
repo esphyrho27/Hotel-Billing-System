@@ -1553,7 +1553,7 @@ INSERT INTO `room_types` (`id`, `name`, `nightly_rate`, `capacity`) VALUES
 CREATE TABLE `service_catalog` (
   `id` bigint(20) UNSIGNED NOT NULL,
   `name` varchar(120) NOT NULL,
-  `category` enum('FOOD_BEVERAGE','HOUSEKEEPING','SERVICE','LAUNDRY','MINIBAR','OTHER') NOT NULL,
+  `category` enum('FOOD_BEVERAGE','HOUSEKEEPING','SERVICE','LAUNDRY','MINIBAR','OTHER','GYM','POOL','SPA') NOT NULL,
   `description` varchar(255) DEFAULT NULL,
   `price` decimal(12,2) NOT NULL DEFAULT 0.00,
   `active` tinyint(1) NOT NULL DEFAULT 1,

@@ -255,6 +255,32 @@ try {
         $stay = $stayQuery->fetch() ?: null;
     }
 
+    // Public amenity rates feed for the static guest portal amenity pages.
+    // Rates are hotel info, not guest data, so no stay token is required.
+    // Returns active catalog services in the GYM, POOL, and SPA categories only.
+    if (isset($_GET['amenity_services'])) {
+        header('Content-Type: application/json; charset=utf-8');
+        try {
+            $amenityServicesQuery = $pdo->query(
+                "SELECT id, name, description, price, category FROM service_catalog
+                 WHERE active = 1 AND category IN ('GYM', 'POOL', 'SPA')
+                 ORDER BY category, id"
+            );
+            $amenityServices = $amenityServicesQuery->fetchAll();
+            foreach ($amenityServices as &$amenityService) {
+                $amenityService['id'] = (int)$amenityService['id'];
+                $amenityService['price'] = (float)$amenityService['price'];
+            }
+            unset($amenityService);
+            echo json_encode(['ok' => true, 'services' => $amenityServices]);
+        } catch (Throwable $amenityError) {
+            error_log('[guest-portal-amenity-services] ' . $amenityError->getMessage());
+            http_response_code(503);
+            echo json_encode(['ok' => false, 'message' => 'Amenity services are temporarily unavailable.']);
+        }
+        exit;
+    }
+
     // Private, token-scoped polling endpoint used by the guest portal for live progress.
     // This reuses the same validated stay token as the page and returns no guest PII.
     if (isset($_GET['portal_live'])) {
@@ -533,6 +559,89 @@ try {
         $_SESSION['portal_csrf'] = bin2hex(random_bytes(32));
     }
     $csrf = (string)($_SESSION['portal_csrf'] ?? '');
+
+    // Token-authenticated amenity booking from the static guest portal pages.
+    // The portal token is the guest's bearer credential (same exposure as the
+    // portal link itself), so no session CSRF token is required here; the
+    // static pages cannot mint one. Charges still post only when staff marks
+    // the booking COMPLETED, exactly like any other priced service request.
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string)($_POST['portal_action'] ?? '') === 'amenity_book') {
+        header('Content-Type: application/json; charset=utf-8');
+        $amenityFail = static function (int $code, string $message): void {
+            http_response_code($code);
+            echo json_encode(['ok' => false, 'message' => $message]);
+            exit;
+        };
+        if (!$stay) {
+            $amenityFail(404, 'Guest stay not found or portal link expired.');
+        }
+        if ($stay['status'] !== 'ACTIVE') {
+            $amenityFail(409, 'Requests and room-service orders are available during an active stay only.');
+        }
+        $amenityServiceId = filter_var($_POST['service_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $amenityNote = trim((string)($_POST['note'] ?? ''));
+        if ($amenityServiceId === false) {
+            $amenityFail(422, 'Choose a service to book.');
+        }
+        if (mb_strlen($amenityNote) > 500) {
+            $amenityFail(422, 'Please shorten your note and try again.');
+        }
+        $amenityServiceQuery = $pdo->prepare(
+            "SELECT id, name, price FROM service_catalog
+             WHERE id = ? AND active = 1 AND category IN ('GYM', 'POOL', 'SPA') LIMIT 1"
+        );
+        $amenityServiceQuery->execute([(int)$amenityServiceId]);
+        $amenityService = $amenityServiceQuery->fetch();
+        if (!$amenityService) {
+            $amenityFail(422, 'That service is no longer available. Refresh and try again.');
+        }
+        $amenityPrice = round((float)$amenityService['price'], 2);
+        $amenityDescription = (string)$amenityService['name'] . ($amenityNote !== '' ? ' — ' . $amenityNote : '');
+        $amenityCode = 'RQ' . strtoupper(bin2hex(random_bytes(4)));
+        $pdo->beginTransaction();
+        try {
+            $amenityInsert = $pdo->prepare(
+                "INSERT INTO service_requests
+                    (stay_id, request_code, service_type, assigned_department, status, description, chargeable, price)
+                 VALUES (?, ?, 'OTHER', 'service', 'PENDING', ?, ?, ?)"
+            );
+            $amenityInsert->execute([
+                (int)$stay['id'],
+                $amenityCode,
+                $amenityDescription,
+                $amenityPrice > 0 ? 1 : 0,
+                $amenityPrice,
+            ]);
+            $amenityRequestId = (int)$pdo->lastInsertId();
+            $amenityHistory = $pdo->prepare(
+                "INSERT INTO service_request_history
+                    (request_id, from_status, to_status, assigned_department, notes)
+                 VALUES (?, NULL, 'PENDING', 'service', ?)"
+            );
+            $amenityHistory->execute([$amenityRequestId, 'Booked by guest from the amenity page.']);
+            $pdo->commit();
+        } catch (Throwable $amenityError) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            error_log('[guest-portal-amenity-book] ' . $amenityError->getMessage());
+            $amenityFail(503, 'Booking is temporarily unavailable. Please try again.');
+        }
+        portal_broadcast('REQUEST_CREATED', [
+            'id' => $amenityRequestId,
+            'request_code' => $amenityCode,
+            'stay_code' => $stay['stay_code'],
+            'room_number' => $stay['room_number'],
+            'service_type' => 'OTHER',
+            'assigned_department' => 'service',
+            'status' => 'PENDING',
+            'description' => $amenityDescription,
+            'chargeable' => $amenityPrice > 0 ? 1 : 0,
+            'price' => $amenityPrice,
+        ], 'service', $stay['stay_code']);
+        echo json_encode(['ok' => true, 'request_code' => $amenityCode, 'service_name' => (string)$amenityService['name'], 'price' => $amenityPrice]);
+        exit;
+    }
 
     if ($stay && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $submittedToken = (string)($_POST['t'] ?? '');
@@ -860,6 +969,9 @@ try {
                                 'MINIBAR' => ['FOOD_BEVERAGE', 'restaurant'],
                                 'SERVICE' => ['OTHER', 'service'],
                                 'OTHER' => ['OTHER', 'service'],
+                                'GYM' => ['OTHER', 'service'],
+                                'POOL' => ['OTHER', 'service'],
+                                'SPA' => ['OTHER', 'service'],
                             ];
                             if (isset($serviceRouting[$service['category']])) {
                                 $type = $serviceRouting[$service['category']][0];
@@ -1789,7 +1901,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         <h2>Hotel amenities</h2>
         <div class="amenities-carousel" id="amenities-carousel">
           <div class="amenities-track" id="amenities-track">
-            <figure class="amenities-slide" tabindex="0" data-amenity-page="/amenities/pool.html">
+            <figure class="amenities-slide" tabindex="0" data-amenity-page="/amenities/pool.html?t=<?=portal_escape($token)?>">
               <img src="/assets/amenities/pool.webp" alt="Swimming pool" loading="lazy">
               <figcaption><strong>Swimming Pool</strong><span>Take a dip and unwind.</span><span class="amenities-action">View details &rarr;</span></figcaption>
             </figure>
@@ -1797,11 +1909,11 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
               <img src="/assets/amenities/restaurant.webp" alt="Restaurant" loading="lazy">
               <figcaption><strong>Restaurant</strong><span>Good food, served fresh.</span><span class="amenities-action">Order food &rarr;</span></figcaption>
             </figure>
-            <figure class="amenities-slide" tabindex="0" data-amenity-page="/amenities/gym.html">
+            <figure class="amenities-slide" tabindex="0" data-amenity-page="/amenities/gym.html?t=<?=portal_escape($token)?>">
               <img src="/assets/amenities/gym.webp" alt="Fitness gym" loading="lazy">
               <figcaption><strong>Fitness Gym</strong><span>Keep up your routine.</span><span class="amenities-action">View details &rarr;</span></figcaption>
             </figure>
-            <figure class="amenities-slide" tabindex="0" data-amenity-page="/amenities/spa.html">
+            <figure class="amenities-slide" tabindex="0" data-amenity-page="/amenities/spa.html?t=<?=portal_escape($token)?>">
               <img src="/assets/amenities/spa.webp" alt="Spa and massage" loading="lazy">
               <figcaption><strong>Spa &amp; Massage</strong><span>Slow down and relax.</span><span class="amenities-action">View details &rarr;</span></figcaption>
             </figure>

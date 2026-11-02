@@ -14,6 +14,13 @@
     <figcaption><strong>Swimming Pool</strong><span>Take a dip and unwind.</span></figcaption>
   </figure>
   <p class="amenity-about">A calm place to cool off after a day out. The pool is open to all in-house guests, with loungers and shaded seating around the deck.</p>
+  <section class="amenity-card" id="amenity-services" data-amenity-category="POOL">
+    <h2>Services &amp; Rates</h2>
+    <div id="amenity-services-list"><p class="amenity-note">Loading services…</p></div>
+    <label class="amenity-note-label" for="amenity-note">Note (optional)</label>
+    <input class="amenity-note-input" id="amenity-note" type="text" maxlength="500" placeholder="Preferred time or anything we should know">
+    <p class="amenity-book-message" id="amenity-book-message" role="status" aria-live="polite"></p>
+  </section>
   <section class="amenity-card">
     <h2>Opening Hours</h2>
     <p class="amenity-hours">Open daily &middot; 7:00 AM &ndash; 9:00 PM</p>
@@ -39,6 +46,44 @@ document.getElementById("amenity-back").addEventListener("click", function () {
   if (window.history.length > 1) { window.history.back(); }
   else { window.location.href = "/"; }
 });
+(function () {
+  var section = document.getElementById("amenity-services");
+  if (!section) return;
+  var category = section.getAttribute("data-amenity-category");
+  var list = document.getElementById("amenity-services-list");
+  var noteInput = document.getElementById("amenity-note");
+  var message = document.getElementById("amenity-book-message");
+  var token = new URLSearchParams(window.location.search).get("t") || "";
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+  function peso(n) { return "₱" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function showMessage(text, isError) { message.textContent = text; message.className = "amenity-book-message" + (isError ? " is-error" : " is-ok"); }
+  fetch("/portal.php?amenity_services=1")
+    .then(function (r) { if (!r.ok) throw new Error("load"); return r.json(); })
+    .then(function (data) {
+      var services = (data.services || []).filter(function (s) { return s.category === category; });
+      if (!services.length) { list.innerHTML = "<p class=\"amenity-note\">No services listed yet — ask the front desk.</p>"; return; }
+      list.innerHTML = services.map(function (s) {
+        return "<div class=\"amenity-service\"><div class=\"amenity-service-info\"><strong>" + esc(s.name) + "</strong><span>" + esc(s.description) + "</span></div><div class=\"amenity-service-book\"><strong class=\"amenity-service-price\">" + peso(s.price) + "</strong><button type=\"button\" class=\"amenity-book-btn\" data-service-id=\"" + s.id + "\">Book</button></div></div>";
+      }).join("");
+      list.querySelectorAll(".amenity-book-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          if (!token) { showMessage("Open this page from your guest portal to book.", true); return; }
+          btn.disabled = true; btn.textContent = "Booking…";
+          var body = new URLSearchParams({ portal_action: "amenity_book", t: token, service_id: btn.getAttribute("data-service-id"), note: noteInput.value });
+          fetch("/portal.php", { method: "POST", body: body })
+            .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+            .then(function (res) {
+              btn.disabled = false; btn.textContent = "Book";
+              if (res.ok && res.data.ok) {
+                showMessage("Booked: " + res.data.service_name + " (" + peso(res.data.price) + "). Request " + res.data.request_code + ". This will appear on your folio once our team completes the service.", false);
+              } else { showMessage((res.data && res.data.message) || "Booking failed. Please try again.", true); }
+            })
+            .catch(function () { btn.disabled = false; btn.textContent = "Book"; showMessage("Booking failed. Please try again.", true); });
+        });
+      });
+    })
+    .catch(function () { list.innerHTML = "<p class=\"amenity-note\">Rates couldn't be loaded — ask the front desk.</p>"; });
+})();
 </script>
 </body>
 </html>
