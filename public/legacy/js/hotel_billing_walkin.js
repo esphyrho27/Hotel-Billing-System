@@ -1618,7 +1618,7 @@
 
       const dest=id==='active-stays'?'active-stays-content':id==='transactions'?'all-transactions-content':'billing-content';
 
-      $(dest).innerHTML=`${pendingHtml}${confirmHtml}<div class="d-flex justify-content-between align-items-center mb-3"><p class="text-muted mb-0">${stays.length} active stay(s)</p>${!isCashier ? '<button class="btn btn-primary btn-sm" onclick="HotelBilling.checkin()">＋ Walk-in Check-in</button>' : ''}</div>
+      $(dest).innerHTML=`${pendingHtml}${confirmHtml}<div class="d-flex justify-content-between align-items-center mb-3"><p class="text-muted mb-0">${stays.length} active stay(s)</p></div>
 
       <div class="d-none d-md-block">${table(tableHeaders,rows,'No active stays.')}</div>
 
