@@ -350,12 +350,66 @@
   // row opens the existing official receipt viewer, which already prints.
   // The list modal is hidden first, matching the checkout flow's
   // hide-then-open pattern, so two Bootstrap modals never stack.
+  // Hide a Bootstrap modal, but never wait forever: the hidden event is
+  // raced against a 600ms timeout so a stuck modal cannot silently block
+  // the next modal (the reported "Receipts button does nothing" symptom).
+  async function hideModalWithTimeout(modalObj) {
+    if (!modalObj || !modalObj.root || !modalObj.root.classList.contains('show')) return;
+    const closed = new Promise(resolve => modalObj.root.addEventListener('hidden.bs.modal', resolve, { once: true }));
+    try { modalObj.m.hide(); } catch (_) {}
+    await Promise.race([closed, new Promise(resolve => setTimeout(resolve, 600))]);
+  }
+
+  // Standalone receipt page used by both Print and Download, so printing
+  // prints only the receipt (not the whole dashboard) and downloading
+  // saves a file that opens on its own.
+  function officialReceiptStandaloneHtml(receiptNo, areaHtml, printOnLoad) {
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Official Receipt · ${esc(receiptNo)}</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"><style>body{font-family:Arial,system-ui,sans-serif;color:#111;margin:24px}table{width:100%;border-collapse:collapse}th,td{padding:6px;border-bottom:1px solid #ddd;text-align:left}@media print{button{display:none}body{margin:12mm}}</style></head><body>${areaHtml}<div class="mt-3"><button onclick="window.print()">Print receipt</button></div>${printOnLoad ? '<script>window.onload=()=>window.print()</script>' : ''}</body></html>`;
+  }
+
+  function printOfficialReceipt() {
+    const area = document.getElementById('printable-official-receipt');
+    if (!area) { notify('Receipt is not open, so it cannot be printed.', true); return; }
+    const w = window.open('', '_blank');
+    if (!w) { notify('Allow pop-ups for this site to print the receipt.', true); return; }
+    w.document.write(officialReceiptStandaloneHtml('receipt', area.innerHTML, true));
+    w.document.close();
+    w.focus();
+  }
+
+  function downloadOfficialReceipt(receiptNo) {
+    const area = document.getElementById('printable-official-receipt');
+    if (!area) { notify('Receipt is not open, so it cannot be downloaded.', true); return; }
+    const safeNo = String(receiptNo || 'receipt').replace(/[^A-Za-z0-9_-]/g, '');
+    const html = officialReceiptStandaloneHtml(receiptNo || 'receipt', area.innerHTML, false);
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Official-Receipt-${safeNo}.html`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    notify(`Receipt ${receiptNo || ''} downloaded.`);
+  }
+
+  // Checked-Out Guests: list the individual payment receipts for one folio.
+  // Uses the existing folio endpoint (billing.view, so frontdesk can use it)
+  // rather than payment_history, which is admin/manager/cashier only.
+  // The loading modal opens FIRST, so a click is never silent: a slow or
+  // failing folio call shows loading, then an exact error with Retry,
+  // instead of doing nothing.
   async function showCheckoutReceipts(folioId, stayCode) {
     const id = Number(folioId);
     if (!id) return;
+    const loadingModal = modal(`Payment receipts · ${esc(stayCode || '')}`, '<div class="text-muted py-3">Loading payment receipts…</div>');
+    window.HotelBilling.checkoutReceiptsModal = loadingModal;
     try {
       const d = await api('folio', { folio_id: id });
       const payments = d.payments || [];
+      await hideModalWithTimeout(loadingModal);
+      window.HotelBilling.checkoutReceiptsModal = null;
       if (!payments.length) {
         modal(`Payment receipts · ${esc(stayCode || '')}`, '<div class="text-muted">No payment receipts recorded for this stay.</div>');
         return;
@@ -366,24 +420,24 @@
         <td><strong>${esc(p.receipt_number)}</strong></td>
         <td>${esc(p.method)}</td>
         <td class="text-end">${php(p.amount)}</td>
-        <td><button type="button" class="btn btn-sm btn-outline-dark" onclick="HotelBilling.viewCheckoutReceipt('${esc(p.receipt_number)}')"><i class="bi bi-printer me-1"></i>View receipt</button></td>
+        <td><div class="d-flex gap-1"><button type="button" class="btn btn-sm btn-outline-dark" onclick="HotelBilling.viewCheckoutReceipt('${esc(p.receipt_number)}')"><i class="bi bi-printer me-1"></i>View receipt</button><button type="button" class="btn btn-sm btn-outline-primary" onclick="HotelBilling.downloadCheckoutReceipt('${esc(p.receipt_number)}')"><i class="bi bi-download me-1"></i>Download</button></div></td>
       </tr>`).join('');
       const listModal = modal(`Payment receipts · ${esc(stayCode || '')} · Folio ${esc(d.folio?.folio_number || '')}`,
         `${table(['Date / Time', 'Receipt', 'Method', 'Amount', ''], rows, 'No payment receipts recorded for this stay.')}
-         <div class="d-flex justify-content-between align-items-center mt-3"><span class="small text-muted">Each receipt opens the official payment receipt, which can be printed.</span><strong>Total of receipts: ${php(totalPaid)}</strong></div>`);
+         <div class="d-flex justify-content-between align-items-center mt-3"><span class="small text-muted">View opens the official receipt; Download saves it as a file.</span><strong>Total of receipts: ${php(totalPaid)}</strong></div>`);
       window.HotelBilling.checkoutReceiptsModal = listModal;
     } catch (error) {
-      notify('Unable to load payment receipts: ' + (error.message || 'Unknown error'), true);
+      const message = (error && error.message) ? error.message : 'Unknown error';
+      await hideModalWithTimeout(loadingModal);
+      window.HotelBilling.checkoutReceiptsModal = null;
+      modal(`Payment receipts · ${esc(stayCode || '')} — could not load`,
+        `<div class="alert alert-danger mb-3">${esc(message)}</div><div class="small text-muted mb-3">Folio ${id} · Stay ${esc(stayCode || '')}. If this keeps happening, send this message with a screenshot.</div><div class="d-flex gap-2"><button type="button" class="btn btn-primary btn-sm" onclick="HotelBilling.showCheckoutReceipts(${id}, '${esc(stayCode || '')}')">Retry</button><button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close</button></div>`);
     }
   }
 
   async function viewCheckoutReceipt(receiptNumber) {
     const listModal = window.HotelBilling.checkoutReceiptsModal;
-    if (listModal && listModal.root && listModal.root.classList.contains('show')) {
-      const closed = new Promise(resolve => listModal.root.addEventListener('hidden.bs.modal', resolve, { once: true }));
-      listModal.m.hide();
-      await closed;
-    }
+    await hideModalWithTimeout(listModal);
     window.HotelBilling.checkoutReceiptsModal = null;
     // showReceiptModal fetches receipt_details (frontdesk included) and
     // renders the official receipt only: its Check-Out button requires a
@@ -392,6 +446,13 @@
     // safe too: the folio modal disables checkout and payment and hides
     // Add charge for a PAID folio.
     await showReceiptModal(receiptNumber);
+  }
+
+  async function downloadCheckoutReceipt(receiptNumber) {
+    // Reuse the official receipt renderer, then download its area, so the
+    // downloaded file is exactly the receipt the user would see.
+    await viewCheckoutReceipt(receiptNumber);
+    downloadOfficialReceipt(receiptNumber);
   }
 
   let serviceDashboardLastRender = 0;
@@ -3977,7 +4038,7 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
           </div>
           <div class="text-center text-muted small py-2 border-top">This receipt covers the room-by-room payment allocations listed above.</div>
         </div>
-        <div class="d-flex justify-content-end mt-3 no-print"><button class="btn btn-primary btn-sm fw-bold" onclick="window.print()"><i class="bi bi-printer me-1"></i>Print Group Receipt</button></div>`;
+        <div class="d-flex justify-content-end gap-2 mt-3 no-print"><button class="btn btn-outline-primary btn-sm fw-bold" onclick="HotelBilling.downloadOfficialReceipt('${esc(data.receipt_number)}')"><i class="bi bi-download me-1"></i>Download Group Receipt</button><button class="btn btn-primary btn-sm fw-bold" onclick="HotelBilling.printOfficialReceipt()"><i class="bi bi-printer me-1"></i>Print Group Receipt</button></div>`;
       modal(`Official Group Receipt · ${esc(data.receipt_number || '')}`, groupHtml);
       return;
     }
@@ -4125,7 +4186,10 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
           ${data.folio_id ? `<button class="btn btn-outline-primary btn-sm ms-1" onclick="HotelBilling.folio(${data.folio_id})"><i class="bi bi-receipt me-1"></i>View Full Folio</button>` : ''}
         </div>
         <div class="d-flex gap-2">
-          <button class="btn btn-primary btn-sm fw-bold px-3 shadow-sm" onclick="window.print()">
+          <button class="btn btn-outline-primary btn-sm fw-bold px-3 shadow-sm" onclick="HotelBilling.downloadOfficialReceipt('${esc(receiptNo)}')">
+            <i class="bi bi-download me-1"></i>Download Official Receipt
+          </button>
+          <button class="btn btn-primary btn-sm fw-bold px-3 shadow-sm" onclick="HotelBilling.printOfficialReceipt()">
             <i class="bi bi-printer me-1"></i>Print Official Receipt
           </button>
         </div>
@@ -8446,7 +8510,7 @@ async function transfer(id) {
     }
   }
 
-  window.HotelBilling={api,open,getActiveModule:()=>activeModule,notify,refreshRequestBadge,checkin,bookAdditionalRoom,guestDetails,approveCheckinPayment,approveGroupCheckinPayment,confirmCheckinPayment,cancelPendingCheckin,renderWalkinCheckin,renderCheckoutDashboard,renderEarlyCheckoutRequests,selectRoomForWalkin:(roomId)=>{const sel=document.getElementById('wkd-room-id');if(sel){sel.value=String(roomId);sel.dispatchEvent(new Event('change'));sel.scrollIntoView({behavior:'smooth',block:'center'});sel.focus();}},folio,addCharge,pay,earlyCheckout,decideEarlyCheckout,finalizeEarlyCheckout,decideStayExtension,editEarlyPolicy,editDiscountPolicy,deleteDiscountPolicy,transfer,checkout,roomStatus,requestStatus,assignRequest,handleRequestAction,viewHistory,addRoom,editRoom,addRoomType,editRoomType,addMenuItem,editMenuItem,toggleMenuItem,reportDetails,savedGuestLinks,showCheckinComplete,showStayQr,showReceiptModal,showCheckoutReceipts,viewCheckoutReceipt,refreshChatBadge};
+  window.HotelBilling={api,open,getActiveModule:()=>activeModule,notify,refreshRequestBadge,checkin,bookAdditionalRoom,guestDetails,approveCheckinPayment,approveGroupCheckinPayment,confirmCheckinPayment,cancelPendingCheckin,renderWalkinCheckin,renderCheckoutDashboard,renderEarlyCheckoutRequests,selectRoomForWalkin:(roomId)=>{const sel=document.getElementById('wkd-room-id');if(sel){sel.value=String(roomId);sel.dispatchEvent(new Event('change'));sel.scrollIntoView({behavior:'smooth',block:'center'});sel.focus();}},folio,addCharge,pay,earlyCheckout,decideEarlyCheckout,finalizeEarlyCheckout,decideStayExtension,editEarlyPolicy,editDiscountPolicy,deleteDiscountPolicy,transfer,checkout,roomStatus,requestStatus,assignRequest,handleRequestAction,viewHistory,addRoom,editRoom,addRoomType,editRoomType,addMenuItem,editMenuItem,toggleMenuItem,reportDetails,savedGuestLinks,showCheckinComplete,showStayQr,showReceiptModal,showCheckoutReceipts,viewCheckoutReceipt,downloadCheckoutReceipt,printOfficialReceipt,downloadOfficialReceipt,refreshChatBadge};
 
   document.addEventListener('hotel:authenticated',(event)=>{
 
