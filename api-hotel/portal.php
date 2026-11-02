@@ -1477,9 +1477,9 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     .live-stay-progress-bars>div.is-done>span,.live-stay-progress-bars>div.is-current>span{background:#279762}
     .live-stay-progress-bars>div.is-current{color:#18894f}
     .live-stay-message{margin:18px 0 0;color:#5d646b;font-size:12px;line-height:1.5}
-    .live-stay-footer{padding:0 16px 16px}
+    .live-stay-footer{display:flex;flex-direction:column;gap:10px;padding:0 16px 16px}
     .live-stay-footer .button{width:100%;min-height:48px;background:#102a43;color:#fff;border:0;border-radius:12px;font-weight:750}
-    @media(max-width:520px){.live-stay-header{padding:15px 13px;gap:8px}.live-stay-content{padding:13px}.live-stay-food-icon{flex-basis:76px;height:76px;font-size:34px}.live-stay-item-copy>strong{font-size:14px}.live-stay-close{display:none}.live-stay-footer{padding:0 13px 13px}.live-stay-progress{padding:0 3px}}
+    @media(max-width:520px){.live-stay-header{padding:15px 13px;gap:8px}.live-stay-content{padding:13px}.live-stay-food-icon{flex-basis:76px;height:76px;font-size:34px}.live-stay-item-copy>strong{font-size:14px}.live-stay-close{display:none}.live-stay-footer{padding:0 13px 13px;gap:12px}.live-stay-progress{padding:0 3px}}
     .live-update-toast{position:fixed;z-index:1200;right:20px;bottom:20px;display:flex;align-items:flex-start;gap:12px;width:min(420px,calc(100vw - 28px));padding:16px;border:1px solid #b9d9c7;border-radius:16px;background:#f2fbf5;color:#183b2a;box-shadow:0 16px 44px rgba(16,42,67,.22);animation:liveToastIn .2s ease-out}
     .live-update-toast[hidden]{display:none}
     .live-update-toast.is-clickable{cursor:pointer}
