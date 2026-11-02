@@ -99,6 +99,64 @@ function portal_room_status_label(string $status): string {
     return $status === 'RESERVED' ? 'Reserved — payment pending' : $status;
 }
 
+// Guest-portal checkout-time warning (2026-11-02). Mirrors the staff-side
+// late-fee rule exactly: scheduled checkout is noon on the planned date
+// (same date-at-noon rule as hotel_scheduled_checkout_at()), grace is free
+// to 1:00 PM, 1:00-6:00 PM is a 50% late fee, after 6:00 PM is a full night.
+// This banner never posts a charge and never claims a final total: amounts
+// are charge bands only, before the VAT/discount recomputation at staff
+// checkout. Overdue stays get no peso amount here at all.
+function portal_checkout_warning(?string $plannedCheckout, float $nightlyRate, ?DateTimeImmutable $now = null): ?array {
+    if ($plannedCheckout === null || trim($plannedCheckout) === '') {
+        return null;
+    }
+    if (strtotime($plannedCheckout) === false) {
+        return null;
+    }
+    $plannedDate = date('Y-m-d', strtotime($plannedCheckout));
+    $now = $now ?? new DateTimeImmutable('now');
+    $scheduled = new DateTimeImmutable($plannedDate . ' 12:00:00');
+    $today = $now->format('Y-m-d');
+    $scheduledLabel = $scheduled->format('M j, Y') . ' · 12:00 PM';
+    $rule = 'Checkout is at 12:00 PM. Staying past 1:00 PM adds a 50% late fee, and staying past 6:00 PM adds a full night. Need more time? Extend your stay before checkout.';
+    $amounts = '';
+    if ($nightlyRate > 0) {
+        $amounts = 'At your current nightly rate of ₱' . number_format($nightlyRate, 2)
+            . ', the late-fee band is ₱' . number_format(round($nightlyRate * 0.5, 2), 2)
+            . ' and a full night is ₱' . number_format($nightlyRate, 2) . '.';
+    }
+    if ($today < $plannedDate) {
+        $band = 'upcoming';
+        $status = 'Checkout is due on ' . $scheduledLabel . '.';
+    } elseif ($today > $plannedDate) {
+        $band = 'overdue';
+        $status = 'You are past your checkout date. Late and overstay charges may apply — please message the front desk.';
+        $amounts = '';
+    } elseif ($now < $scheduled) {
+        $band = 'due_today';
+        $status = 'Checkout is due today at 12:00 PM.';
+    } elseif ($now < $scheduled->setTime(13, 0, 0)) {
+        $band = 'grace';
+        $status = 'You are in the free grace period until 1:00 PM today.';
+    } elseif ($now < $scheduled->setTime(18, 0, 0)) {
+        $band = 'late';
+        $status = 'You are now in the late-fee band: staying past 1:00 PM adds a 50% late fee.';
+    } else {
+        $band = 'full_night';
+        $status = 'You are now past 6:00 PM on checkout day, so a full night applies.';
+    }
+    return [
+        'band' => $band,
+        'scheduled_label' => $scheduledLabel,
+        'status' => $status,
+        'rule' => $rule,
+        'amounts' => $amounts,
+        'note' => $band === 'overdue'
+            ? 'Please message the front desk to confirm your checkout and any charges.'
+            : 'Charge bands are shown before final bill recomputation — VAT and discounts are recomputed at staff checkout, so this is not your final bill.',
+    ];
+}
+
 function portal_menu_photo_match(string $itemName): ?string {
     global $portalMenuPhotoRules;
     foreach ($portalMenuPhotoRules as $pattern => $imagePath) {
@@ -385,6 +443,18 @@ try {
                     $liveHasPendingTransfer = false;
                 }
             }
+            $liveCheckoutWarning = null;
+            if (($stay['status'] ?? '') === 'ACTIVE' && !empty($stay['planned_checkout'])) {
+                try {
+                    $liveWarningRateQuery = $pdo->prepare(
+                        'SELECT rt.nightly_rate FROM stays s JOIN rooms r ON r.id=s.room_id JOIN room_types rt ON rt.id=r.room_type_id WHERE s.id=?'
+                    );
+                    $liveWarningRateQuery->execute([(int)$stay['id']]);
+                    $liveCheckoutWarning = portal_checkout_warning((string)$stay['planned_checkout'], (float)$liveWarningRateQuery->fetchColumn());
+                } catch (Throwable $liveWarningError) {
+                    $liveCheckoutWarning = null;
+                }
+            }
             $liveFolioQuery = $pdo->prepare('SELECT id FROM folios WHERE stay_id=? LIMIT 1');
             $liveFolioQuery->execute([(int)$stay['id']]);
             $liveFolioId = (int)$liveFolioQuery->fetchColumn();
@@ -435,6 +505,7 @@ try {
                     'has_pending' => $liveHasPendingTransfer,
                     'rooms' => $liveTransferRooms,
                 ],
+                'checkout_warning' => $liveCheckoutWarning,
                 'checkin_payment' => $liveCheckinPayment,
                 'billing' => $liveBilling,
                 'orders' => $liveOrders,
@@ -1319,6 +1390,17 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     .journey-line::before,.journey-line::after{content:"";flex:1;height:2px;background:linear-gradient(90deg,#e9b65f,#f1c878)}
     .journey-nights{flex:none;padding:5px 11px;border-radius:999px;background:#fdf6e7;color:#8a6a1f;font-size:11px;font-weight:800;white-space:nowrap}
     @media(max-width:640px){.journey{flex-wrap:wrap}.journey-point{flex:1 1 100%}.journey-line{flex:1 1 100%;margin:14px 0 0 26px}}
+    .checkout-warning{margin:0 0 18px;padding:16px 18px;border:1px solid #e4d7b7;border-radius:15px;background:linear-gradient(145deg,#fff8e6,#fdf6e7);box-shadow:0 5px 18px rgba(23,43,69,.035)}
+    .checkout-warning-eyebrow{margin:0 0 6px;color:#8a6a1f;font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}
+    .checkout-warning-status{margin:0;color:#17344e;font-size:15px;line-height:1.5}
+    .checkout-warning-rule{margin:8px 0 0;color:#4e5b65;font-size:13px;line-height:1.6}
+    .checkout-warning-amounts{margin:8px 0 0;color:#17344e;font-size:13px;font-weight:700;line-height:1.6}
+    .checkout-warning-note{margin:8px 0 0;color:#6b7a88;font-size:11px;line-height:1.55}
+    .checkout-warning-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:13px}
+    .checkout-warning-btn{min-height:44px;padding:10px 16px;border:0;border-radius:11px;background:#17344e;color:#fff;font-size:13px;font-weight:750;cursor:pointer}
+    .checkout-warning-btn.secondary{border:1px solid #dce4eb;background:#fff;color:#17344e}
+    .checkout-warning-pending{margin:0;align-self:center;color:#6b7a88;font-size:12px}
+    @media(max-width:520px){.checkout-warning{padding:14px}.checkout-warning-btn{flex:1}}
     .extend-row{margin:-6px 0 18px}
     .extend-btn{display:inline-flex;min-height:44px;align-items:center;justify-content:center;padding:10px 18px;border:1px solid #e9b65f;border-radius:12px;background:#e9b65f;color:#102a43;font-size:13px;font-weight:800;cursor:pointer}
     .extend-btn:disabled{border-color:#d4dee8;background:#eef2f6;color:#64748b;cursor:default}
@@ -1632,6 +1714,24 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         <div class="journey-point"><span class="journey-dot" aria-hidden="true"></span><div><span class="journey-label">Check-in</span><strong class="journey-value"><?=portal_escape(date('M j, Y · g:i A', strtotime($journeyCheckinAt)))?></strong></div></div>
         <div class="journey-line" aria-hidden="true"><span class="journey-nights"><?=$journeyNights === 1 ? '1 night' : $journeyNights . ' nights'?></span></div>
         <div class="journey-point<?= $journeyCheckedOut ? ' is-done' : '' ?>"><span class="journey-dot" aria-hidden="true"></span><div><span class="journey-label"><?= $journeyCheckedOut ? 'Checked out' : 'Check-out' ?></span><strong class="journey-value"><?=portal_escape($journeyCheckoutLabel)?></strong></div></div>
+      </section>
+      <?php endif; ?>
+      <?php $checkoutWarning = ($isActive && !empty($stay['planned_checkout'])) ? portal_checkout_warning((string)$stay['planned_checkout'], (float)($currentNightlyRate ?? 0)) : null; ?>
+      <?php if ($checkoutWarning !== null): ?>
+      <section class="checkout-warning" data-checkout-warning aria-label="Checkout time">
+        <p class="checkout-warning-eyebrow">Checkout time</p>
+        <p class="checkout-warning-status" data-checkout-warning-status><?=portal_escape($checkoutWarning['status'])?></p>
+        <p class="checkout-warning-rule" data-checkout-warning-rule><?=portal_escape($checkoutWarning['rule'])?></p>
+        <?php if ($checkoutWarning['amounts'] !== ''): ?><p class="checkout-warning-amounts" data-checkout-warning-amounts><?=portal_escape($checkoutWarning['amounts'])?></p><?php endif; ?>
+        <p class="checkout-warning-note" data-checkout-warning-note><?=portal_escape($checkoutWarning['note'])?></p>
+        <div class="checkout-warning-actions">
+          <?php if ($pendingExtension): ?>
+            <p class="checkout-warning-pending" data-checkout-warning-pending>Extension requested — waiting for front desk</p>
+          <?php else: ?>
+            <button class="checkout-warning-btn" type="button" data-open="extend-dialog" data-checkout-warning-extend>Extend stay</button>
+          <?php endif; ?>
+          <button class="checkout-warning-btn secondary" type="button" data-checkout-warning-chat>Message the front desk</button>
+        </div>
       </section>
       <?php endif; ?>
       <?php if ($isActive && $journeyCheckinAt !== '' && $journeyCheckoutRaw !== ''): ?>
@@ -2768,6 +2868,61 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         renderBillingList("discounts", billing.discounts);
         renderBillingList("payments", billing.payments);
       };
+      // Checkout-time warning (2026-11-02): re-rendered from each
+      // portal_live payload, so the band and the scheduled date move in
+      // place when an extension is approved — no reload, no stale date.
+      // Text is set with textContent only; nothing here posts a charge
+      // or checks the guest out.
+      const updateCheckoutWarning = (warning, extensions) => {
+        const banner = document.querySelector("[data-checkout-warning]");
+        if (!(banner instanceof HTMLElement)) return;
+        if (!warning) { banner.hidden = true; return; }
+        banner.hidden = false;
+        const setText = (selector, value) => {
+          const el = banner.querySelector(selector);
+          if (el instanceof HTMLElement) el.textContent = String(value || "");
+        };
+        setText("[data-checkout-warning-status]", warning.status);
+        setText("[data-checkout-warning-rule]", warning.rule);
+        setText("[data-checkout-warning-note]", warning.note);
+        let amountsEl = banner.querySelector("[data-checkout-warning-amounts]");
+        if (warning.amounts) {
+          if (!(amountsEl instanceof HTMLElement)) {
+            amountsEl = document.createElement("p");
+            amountsEl.className = "checkout-warning-amounts";
+            amountsEl.setAttribute("data-checkout-warning-amounts", "");
+            const noteEl = banner.querySelector("[data-checkout-warning-note]");
+            if (noteEl instanceof HTMLElement) banner.insertBefore(amountsEl, noteEl); else banner.append(amountsEl);
+          }
+          amountsEl.textContent = String(warning.amounts);
+        } else if (amountsEl instanceof HTMLElement) {
+          amountsEl.remove();
+        }
+        const hasPendingExtension = Array.isArray(extensions) && extensions.some((ext) => String(ext.status || "").toUpperCase() === "REQUESTED");
+        const extendBtn = banner.querySelector("[data-checkout-warning-extend]");
+        let pendingEl = banner.querySelector("[data-checkout-warning-pending]");
+        if (hasPendingExtension) {
+          if (extendBtn instanceof HTMLElement) extendBtn.hidden = true;
+          if (!(pendingEl instanceof HTMLElement)) {
+            pendingEl = document.createElement("p");
+            pendingEl.className = "checkout-warning-pending";
+            pendingEl.setAttribute("data-checkout-warning-pending", "");
+            const actions = banner.querySelector(".checkout-warning-actions");
+            if (actions instanceof HTMLElement) actions.prepend(pendingEl);
+          }
+          pendingEl.textContent = "Extension requested — waiting for front desk";
+        } else {
+          if (pendingEl instanceof HTMLElement) pendingEl.remove();
+          if (extendBtn instanceof HTMLElement) extendBtn.hidden = false;
+        }
+      };
+      const checkoutChatBtn = document.querySelector("[data-checkout-warning-chat]");
+      if (checkoutChatBtn instanceof HTMLElement) {
+        checkoutChatBtn.addEventListener("click", () => {
+          const bubble = document.getElementById("chat-bubble-btn");
+          if (bubble instanceof HTMLElement) bubble.click();
+        });
+      }
       const formatCreatedAt = (value) => {
         const parsed = parseDate(value);
         return parsed ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(parsed) : "";
@@ -3422,6 +3577,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           }
           if (previousAvailableRoomCount !== -1 || transferRooms.length > 0) previousAvailableRoomCount = transferRooms.length;
           updateLiveTransferAvailability(transfer);
+          updateCheckoutWarning(payload.checkout_warning, payload.extensions);
           previousStayState = stayState;
 
           const checkinStatus = String(payload.checkin_payment?.status || "");
