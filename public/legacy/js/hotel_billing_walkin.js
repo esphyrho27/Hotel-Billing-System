@@ -1440,9 +1440,11 @@
 
       const canAddRoom = ['admin','manager'].includes(uRole);
 
-      // Front desk is view-only for room status (owner directive 2026-11-01):
-      // they keep the board, Add Room Category and Check-in above, but never
-      // see the Change status dropdown, so they can never hit Permission denied.
+      // Front desk is view-only for room status (owner directive 2026-11-01,
+      // top buttons removed 2026-11-02): they keep the board only — no Add Room
+      // Category, Add Room, or Check-in above (check-in itself stays available
+      // from the sidebar 'Walk-In & Check-In' entry) — and never see the
+      // Change status dropdown, so they can never hit Permission denied.
       // Housekeeping now gets the dropdown too: the backend already allowed
       // them via rooms.status, but the old UI hid it from them.
       const canChangeRoomStatus = ['admin','manager','housekeeping','maintenance'].includes(uRole);
@@ -1451,7 +1453,7 @@
 
       const topActions = canManageRooms
 
-        ? `<div class="d-flex flex-wrap gap-2"><button class="btn btn-outline-primary btn-sm" onclick="HotelBilling.addRoomType()"><i class="bi bi-tag me-1"></i>Add Room Category</button>${canAddRoom ? '<button class="btn btn-primary btn-sm" onclick="HotelBilling.addRoom()"><i class="bi bi-plus-lg me-1"></i>Add Room</button>' : ''}${uRole !== 'cashier' ? '<button class="btn btn-outline-secondary btn-sm" onclick="HotelBilling.checkin()"><i class="bi bi-person-plus me-1"></i>Check-in</button>' : ''}</div>`
+        ? `<div class="d-flex flex-wrap gap-2">${canAddRoom ? '<button class="btn btn-outline-primary btn-sm" onclick="HotelBilling.addRoomType()"><i class="bi bi-tag me-1"></i>Add Room Category</button>' : ''}${canAddRoom ? '<button class="btn btn-primary btn-sm" onclick="HotelBilling.addRoom()"><i class="bi bi-plus-lg me-1"></i>Add Room</button>' : ''}${uRole !== 'cashier' && uRole !== 'frontdesk' ? '<button class="btn btn-outline-secondary btn-sm" onclick="HotelBilling.checkin()"><i class="bi bi-person-plus me-1"></i>Check-in</button>' : ''}</div>`
 
         : isMaintenance
 
