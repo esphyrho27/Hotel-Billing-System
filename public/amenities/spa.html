@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spa &amp; Massage · Shesh Dev Hotel</title>
+<link rel="stylesheet" href="/amenities/amenities.css">
+</head>
+<body>
+<main class="amenity-page">
+  <button type="button" class="amenity-back" id="amenity-back">&larr; Back to portal</button>
+  <figure class="amenity-hero">
+    <img src="/assets/amenities/spa.webp" alt="Spa and massage">
+    <figcaption><strong>Spa &amp; Massage</strong><span>Slow down and relax.</span></figcaption>
+  </figure>
+  <p class="amenity-about">Slow down and relax with massage and wellness treatments in a quiet, calm space.</p>
+  <section class="amenity-card">
+    <h2>Opening Hours</h2>
+    <p class="amenity-hours">Open daily &middot; 10:00 AM &ndash; 8:00 PM</p>
+  </section>
+  <section class="amenity-card">
+    <h2>Good to Know</h2>
+    <ul class="amenity-rules">
+      <li>Advance booking is recommended &mdash; ask the front desk</li>
+      <li>Please arrive 10 minutes before your appointment</li>
+      <li>Quiet voices inside the spa area</li>
+      <li>Guests under 16 must be with an adult</li>
+    </ul>
+  </section>
+  <section class="amenity-card">
+    <h2>Where to Find It</h2>
+    <p class="amenity-location">Second floor, beside the gym.</p>
+  </section>
+  <p class="amenity-footer">For assistance, message the front desk from your portal.</p>
+</main>
+<script>
+document.getElementById("amenity-back").addEventListener("click", function () {
+  if (window.history.length > 1) { window.history.back(); }
+  else { window.location.href = "/"; }
+});
+</script>
+</body>
+</html>

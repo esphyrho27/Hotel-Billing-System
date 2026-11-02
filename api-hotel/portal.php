@@ -1791,21 +1791,21 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         <h2>Hotel amenities</h2>
         <div class="amenities-carousel" id="amenities-carousel">
           <div class="amenities-track" id="amenities-track">
-            <figure class="amenities-slide" tabindex="0" data-amenity-action="service" data-amenity-prefill="Swimming pool request">
+            <figure class="amenities-slide" tabindex="0" data-amenity-page="/amenities/pool.html">
               <img src="/assets/amenities/pool.webp" alt="Swimming pool" loading="lazy">
-              <figcaption><strong>Swimming Pool</strong><span>Take a dip and unwind.</span><span class="amenities-action">Request &rarr;</span></figcaption>
+              <figcaption><strong>Swimming Pool</strong><span>Take a dip and unwind.</span><span class="amenities-action">View details &rarr;</span></figcaption>
             </figure>
             <figure class="amenities-slide" tabindex="0" data-amenity-action="food">
               <img src="/assets/amenities/restaurant.webp" alt="Restaurant" loading="lazy">
               <figcaption><strong>Restaurant</strong><span>Good food, served fresh.</span><span class="amenities-action">Order food &rarr;</span></figcaption>
             </figure>
-            <figure class="amenities-slide" tabindex="0" data-amenity-action="service" data-amenity-prefill="Fitness gym request">
+            <figure class="amenities-slide" tabindex="0" data-amenity-page="/amenities/gym.html">
               <img src="/assets/amenities/gym.webp" alt="Fitness gym" loading="lazy">
-              <figcaption><strong>Fitness Gym</strong><span>Keep up your routine.</span><span class="amenities-action">Request &rarr;</span></figcaption>
+              <figcaption><strong>Fitness Gym</strong><span>Keep up your routine.</span><span class="amenities-action">View details &rarr;</span></figcaption>
             </figure>
-            <figure class="amenities-slide" tabindex="0" data-amenity-action="service" data-amenity-prefill="Spa &amp; massage request">
+            <figure class="amenities-slide" tabindex="0" data-amenity-page="/amenities/spa.html">
               <img src="/assets/amenities/spa.webp" alt="Spa and massage" loading="lazy">
-              <figcaption><strong>Spa &amp; Massage</strong><span>Slow down and relax.</span><span class="amenities-action">Request &rarr;</span></figcaption>
+              <figcaption><strong>Spa &amp; Massage</strong><span>Slow down and relax.</span><span class="amenities-action">View details &rarr;</span></figcaption>
             </figure>
             <figure class="amenities-slide" tabindex="0" data-amenity-action="food">
               <img src="/assets/amenities/bar.webp" alt="Bar and lounge" loading="lazy">
@@ -1868,6 +1868,8 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         var startX = null;
         var swiped = false;
         function openAmenityAction(slide) {
+          var page = slide.getAttribute("data-amenity-page");
+          if (page) { window.location.href = page; return; }
           var action = slide.getAttribute("data-amenity-action");
           if (action === "food") {
             var foodDialog = document.getElementById("food-dialog");

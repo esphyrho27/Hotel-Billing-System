@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fitness Gym · Shesh Dev Hotel</title>
+<link rel="stylesheet" href="/amenities/amenities.css">
+</head>
+<body>
+<main class="amenity-page">
+  <button type="button" class="amenity-back" id="amenity-back">&larr; Back to portal</button>
+  <figure class="amenity-hero">
+    <img src="/assets/amenities/gym.webp" alt="Fitness gym">
+    <figcaption><strong>Fitness Gym</strong><span>Keep up your routine.</span></figcaption>
+  </figure>
+  <p class="amenity-about">Stay on track while you travel, with cardio and strength equipment for a full workout.</p>
+  <section class="amenity-card">
+    <h2>Opening Hours</h2>
+    <p class="amenity-hours">Open daily &middot; 6:00 AM &ndash; 10:00 PM</p>
+  </section>
+  <section class="amenity-card">
+    <h2>Good to Know</h2>
+    <ul class="amenity-rules">
+      <li>Proper workout attire and closed shoes required</li>
+      <li>Guests under 16 must be with an adult</li>
+      <li>Please wipe down equipment after use</li>
+      <li>Water only &mdash; no food inside the gym</li>
+    </ul>
+  </section>
+  <section class="amenity-card">
+    <h2>Where to Find It</h2>
+    <p class="amenity-location">Second floor, beside the spa.</p>
+  </section>
+  <p class="amenity-footer">For assistance, message the front desk from your portal.</p>
+</main>
+<script>
+document.getElementById("amenity-back").addEventListener("click", function () {
+  if (window.history.length > 1) { window.history.back(); }
+  else { window.location.href = "/"; }
+});
+</script>
+</body>
+</html>

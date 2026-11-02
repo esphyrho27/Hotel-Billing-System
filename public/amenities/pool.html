@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Swimming Pool · Shesh Dev Hotel</title>
+<link rel="stylesheet" href="/amenities/amenities.css">
+</head>
+<body>
+<main class="amenity-page">
+  <button type="button" class="amenity-back" id="amenity-back">&larr; Back to portal</button>
+  <figure class="amenity-hero">
+    <img src="/assets/amenities/pool.webp" alt="Swimming pool">
+    <figcaption><strong>Swimming Pool</strong><span>Take a dip and unwind.</span></figcaption>
+  </figure>
+  <p class="amenity-about">A calm place to cool off after a day out. The pool is open to all in-house guests, with loungers and shaded seating around the deck.</p>
+  <section class="amenity-card">
+    <h2>Opening Hours</h2>
+    <p class="amenity-hours">Open daily &middot; 7:00 AM &ndash; 9:00 PM</p>
+    <p class="amenity-note">Last entry 8:30 PM</p>
+  </section>
+  <section class="amenity-card">
+    <h2>Good to Know</h2>
+    <ul class="amenity-rules">
+      <li>Children under 12 must be with an adult</li>
+      <li>Towels are available at the front desk</li>
+      <li>Please shower before entering the pool</li>
+      <li>No glass bottles or food on the pool deck</li>
+    </ul>
+  </section>
+  <section class="amenity-card">
+    <h2>Where to Find It</h2>
+    <p class="amenity-location">Ground floor, beside the restaurant.</p>
+  </section>
+  <p class="amenity-footer">For assistance, message the front desk from your portal.</p>
+</main>
+<script>
+document.getElementById("amenity-back").addEventListener("click", function () {
+  if (window.history.length > 1) { window.history.back(); }
+  else { window.location.href = "/"; }
+});
+</script>
+</body>
+</html>
