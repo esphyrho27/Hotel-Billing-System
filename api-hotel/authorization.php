@@ -409,6 +409,7 @@ const HOTEL_ACTION_PERMISSIONS = [
     'customer_search' => 'stays.checkin',
     'group_checkin' => 'stays.checkin',
     'update_stay_guest' => 'stays.checkin',
+    'update_stay_occupants' => 'stays.checkin',
     'checkin_payments' => 'stays.view',
     'pending_checkins' => 'stays.view',
     'approve_checkin_payment' => 'payments.process',

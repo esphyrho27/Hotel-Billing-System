@@ -3475,6 +3475,21 @@
             <input class="form-control fw-bold" type="number" name="nights" id="ck-nights" min="1" max="90" value="1" required>
           </div>
 
+          <!-- Occupants: one row per guest (mirrors group check-in) -->
+          <div class="col-12" id="ck-occupants-section">
+            <div class="border rounded p-3">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="fw-bold small text-uppercase text-secondary" style="letter-spacing:0.5px;">
+                  <i class="bi bi-people me-1"></i>Occupants
+                </span>
+                <span class="small text-muted" id="ck-occupants-count-note"></span>
+              </div>
+              <div id="ck-occupants-hint" class="alert alert-info py-2 mb-2 small d-none">Booked under <strong id="ck-occupants-booker"></strong> — list the people actually staying in this room.</div>
+              <div id="ck-occupant-rows"></div>
+              <div class="small text-muted">One occupant per guest. First and last names are required; contact number is optional.</div>
+            </div>
+          </div>
+
           <!-- Real-Time Live Calculation Display -->
           <div class="col-12">
             <div class="p-3 rounded border shadow-sm" style="background:#f8fafc; border-color:#e2e8f0 !important;">
@@ -3532,6 +3547,10 @@
       const contactInput = root.querySelector('#ck-contact');
       const emailInput = root.querySelector('#ck-email');
       const guestDetailInputs = [firstNameInput, lastNameInput, contactInput, emailInput];
+      const occupantRowsBox = root.querySelector('#ck-occupant-rows');
+      const occupantsHint = root.querySelector('#ck-occupants-hint');
+      const occupantsBooker = root.querySelector('#ck-occupants-booker');
+      const occupantsCountNote = root.querySelector('#ck-occupants-count-note');
       const applyPreselection = (g) => {
         selectedCustomerId = Number(g.customer_id) || null;
         firstNameInput.value = g.first_name || '';
@@ -3543,6 +3562,8 @@
         preselectedBanner.classList.remove('d-none');
         searchWrap.classList.add('d-none');
         resultsBox.innerHTML = '';
+        occupantsBooker.textContent = [g.first_name, g.last_name].filter(Boolean).join(' ') || 'Guest';
+        occupantsHint.classList.remove('d-none');
       };
       const clearPreselection = () => {
         selectedCustomerId = null;
@@ -3551,6 +3572,7 @@
         searchWrap.classList.remove('d-none');
         resultsBox.innerHTML = '';
         searchInput.value = '';
+        occupantsHint.classList.add('d-none');
       };
       root.querySelector('#ck-change-guest').addEventListener('click', clearPreselection);
       let guestSearchTimer = null;
@@ -3645,6 +3667,46 @@
 
       updateCalculations();
 
+      // Occupants: one row per guest, re-rendered when Guests changes.
+      // Already-typed values survive by row index; "Use booker" copies the
+      // booker fields into a row (for when the booker is also staying).
+      const renderOccupantRows = () => {
+        const prev = [];
+        occupantRowsBox.querySelectorAll('[data-occupant-row]').forEach(row => {
+          prev.push({
+            first: row.querySelector('[data-occ-first]')?.value || '',
+            last: row.querySelector('[data-occ-last]')?.value || '',
+            contact: row.querySelector('[data-occ-contact]')?.value || ''
+          });
+        });
+        let count = parseInt(guestsInput.value || 1, 10);
+        if (isNaN(count) || count < 1) count = 1;
+        occupantsCountNote.textContent = `${count} occupant${count > 1 ? 's' : ''} for ${count} guest${count > 1 ? 's' : ''}`;
+        occupantRowsBox.innerHTML = Array.from({length: count}, (_, i) => {
+          const p = prev[i] || {first: '', last: '', contact: ''};
+          return `<div class="mb-2" data-occupant-row>
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="small fw-semibold text-muted">Occupant ${i + 1}</span>
+              <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" data-occ-fill="${i}">Use booker</button>
+            </div>
+            <div class="row g-2">
+              <div class="col-md-4"><input class="form-control" type="text" data-occ-first maxlength="100" placeholder="First name *" value="${esc(p.first)}" required></div>
+              <div class="col-md-4"><input class="form-control" type="text" data-occ-last maxlength="100" placeholder="Last name *" value="${esc(p.last)}" required></div>
+              <div class="col-md-4"><input class="form-control" type="tel" data-occ-contact maxlength="30" placeholder="Contact (optional)" value="${esc(p.contact)}"></div>
+            </div>
+          </div>`;
+        }).join('');
+        occupantRowsBox.querySelectorAll('[data-occ-fill]').forEach(btn => btn.addEventListener('click', () => {
+          const row = occupantRowsBox.querySelectorAll('[data-occupant-row]')[Number(btn.dataset.occFill)];
+          if (!row) return;
+          row.querySelector('[data-occ-first]').value = firstNameInput.value;
+          row.querySelector('[data-occ-last]').value = lastNameInput.value;
+          row.querySelector('[data-occ-contact]').value = contactInput.value;
+        }));
+      };
+      guestsInput.addEventListener('input', renderOccupantRows);
+      renderOccupantRows();
+
       root.querySelector('#new-checkin').onsubmit = async e => {
         e.preventDefault();
         const f = Object.fromEntries(new FormData(e.target));
@@ -3655,14 +3717,25 @@
           if (!timePolicy.checkin_open) {
             throw new Error(`Check-in opens at 2:00 PM (${timePolicy.timezone}). Current hotel time: ${timePolicy.hotel_now}.`);
           }
+          const occupants = [];
+          occupantRowsBox.querySelectorAll('[data-occupant-row]').forEach(row => {
+            const first = (row.querySelector('[data-occ-first]')?.value || '').trim();
+            const last = (row.querySelector('[data-occ-last]')?.value || '').trim();
+            const contact = (row.querySelector('[data-occ-contact]')?.value || '').trim();
+            if (!first || !last) throw new Error('Enter a first and last name for each occupant.');
+            occupants.push({ first_name: first, last_name: last, contact_number: contact });
+          });
+          const guestCount = Number(f.guests);
+          if (occupants.length !== guestCount) throw new Error('Enter exactly one occupant for each guest.');
           const r = await api('checkin', {
             room_id: Number(f.room_id),
-            guests: Number(f.guests),
+            guests: guestCount,
             nights: nights,
             first_name: String(f.first_name || '').trim(),
             last_name: String(f.last_name || '').trim(),
             contact_number: String(f.contact_number || '').trim(),
             email: String(f.email || '').trim(),
+            occupants: occupants,
             ...(selectedCustomerId ? { customer_id: selectedCustomerId } : {}),
             discount_amount: 0
           });
@@ -3709,15 +3782,78 @@
 
       if(!s) return notify('Stay not found.',true);
 
-      const occupantNames = Array.isArray(s.occupant_names)
+      // Occupants: table rows win; audit names remain only as the fallback
+      // for group stays checked in before the occupants table existed.
+      const tableOccupants = Array.isArray(s.occupants)
+        ? s.occupants.filter(o => o && typeof o.full_name === 'string' && o.full_name.trim())
+        : [];
+      const auditNames = Array.isArray(s.occupant_names)
         ? s.occupant_names.filter(name => typeof name === 'string' && name.trim())
         : [];
-      const occupantPanel = s.group_booking_id
-        ? `<section class="col-12"><div class="card border-primary-subtle"><div class="card-header bg-light py-2"><strong><i class="bi bi-people me-1"></i>Room occupants</strong><span class="small text-muted ms-2">${esc(s.group_code || 'Group booking')} · Room ${esc(s.room_number)}</span></div><div class="card-body py-2">${occupantNames.length ? `<ol class="mb-0 ps-3">${occupantNames.map(name => `<li>${esc(name)}</li>`).join('')}</ol>` : `<span class="small text-muted">No occupant names were recorded for this room during group check-in.</span>`}</div></div></section>`
-        : '';
-      const {root,m}=modal(`Guest details · Room ${esc(s.room_number)}`,`<form id="guest-details-form" class="row g-3"><div class="col-12"><div class="alert alert-light border mb-0"><strong>Booked by / Group contact</strong><div>${esc(s.guest_name || 'Guest')}</div><span class="small text-muted">First and last name are required. Contact number and email are optional. Changes reflect on the folio, receipt, and guest portal.</span></div></div>${(Array.isArray(s.linked_stays) && s.linked_stays.length) ? `<div class="col-12"><div class="alert alert-light border mb-0 small text-muted">Also booked under this guest: ${s.linked_stays.map(l => `Room ${esc(l.room_number)} (${esc(l.stay_code)})`).join(', ')}</div></div>` : ''}${occupantPanel}<div class="col-md-4"><label class="form-label">First name <span class="text-danger">*</span></label><input class="form-control" type="text" name="first_name" maxlength="100" value="${esc(s.first_name||'')}" required></div><div class="col-md-4"><label class="form-label">Middle name <span class="text-muted">(Optional)</span></label><input class="form-control" type="text" name="middle_name" maxlength="100" value="${esc(s.middle_name||'')}"></div><div class="col-md-4"><label class="form-label">Last name <span class="text-danger">*</span></label><input class="form-control" type="text" name="last_name" maxlength="100" value="${esc(s.last_name||'')}" required></div><div class="col-md-6"><label class="form-label">Contact number <span class="text-muted">(Optional)</span></label><input class="form-control" type="tel" name="contact_number" maxlength="30" value="${esc(s.contact_number||'')}"></div><div class="col-md-6"><label class="form-label">Email <span class="text-muted">(Optional)</span></label><input class="form-control" type="email" name="email" maxlength="150" value="${esc(s.email||'')}"></div><div class="col-12 text-end"><button class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Save guest details</button></div></form>`);
+      const curRole = (window.HotelAuth?.getUser?.()?.role || '').toLowerCase();
+      const canEditOccupants = ['admin', 'manager', 'frontdesk'].includes(curRole);
+      // Table stores one full_name; split on the first space only to prefill
+      // the first/last inputs (display rejoins to the identical string).
+      const splitOccupantName = (full) => {
+        const t = String(full || '').trim();
+        const sp = t.indexOf(' ');
+        return sp === -1 ? [t, ''] : [t.slice(0, sp), t.slice(sp + 1).trim()];
+      };
+      const occupantRowHtml = (i, first, last, contact) => `<div class="mb-2" data-gd-occ-row>
+          <div class="small fw-semibold text-muted">Occupant ${i + 1}</div>
+          <div class="row g-2">
+            <div class="col-md-4"><input class="form-control" type="text" data-gd-occ-first maxlength="100" placeholder="First name *" value="${esc(first)}" required></div>
+            <div class="col-md-4"><input class="form-control" type="text" data-gd-occ-last maxlength="100" placeholder="Last name *" value="${esc(last)}" required></div>
+            <div class="col-md-4"><input class="form-control" type="tel" data-gd-occ-contact maxlength="30" placeholder="Contact (optional)" value="${esc(contact)}"></div>
+          </div>
+        </div>`;
+      const occupantEditForm = (prefill, note) => {
+        const rows = Array.from({length: Math.max(1, Number(s.guest_count) || 1)}, (_, i) => {
+          const [first, last] = prefill[i] ? splitOccupantName(prefill[i].full_name) : ['', ''];
+          return occupantRowHtml(i, first, last, prefill[i]?.contact_number || '');
+        }).join('');
+        return `<form id="guest-occupants-form" class="col-12"><div class="card border-primary-subtle"><div class="card-header bg-light py-2"><strong><i class="bi bi-people me-1"></i>Room occupants</strong><span class="small text-muted ms-2">${note}</span></div><div class="card-body py-2">${rows}<div class="text-end mt-2"><button class="btn btn-primary btn-sm"><i class="bi bi-check2-circle me-1"></i>Save occupants</button></div></div></div></form>`;
+      };
+      let occupantSection = '';
+      if (tableOccupants.length) {
+        occupantSection = canEditOccupants
+          ? occupantEditForm(tableOccupants, `Fixed count: ${s.guest_count} guest(s)`)
+          : `<section class="col-12"><div class="card border-primary-subtle"><div class="card-header bg-light py-2"><strong><i class="bi bi-people me-1"></i>Room occupants</strong></div><div class="card-body py-2"><ol class="mb-0 ps-3">${tableOccupants.map(o => `<li>${esc(o.full_name)}${o.contact_number ? ` <span class="small text-muted">(${esc(o.contact_number)})</span>` : ''}</li>`).join('')}</ol></div></div></section>`;
+      } else if (auditNames.length) {
+        // Old group stay: names live only in the audit log. Staff with edit
+        // rights get the same form prefilled from them; saving writes the
+        // stay_occupants rows, migrating the stay to the new store.
+        occupantSection = canEditOccupants
+          ? occupantEditForm(auditNames.map(name => ({ full_name: name, contact_number: '' })), 'Names from group check-in — save to update.')
+          : `<section class="col-12"><div class="card border-primary-subtle"><div class="card-header bg-light py-2"><strong><i class="bi bi-people me-1"></i>Room occupants</strong><span class="small text-muted ms-2">${esc(s.group_code || 'Group booking')} · Room ${esc(s.room_number)}</span></div><div class="card-body py-2"><ol class="mb-0 ps-3">${auditNames.map(name => `<li>${esc(name)}</li>`).join('')}</ol></div></div></section>`;
+      } else if (canEditOccupants) {
+        occupantSection = occupantEditForm([], 'No occupants recorded yet — add them below.');
+      } else {
+        occupantSection = `<div class="col-12 small text-muted">No occupant details recorded.</div>`;
+      }
+      const {root,m}=modal(`Guest details · Room ${esc(s.room_number)}`,`<div class="row g-3"><div class="col-12"><div class="alert alert-light border mb-0"><strong>Booked by / Group contact</strong><div>${esc(s.guest_name || 'Guest')}</div><span class="small text-muted">First and last name are required. Contact number and email are optional. Changes reflect on the folio, receipt, and guest portal.</span></div></div>${(Array.isArray(s.linked_stays) && s.linked_stays.length) ? `<div class="col-12"><div class="alert alert-light border mb-0 small text-muted">Also booked under this guest: ${s.linked_stays.map(l => `Room ${esc(l.room_number)} (${esc(l.stay_code)})`).join(', ')}</div></div>` : ''}${occupantSection}<form id="guest-details-form" class="col-12"><div class="row g-3"><div class="col-md-4"><label class="form-label">First name <span class="text-danger">*</span></label><input class="form-control" type="text" name="first_name" maxlength="100" value="${esc(s.first_name||'')}" required></div><div class="col-md-4"><label class="form-label">Middle name <span class="text-muted">(Optional)</span></label><input class="form-control" type="text" name="middle_name" maxlength="100" value="${esc(s.middle_name||'')}"></div><div class="col-md-4"><label class="form-label">Last name <span class="text-danger">*</span></label><input class="form-control" type="text" name="last_name" maxlength="100" value="${esc(s.last_name||'')}" required></div><div class="col-md-6"><label class="form-label">Contact number <span class="text-muted">(Optional)</span></label><input class="form-control" type="tel" name="contact_number" maxlength="30" value="${esc(s.contact_number||'')}"></div><div class="col-md-6"><label class="form-label">Email <span class="text-muted">(Optional)</span></label><input class="form-control" type="email" name="email" maxlength="150" value="${esc(s.email||'')}"></div><div class="col-12 text-end"><button class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Save guest details</button></div></div></form></div>`);
 
       root.querySelector('#guest-details-form').onsubmit=async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));try{const r=await api('update_stay_guest',{stay_id:Number(stayId),first_name:String(f.first_name||'').trim(),middle_name:String(f.middle_name||'').trim(),last_name:String(f.last_name||'').trim(),contact_number:String(f.contact_number||'').trim(),email:String(f.email||'').trim()});m.hide();notify(`Guest details saved: ${r.guest_name}`);await open(activeModule);}catch(err){notify(err.message,true)}};
+      const occupantsForm = root.querySelector('#guest-occupants-form');
+      if (occupantsForm) {
+        occupantsForm.onsubmit = async e => {
+          e.preventDefault();
+          const occupants = [];
+          occupantsForm.querySelectorAll('[data-gd-occ-row]').forEach(row => {
+            const first = (row.querySelector('[data-gd-occ-first]')?.value || '').trim();
+            const last = (row.querySelector('[data-gd-occ-last]')?.value || '').trim();
+            const contact = (row.querySelector('[data-gd-occ-contact]')?.value || '').trim();
+            if (!first || !last) throw new Error('Enter a first and last name for each occupant.');
+            occupants.push({ first_name: first, last_name: last, contact_number: contact });
+          });
+          try {
+            await api('update_stay_occupants', { stay_id: Number(stayId), occupants: occupants });
+            notify('Occupant details saved.');
+            m.hide();
+            await guestDetails(stayId);
+          } catch (err) { notify(err.message, true); }
+        };
+      }
 
     } catch(e){notify(e.message,true)}
 

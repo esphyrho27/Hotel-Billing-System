@@ -74,6 +74,79 @@ function htl_ensure_checkin_payments(PDO $pdo): void {
 }
 
 // ============================================================================
+// STAY OCCUPANTS
+// ============================================================================
+
+/**
+ * Validates the stay_occupants table exists. Mirrors htl_ensure_checkin_payments:
+ * the schema must come from the migration (database/migrations/
+ * 20261102_stay_occupants.sql); this fails loudly with the fix instead of
+ * letting the first occupant insert die on a missing table.
+ */
+function htl_ensure_stay_occupants(PDO $pdo): void {
+    static $done = false;
+    if ($done) return;
+
+    $tableExists = $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='stay_occupants'")->fetchColumn();
+    if (!(int)$tableExists) {
+        throw new RuntimeException('Database schema is incomplete. Run database/migrations/20261102_stay_occupants.sql before recording occupants.');
+    }
+    $done = true;
+}
+
+/**
+ * Validates a check-in occupant list: exactly one occupant per guest, each
+ * with a first and last name (<=100 chars each, combined <=150 to fit the
+ * stay_occupants.full_name column) and an optional contact number (<=30).
+ * Returns normalized rows [['full_name' => ..., 'contact_number' => ...|null,
+ * 'sort_order' => int], ...]. Throws RuntimeException on any violation.
+ */
+function htl_validate_occupants($raw, int $guestCount): array {
+    if (!is_array($raw)) {
+        throw new RuntimeException('Enter occupant details for each guest.');
+    }
+    $rows = array_values($raw);
+    if (count($rows) !== $guestCount) {
+        throw new RuntimeException('Enter exactly one occupant for each guest.');
+    }
+    $out = [];
+    foreach ($rows as $i => $occ) {
+        if (!is_array($occ)) {
+            throw new RuntimeException('Enter occupant details for each guest.');
+        }
+        $first = trim((string)($occ['first_name'] ?? ''));
+        $last = trim((string)($occ['last_name'] ?? ''));
+        $contact = trim((string)($occ['contact_number'] ?? ''));
+        if ($first === '' || strlen($first) > 100) {
+            throw new RuntimeException('Each occupant first name is required.');
+        }
+        if ($last === '' || strlen($last) > 100) {
+            throw new RuntimeException('Each occupant last name is required.');
+        }
+        if (strlen($contact) > 30) {
+            throw new RuntimeException('Occupant contact number is too long.');
+        }
+        $full = trim($first . ' ' . $last);
+        if (strlen($full) > 150) {
+            throw new RuntimeException('Each occupant full name must be 150 characters or fewer.');
+        }
+        $out[] = ['full_name' => $full, 'contact_number' => $contact !== '' ? $contact : null, 'sort_order' => $i];
+    }
+    return $out;
+}
+
+/**
+ * Inserts normalized occupant rows for a stay. Call inside the caller's
+ * transaction, after the stay row exists.
+ */
+function htl_insert_occupants(PDO $pdo, int $stayId, array $rows): void {
+    $stmt = $pdo->prepare('INSERT INTO stay_occupants (stay_id, full_name, contact_number, sort_order) VALUES (?, ?, ?, ?)');
+    foreach ($rows as $row) {
+        $stmt->execute([$stayId, $row['full_name'], $row['contact_number'], $row['sort_order']]);
+    }
+}
+
+// ============================================================================
 // AUTHENTICATION & SESSION MANAGEMENT
 // ============================================================================
 
@@ -2218,12 +2291,26 @@ if ($action === 'active_stays') {
             $linkedByCustomer[(int)$linkRow['customer_id']][] = ['stay_id' => (int)$linkRow['stay_id'], 'stay_code' => $linkRow['stay_code'], 'room_number' => $linkRow['room_number']];
         }
     }
+    // Occupants from the stay_occupants table (one query for all listed stays).
+    $occupantsByStay = [];
+    $occupantStayIds = array_values(array_unique(array_map(static fn($row): int => (int)$row['id'], $stays)));
+    if ($occupantStayIds) {
+        $occPlaceholders = implode(',', array_fill(0, count($occupantStayIds), '?'));
+        $occQ = $pdo->prepare("SELECT stay_id, full_name, contact_number FROM stay_occupants WHERE stay_id IN ($occPlaceholders) ORDER BY stay_id, sort_order, id");
+        $occQ->execute($occupantStayIds);
+        foreach ($occQ->fetchAll() as $occRow) {
+            $occupantsByStay[(int)$occRow['stay_id']][] = ['full_name' => $occRow['full_name'], 'contact_number' => $occRow['contact_number']];
+        }
+    }
     foreach ($stays as &$s) {
         $groupDetails = json_decode((string)($s['group_checkin_details'] ?? ''), true);
         $s['occupant_names'] = is_array($groupDetails['occupant_names'] ?? null)
             ? array_values(array_filter($groupDetails['occupant_names'], static fn($name): bool => is_string($name) && trim($name) !== ''))
             : [];
         unset($s['group_checkin_details']);
+        // Table rows win; the audit names below remain only as the fallback
+        // for group stays checked in before the occupants table existed.
+        $s['occupants'] = $occupantsByStay[(int)$s['id']] ?? [];
         $s['linked_stays'] = array_values(array_map(
             static fn($link): array => ['stay_code' => $link['stay_code'], 'room_number' => $link['room_number']],
             array_filter($linkedByCustomer[(int)($s['customer_id'] ?? 0)] ?? [], static fn($link): bool => $link['stay_id'] !== (int)$s['id'])
@@ -2431,6 +2518,11 @@ if ($action === 'group_checkin') {
     sort($roomIds, SORT_NUMERIC); // Stable lock order reduces deadlock risk.
 
     htl_ensure_checkin_payments($pdo);
+    try {
+        htl_ensure_stay_occupants($pdo);
+    } catch (RuntimeException $e) {
+        out(['error' => $e->getMessage()], 400);
+    }
     $pdo->beginTransaction();
     try {
         // Lock every room in ascending ID order before writing any stay.
@@ -2470,6 +2562,16 @@ if ($action === 'group_checkin') {
             $pdo->prepare("INSERT INTO stays (stay_code, room_id, customer_id, guest_count, checkin_at, planned_checkout, status, created_by, group_booking_id) VALUES (?, ?, ?, ?, ?, ?, 'PENDING_PAYMENT', ?, ?)")
                 ->execute([$stayCode, $roomId, $customerId, $guests, $checkinAt, $checkout, $u['id'], $groupId]);
             $stayId = (int)$pdo->lastInsertId();
+
+            // Same table as single check-in; blank names are skipped (the
+            // display filter already drops them), audit history untouched.
+            $groupOccupantRows = [];
+            foreach ($occupantNames as $occIndex => $occName) {
+                $occName = trim((string)$occName);
+                if ($occName === '') continue;
+                $groupOccupantRows[] = ['full_name' => $occName, 'contact_number' => null, 'sort_order' => $occIndex];
+            }
+            htl_insert_occupants($pdo, $stayId, $groupOccupantRows);
 
             $folioNumber = 'F' . date('ymd') . strtoupper(bin2hex(random_bytes(3)));
             $pdo->prepare('INSERT INTO folios (stay_id, folio_number) VALUES (?, ?)')->execute([$stayId, $folioNumber]);
@@ -2654,6 +2756,15 @@ if ($action === 'checkin') {
         $customerReused = true;
     }
 
+    // Occupants are required: exactly one per guest (mirrors group check-in).
+    // Validated before any write so a bad list never creates a partial stay.
+    try {
+        htl_ensure_stay_occupants($pdo);
+        $occupantRows = htl_validate_occupants($in['occupants'] ?? null, $guests);
+    } catch (RuntimeException $e) {
+        out(['error' => $e->getMessage()], 400);
+    }
+
     htl_ensure_checkin_payments($pdo);
     htl_ensure_applied_discounts_schema($pdo);
     $pdo->beginTransaction();
@@ -2687,6 +2798,9 @@ if ($action === 'checkin') {
         $q = $pdo->prepare("INSERT INTO stays(stay_code, room_id, customer_id, guest_count, checkin_at, planned_checkout, status, created_by) VALUES(?, ?, ?, ?, ?, ?, 'PENDING_PAYMENT', ?)");
         $q->execute([$code, $room, $customerId, $guests, $checkinAt, $checkout, $u['id']]);
         $sid = (int)$pdo->lastInsertId();
+
+        // Registration record only: occupants never affect the room charge.
+        htl_insert_occupants($pdo, $sid, $occupantRows);
 
         $folio = 'F' . date('ymd') . strtoupper(bin2hex(random_bytes(3)));
         $q = $pdo->prepare('INSERT INTO folios(stay_id, folio_number) VALUES(?, ?)');
@@ -2734,7 +2848,7 @@ if ($action === 'checkin') {
         $pdo->prepare('INSERT INTO portal_tokens(stay_id, token_hash, expires_at) VALUES(?, ?, ?)')
             ->execute([$sid, hash('sha256', $token), $checkout . ' 23:59:59']);
 
-        audit($pdo, $u['id'], 'CHECK_IN', 'stay', $sid, ['room' => $r['room_number'], 'nights' => $nights, 'customer_id' => $customerId, 'customer_reused' => $customerReused, 'guest_name' => trim($firstName . ' ' . $lastName), 'checkin_payment_id' => $checkinPaymentId, 'required_amount' => $requiredAmount, 'required_percent' => $requiredPercent, 'discount_amount' => $discountGross]);
+        audit($pdo, $u['id'], 'CHECK_IN', 'stay', $sid, ['room' => $r['room_number'], 'nights' => $nights, 'customer_id' => $customerId, 'customer_reused' => $customerReused, 'occupant_count' => count($occupantRows), 'guest_name' => trim($firstName . ' ' . $lastName), 'checkin_payment_id' => $checkinPaymentId, 'required_amount' => $requiredAmount, 'required_percent' => $requiredPercent, 'discount_amount' => $discountGross]);
         $pdo->commit();
 
         ws_broadcast('ROOM_STATUS_CHANGED', ['room_id' => $room, 'room_number' => $r['room_number'], 'status' => 'RESERVED'], null, null, null, true);
@@ -2865,6 +2979,45 @@ if ($action === 'update_stay_guest') {
         ], null, 'frontdesk', $stay['stay_code']);
 
         out(['ok' => true, 'customer_id' => $customerId, 'guest_name' => $guestName]);
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        out(['error' => $e->getMessage()], 400);
+    }
+}
+
+/**
+ * Replaces the occupant list attached to a stay (staff-side correction).
+ * Roles mirror update_stay_guest. Row count is fixed: it must equal the
+ * stay's guest_count (no add/remove — a guest-count change is a different
+ * operation). Allowed for ACTIVE and PENDING_PAYMENT stays; CHECKED_OUT and
+ * CANCELLED stays keep their historical occupant record untouched.
+ */
+if ($action === 'update_stay_occupants') {
+    require_role(['admin', 'manager', 'frontdesk']);
+    $sid = (int)($in['stay_id'] ?? 0);
+    if ($sid < 1) {
+        out(['error' => 'Choose a valid stay.'], 400);
+    }
+    try {
+        htl_ensure_stay_occupants($pdo);
+    } catch (RuntimeException $e) {
+        out(['error' => $e->getMessage()], 400);
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $q = $pdo->prepare("SELECT s.id, s.stay_code, s.guest_count FROM stays s WHERE s.id=? AND s.status IN ('ACTIVE','PENDING_PAYMENT') FOR UPDATE");
+        $q->execute([$sid]);
+        $stay = $q->fetch();
+        if (!$stay) {
+            throw new RuntimeException('Stay not found or not editable.');
+        }
+        $occupantRows = htl_validate_occupants($in['occupants'] ?? null, (int)$stay['guest_count']);
+        $pdo->prepare('DELETE FROM stay_occupants WHERE stay_id=?')->execute([$sid]);
+        htl_insert_occupants($pdo, $sid, $occupantRows);
+        audit($pdo, $u['id'], 'OCCUPANTS_UPDATED', 'stay', $sid, ['stay_code' => $stay['stay_code'], 'occupant_count' => count($occupantRows)]);
+        $pdo->commit();
+        out(['ok' => true, 'stay_id' => $sid, 'occupant_count' => count($occupantRows), 'occupants' => $occupantRows]);
     } catch (Throwable $e) {
         $pdo->rollBack();
         out(['error' => $e->getMessage()], 400);

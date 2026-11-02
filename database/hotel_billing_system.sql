@@ -1843,6 +1843,21 @@ CREATE TABLE `stays` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
+-- Table structure for table `stay_occupants`
+--
+
+CREATE TABLE `stay_occupants` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `stay_id` bigint(20) NOT NULL,
+  `full_name` varchar(150) NOT NULL,
+  `contact_number` varchar(30) DEFAULT NULL,
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `stay_id` (`stay_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
 -- Dumping data for table `stays`
 --
 
