@@ -17,8 +17,6 @@
   <section class="amenity-card" id="amenity-services" data-amenity-category="SPA">
     <h2>Services &amp; Rates</h2>
     <div id="amenity-services-list"><p class="amenity-note">Loading services…</p></div>
-    <label class="amenity-note-label" for="amenity-note">Note (optional)</label>
-    <input class="amenity-note-input" id="amenity-note" type="text" maxlength="500" placeholder="Preferred time or anything we should know">
     <p class="amenity-book-message" id="amenity-book-message" role="status" aria-live="polite"></p>
   </section>
   <section class="amenity-card">
@@ -39,6 +37,25 @@
     <p class="amenity-location">Second floor, beside the gym.</p>
   </section>
   <p class="amenity-footer">For assistance, message the front desk from your portal.</p>
+<dialog class="amenity-dialog" id="amenity-review-dialog" aria-labelledby="amenity-review-title">
+  <div class="amenity-dialog-head"><h2 id="amenity-review-title">Review booking</h2><button type="button" class="amenity-dialog-close" id="amenity-review-close" aria-label="Close">&times;</button></div>
+  <div class="amenity-dialog-body">
+    <p class="amenity-review-service" id="amenity-review-service"></p>
+    <div class="amenity-review-rows">
+      <div><span>Unit rate</span><strong id="amenity-review-unit"></strong></div>
+      <div><span>Quantity</span><span class="amenity-qty"><button type="button" class="amenity-qty-btn" data-review-qty-change="-1" aria-label="Decrease quantity">−</button><input class="amenity-qty-input" id="amenity-review-qty" type="number" inputmode="numeric" min="1" max="10" value="1" aria-label="Quantity"><button type="button" class="amenity-qty-btn" data-review-qty-change="1" aria-label="Increase quantity">+</button></span></div>
+      <div class="amenity-review-total"><span>Total</span><strong id="amenity-review-total"></strong></div>
+    </div>
+    <label class="amenity-note-label" for="amenity-review-note">Note (optional)</label>
+    <input class="amenity-note-input" id="amenity-review-note" type="text" maxlength="500" placeholder="Preferred time or anything we should know">
+    <p class="amenity-note">This will appear on your folio once our team completes the service.</p>
+    <p class="amenity-book-message" id="amenity-review-message" role="status" aria-live="polite"></p>
+  </div>
+  <footer class="amenity-dialog-footer">
+    <button type="button" class="amenity-btn-secondary" id="amenity-review-cancel">Cancel</button>
+    <button type="button" class="amenity-btn-primary" id="amenity-review-confirm">Confirm booking</button>
+  </footer>
+</dialog>
 </main>
 <script>
 document.getElementById("amenity-back").addEventListener("click", function () {
@@ -50,39 +67,92 @@ document.getElementById("amenity-back").addEventListener("click", function () {
   if (!section) return;
   var category = section.getAttribute("data-amenity-category");
   var list = document.getElementById("amenity-services-list");
-  var noteInput = document.getElementById("amenity-note");
   var message = document.getElementById("amenity-book-message");
   var token = new URLSearchParams(window.location.search).get("t") || "";
+  var dialog = document.getElementById("amenity-review-dialog");
+  var reviewService = document.getElementById("amenity-review-service");
+  var reviewUnit = document.getElementById("amenity-review-unit");
+  var reviewQty = document.getElementById("amenity-review-qty");
+  var reviewTotal = document.getElementById("amenity-review-total");
+  var reviewNote = document.getElementById("amenity-review-note");
+  var reviewMessage = document.getElementById("amenity-review-message");
+  var confirmBtn = document.getElementById("amenity-review-confirm");
+  var cancelBtn = document.getElementById("amenity-review-cancel");
+  var closeBtn = document.getElementById("amenity-review-close");
+  var current = null;
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
   function peso(n) { return "₱" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function clampQty(v) { var n = parseInt(v, 10); if (isNaN(n) || n < 1) return 1; if (n > 10) return 10; return n; }
   function showMessage(text, isError) { message.textContent = text; message.className = "amenity-book-message" + (isError ? " is-error" : " is-ok"); }
+  function showReviewMessage(text, isError) { reviewMessage.textContent = text; reviewMessage.className = "amenity-book-message" + (isError ? " is-error" : " is-ok"); }
+  function updateTotal() { if (current) { reviewTotal.textContent = peso(current.price * current.qty); } }
+  function syncRowQty() { if (current && current.rowQtyInput) { current.rowQtyInput.value = current.qty; } }
+  function openDialog() { if (dialog.showModal) { dialog.showModal(); } else { dialog.setAttribute("open", ""); } }
+  function closeDialog() { syncRowQty(); if (dialog.open) { dialog.close(); } else { dialog.removeAttribute("open"); } }
+  function openReview(service, qty, rowQtyInput) {
+    current = { id: service.id, name: service.name, price: Number(service.price), qty: qty, rowQtyInput: rowQtyInput };
+    reviewService.textContent = service.name;
+    reviewUnit.textContent = peso(service.price);
+    reviewQty.value = qty;
+    reviewNote.value = "";
+    showReviewMessage("", false);
+    updateTotal();
+    openDialog();
+  }
+  function modalQtyChanged() { reviewQty.value = clampQty(reviewQty.value); current.qty = Number(reviewQty.value); updateTotal(); }
+  reviewQty.addEventListener("change", modalQtyChanged);
+  reviewQty.addEventListener("blur", modalQtyChanged);
+  dialog.querySelectorAll("[data-review-qty-change]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      reviewQty.value = clampQty(Number(reviewQty.value) + Number(btn.getAttribute("data-review-qty-change")));
+      current.qty = Number(reviewQty.value);
+      updateTotal();
+    });
+  });
+  dialog.addEventListener("close", syncRowQty);
+  dialog.addEventListener("click", function (e) { if (e.target === dialog) { closeDialog(); } });
+  cancelBtn.addEventListener("click", closeDialog);
+  closeBtn.addEventListener("click", closeDialog);
+  confirmBtn.addEventListener("click", function () {
+    if (!current) return;
+    confirmBtn.disabled = true; confirmBtn.textContent = "Booking…";
+    var body = new URLSearchParams({ portal_action: "amenity_book", t: token, service_id: current.id, quantity: current.qty, note: reviewNote.value });
+    fetch("/portal.php", { method: "POST", body: body })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        confirmBtn.disabled = false; confirmBtn.textContent = "Confirm booking";
+        if (res.ok && res.data.ok) {
+          closeDialog();
+          showMessage("Booked: " + res.data.service_name + " × " + res.data.quantity + " (" + peso(res.data.price) + "). Request " + res.data.request_code + ". This will appear on your folio once our team completes the service.", false);
+        } else { showReviewMessage((res.data && res.data.message) || "Booking failed. Please try again.", true); }
+      })
+      .catch(function () { confirmBtn.disabled = false; confirmBtn.textContent = "Confirm booking"; showReviewMessage("Booking failed. Please try again.", true); });
+  });
   fetch("/portal.php?amenity_services=1")
     .then(function (r) { if (!r.ok) throw new Error("load"); return r.json(); })
     .then(function (data) {
       var services = (data.services || []).filter(function (s) { return s.category === category; });
       if (!services.length) { list.innerHTML = "<p class=\"amenity-note\">No services listed yet — ask the front desk.</p>"; return; }
       list.innerHTML = services.map(function (s) {
-        return "<div class=\"amenity-service\"><div class=\"amenity-service-info\"><strong>" + esc(s.name) + "</strong><span>" + esc(s.description) + "</span></div><div class=\"amenity-service-book\"><strong class=\"amenity-service-price\">" + peso(s.price) + "</strong><button type=\"button\" class=\"amenity-book-btn\" data-service-id=\"" + s.id + "\">Book</button></div></div>";
+        return "<div class=\"amenity-service\"><div class=\"amenity-service-info\"><strong>" + esc(s.name) + "</strong><span>" + esc(s.description) + "</span></div><div class=\"amenity-service-book\"><strong class=\"amenity-service-price\">" + peso(s.price) + "</strong><div class=\"amenity-qty\"><button type=\"button\" class=\"amenity-qty-btn\" data-qty-change=\"-1\" aria-label=\"Decrease quantity\">−</button><input class=\"amenity-qty-input\" type=\"number\" inputmode=\"numeric\" min=\"1\" max=\"10\" value=\"1\" aria-label=\"Quantity\"><button type=\"button\" class=\"amenity-qty-btn\" data-qty-change=\"1\" aria-label=\"Increase quantity\">+</button></div><button type=\"button\" class=\"amenity-book-btn\" data-service-id=\"" + s.id + "\">Book</button></div></div>";
       }).join("");
-      list.querySelectorAll(".amenity-book-btn").forEach(function (btn) {
-        btn.addEventListener("click", function () {
+      list.querySelectorAll(".amenity-service").forEach(function (row, idx) {
+        var service = services[idx];
+        var qtyInput = row.querySelector(".amenity-qty-input");
+        row.querySelectorAll("[data-qty-change]").forEach(function (btn) {
+          btn.addEventListener("click", function () { qtyInput.value = clampQty(Number(qtyInput.value) + Number(btn.getAttribute("data-qty-change"))); });
+        });
+        qtyInput.addEventListener("change", function () { qtyInput.value = clampQty(qtyInput.value); });
+        qtyInput.addEventListener("blur", function () { qtyInput.value = clampQty(qtyInput.value); });
+        row.querySelector(".amenity-book-btn").addEventListener("click", function () {
           if (!token) { showMessage("Open this page from your guest portal to book.", true); return; }
-          btn.disabled = true; btn.textContent = "Booking…";
-          var body = new URLSearchParams({ portal_action: "amenity_book", t: token, service_id: btn.getAttribute("data-service-id"), note: noteInput.value });
-          fetch("/portal.php", { method: "POST", body: body })
-            .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
-            .then(function (res) {
-              btn.disabled = false; btn.textContent = "Book";
-              if (res.ok && res.data.ok) {
-                showMessage("Booked: " + res.data.service_name + " (" + peso(res.data.price) + "). Request " + res.data.request_code + ". This will appear on your folio once our team completes the service.", false);
-              } else { showMessage((res.data && res.data.message) || "Booking failed. Please try again.", true); }
-            })
-            .catch(function () { btn.disabled = false; btn.textContent = "Book"; showMessage("Booking failed. Please try again.", true); });
+          openReview(service, clampQty(qtyInput.value), qtyInput);
         });
       });
     })
     .catch(function () { list.innerHTML = "<p class=\"amenity-note\">Rates couldn't be loaded — ask the front desk.</p>"; });
 })();
 </script>
+
 </body>
 </html>

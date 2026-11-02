@@ -39,3 +39,33 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Ro
   .amenity-service-book { text-align: left; }
 }
 .amenity-free-note { margin: 0 2px 14px; padding: 12px 14px; border: 1px solid #e7ddc3; border-left: 4px solid #e9b65f; border-radius: 12px; background: #faf8f2; font-size: 14px; line-height: 1.55; color: #17344e; }
+
+/* Quantity stepper on service rows and inside the review modal. */
+.amenity-service-book { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.amenity-service-book .amenity-service-price { margin-bottom: 0; }
+.amenity-qty { display: inline-flex; align-items: stretch; border: 1px solid #dce4eb; border-radius: 10px; overflow: hidden; background: #fff; }
+.amenity-qty-btn { width: 44px; min-height: 44px; border: 0; background: #eef2f6; color: #17344e; font-size: 18px; font-weight: 700; cursor: pointer; }
+.amenity-qty-btn:disabled { opacity: .45; cursor: not-allowed; }
+.amenity-qty-input { width: 48px; min-height: 44px; border: 0; border-left: 1px solid #dce4eb; border-right: 1px solid #dce4eb; text-align: center; font-size: 15px; font-weight: 700; color: #17191c; }
+/* Review modal, styled to match the portal dialogs. */
+.amenity-dialog { width: min(480px, calc(100vw - 32px)); max-width: 480px; padding: 0; border: 1px solid #dce3e9; border-radius: 20px; overflow: hidden; background: #fff; color: #17191c; box-shadow: 0 24px 80px rgba(3, 14, 28, .34); }
+.amenity-dialog::backdrop { background: rgba(10, 25, 40, .54); }
+.amenity-dialog-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 18px; background: #17344e; color: #fff; }
+.amenity-dialog-head h2 { margin: 0; font: 600 18px Georgia, "Times New Roman", serif; }
+.amenity-dialog-close { border: 1px solid rgba(255, 255, 255, .35); background: transparent; color: #fff; border-radius: 8px; padding: 4px 10px; font-size: 18px; line-height: 1; cursor: pointer; }
+.amenity-dialog-body { padding: 16px 18px; }
+.amenity-review-service { font-size: 16px; font-weight: 700; margin: 0 0 12px; }
+.amenity-review-rows > div { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid #e7edf2; font-size: 14px; }
+.amenity-review-total { border-bottom: 0; }
+.amenity-review-total strong { font-size: 18px; color: #17344e; }
+.amenity-dialog-footer { display: flex; gap: 10px; padding: 0 18px 18px; }
+.amenity-btn-primary { flex: 1; min-height: 48px; border: 0; border-radius: 12px; background: #17344e; color: #fff; font-size: 14px; font-weight: 750; cursor: pointer; }
+.amenity-btn-primary:disabled { opacity: .55; cursor: not-allowed; }
+.amenity-btn-secondary { flex: 1; min-height: 48px; border: 1px solid #d9e2eb; border-radius: 12px; background: #fff; color: #40566d; font-size: 14px; font-weight: 750; cursor: pointer; }
+@media (max-width: 520px) {
+  .amenity-service-book { align-items: flex-start; }
+  .amenity-dialog { width: calc(100vw - 24px); }
+  .amenity-dialog-head { padding: 14px 16px; }
+  .amenity-dialog-body { padding: 14px 16px; }
+  .amenity-dialog-footer { flex-direction: column; gap: 12px; }
+}

@@ -586,6 +586,12 @@ try {
         if (mb_strlen($amenityNote) > 500) {
             $amenityFail(422, 'Please shorten your note and try again.');
         }
+        // Amenity bookings are per-person/session, so quantity is capped at 10
+        // (housekeeping allows 20). Missing quantity means a single booking.
+        $amenityQuantity = filter_var($_POST['quantity'] ?? 1, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 10]]);
+        if ($amenityQuantity === false) {
+            $amenityFail(422, 'Choose a quantity from 1 to 10.');
+        }
         $amenityServiceQuery = $pdo->prepare(
             "SELECT id, name, price FROM service_catalog
              WHERE id = ? AND active = 1 AND category IN ('GYM', 'POOL', 'SPA') LIMIT 1"
@@ -595,8 +601,8 @@ try {
         if (!$amenityService) {
             $amenityFail(422, 'That service is no longer available. Refresh and try again.');
         }
-        $amenityPrice = round((float)$amenityService['price'], 2);
-        $amenityDescription = (string)$amenityService['name'] . ($amenityNote !== '' ? ' — ' . $amenityNote : '');
+        $amenityPrice = round((float)$amenityService['price'] * $amenityQuantity, 2);
+        $amenityDescription = (string)$amenityService['name'] . ($amenityQuantity > 1 ? ' (quantity: ' . $amenityQuantity . ')' : '') . ($amenityNote !== '' ? ' — ' . $amenityNote : '');
         $amenityCode = 'RQ' . strtoupper(bin2hex(random_bytes(4)));
         $pdo->beginTransaction();
         try {
@@ -639,7 +645,7 @@ try {
             'chargeable' => $amenityPrice > 0 ? 1 : 0,
             'price' => $amenityPrice,
         ], 'service', $stay['stay_code']);
-        echo json_encode(['ok' => true, 'request_code' => $amenityCode, 'service_name' => (string)$amenityService['name'], 'price' => $amenityPrice]);
+        echo json_encode(['ok' => true, 'request_code' => $amenityCode, 'service_name' => (string)$amenityService['name'], 'price' => $amenityPrice, 'quantity' => $amenityQuantity]);
         exit;
     }
 
