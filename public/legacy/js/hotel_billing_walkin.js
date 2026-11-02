@@ -4598,7 +4598,11 @@ async function confirmCheckinPayment(cpId) {
 
 
 
-      const body=rows.map(r=>`<tr><td><strong>#${Number(r.id)} · ${esc(r.stay_code)}</strong><div class="small text-muted">Room ${esc(r.room_number)} · Folio ${esc(r.folio_number)}</div></td><td>${esc(String(r.request_type).replaceAll('_',' '))}<div class="small text-muted">${esc(r.policy)}</div></td><td>${esc(r.reason)}</td><td>${esc(r.requested_by_name||'Staff')}</td><td>${esc(r.requested_departure_at||'—')}</td><td>${php(r.proposed_room_charge)}</td><td>${pill(r.status)}</td><td>${renderEarlyAction(r)}</td></tr>`).join('');
+      // Shared Stay/Folio identifier: guest name first, stay code as fallback.
+      const guestName = (r) => (r.guest_name || r.stay_code || '—');
+      const guestCell = (r) => `<strong>#${Number(r.id)} · ${esc(guestName(r))}</strong><div class="small text-muted">Room ${esc(r.room_number)} · Folio ${esc(r.folio_number)}</div>`;
+
+      const body=rows.map(r=>`<tr><td>${guestCell(r)}</td><td>${esc(String(r.request_type).replaceAll('_',' '))}<div class="small text-muted">${esc(r.policy)}</div></td><td>${esc(r.reason)}</td><td>${esc(r.requested_by_name||'Staff')}</td><td>${esc(r.requested_departure_at||'—')}</td><td>${php(r.proposed_room_charge)}</td><td>${pill(r.status)}</td><td>${renderEarlyAction(r)}</td></tr>`).join('');
 
       const mobileEarlyCards = rows.map(r=>`
 
@@ -4608,7 +4612,7 @@ async function confirmCheckinPayment(cpId) {
 
             <div>
 
-              <span class="fw-bold fs-6">${esc(r.stay_code)}</span>
+              <span class="fw-bold fs-6">#${Number(r.id)} · ${esc(guestName(r))}</span>
 
               <div class="small text-muted">Room ${esc(r.room_number)} · Folio ${esc(r.folio_number)}</div>
 
@@ -4648,20 +4652,22 @@ async function confirmCheckinPayment(cpId) {
 
 
 
+      const combinedPending = pending + (extOk ? extPending : 0);
+
       const topBar = isFrontdesk
 
         ? `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><div><h5 class="fw-bold mb-1">Early Checkout Requests</h5><p class="text-muted mb-0">Record and submit early departure requests for review and manager authorization.</p></div><div class="d-flex align-items-center gap-2"><span class="badge text-bg-warning">${pending} pending</span><button class="btn btn-primary btn-sm" onclick="HotelBilling.earlyCheckout()"><i class="bi bi-plus-lg me-1"></i>Submit Request</button><button class="btn btn-outline-secondary btn-sm" onclick="HotelBilling.open('early-checkout-requests')"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button></div></div>`
 
-        : `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><div><h5 class="fw-bold mb-1">Early Checkout & Cancellation Requests</h5><p class="text-muted mb-0">Approve or reject pending requests. Approved requests can post a clearly labelled charge to the guest folio. This does not check out the guest; collect payment against the folio, then use the normal Checkout action.</p></div><div class="d-flex align-items-center gap-2"><span class="badge text-bg-warning">${pending} pending</span><button class="btn btn-outline-secondary btn-sm" onclick="HotelBilling.open('early-checkouts')"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button></div></div>`;
+        : `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><div><h5 class="fw-bold mb-1">Approvals</h5><p class="text-muted mb-0">Approve or reject early checkout and stay extension requests. Early checkout approvals can post a clearly labelled charge to the guest folio; extension approvals move the checkout date and post the extra nights to the folio. This does not check out the guest; collect payment against the folio, then use the normal Checkout action.</p></div><div class="d-flex align-items-center gap-2"><span class="badge text-bg-warning">${combinedPending} pending</span><button class="btn btn-outline-secondary btn-sm" onclick="HotelBilling.open('early-checkouts')"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button></div></div>`;
 
 
 
-      const extBody=erows.map(r=>`<tr><td><strong>#${Number(r.id)} · ${esc(r.stay_code)}</strong><div class="small text-muted">Room ${esc(r.room_number)} · Folio ${esc(r.folio_number)}</div></td><td>${esc(r.current_checkout)} → <strong>${esc(r.requested_checkout)}</strong></td><td>${esc(r.extra_nights)} night${Number(r.extra_nights)===1?'':'s'}</td><td>${php(r.proposed_charge)}</td><td>${esc(r.reason||'—')}${r.status==='REJECTED'&&r.review_note?`<div class="small text-muted">Note: ${esc(r.review_note)}</div>`:''}</td><td>${esc(r.requested_by_name||'Guest portal')}</td><td>${pill(r.status)}</td><td>${renderExtAction(r)}</td></tr>`).join('');
+      const extBody=erows.map(r=>`<tr><td>${guestCell(r)}</td><td>${esc(r.current_checkout)} → <strong>${esc(r.requested_checkout)}</strong></td><td>${esc(r.extra_nights)} night${Number(r.extra_nights)===1?'':'s'}</td><td>${php(r.proposed_charge)}</td><td>${esc(r.reason||'—')}${r.status==='REJECTED'&&r.review_note?`<div class="small text-muted">Note: ${esc(r.review_note)}</div>`:''}</td><td>${esc(r.requested_by_name||'Guest portal')}</td><td>${pill(r.status)}</td><td>${renderExtAction(r)}</td></tr>`).join('');
       const extCards=erows.map(r=>`
         <div class="card border-0 shadow-sm p-3 mb-2">
           <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
-              <span class="fw-bold fs-6">${esc(r.stay_code)}</span>
+              <span class="fw-bold fs-6">#${Number(r.id)} · ${esc(guestName(r))}</span>
               <div class="small text-muted">Room ${esc(r.room_number)} · Folio ${esc(r.folio_number)}</div>
             </div>
             ${pill(r.status)}
@@ -4684,11 +4690,58 @@ async function confirmCheckinPayment(cpId) {
       <div class="d-none d-md-block">${table(['Stay / Folio','Checkout change','Extra nights','Proposed charge','Reason','Requested by','Status','Action'],extBody,'No stay extension requests found.')}</div>
       <div class="d-md-none">${extCards}</div>` : '';
 
-      host.innerHTML=`${topBar}
+            // Combined approvals list (approver view only): early checkout +
+      // extension rows merged, REQUESTED first, then APPROVED, REJECTED,
+      // other statuses, created_at DESC within the same status.
+      const statusRank = (st) => st === 'REQUESTED' ? 0 : st === 'APPROVED' ? 1 : st === 'REJECTED' ? 2 : 3;
+      const combinedRows = [
+        ...rows.map(r => ({...r, _kind: 'early'})),
+        ...(extOk ? erows.map(r => ({...r, _kind: 'ext'})) : []),
+      ].sort((a, b) => (statusRank(a.status) - statusRank(b.status)) || String(b.created_at || '').localeCompare(String(a.created_at || '')));
+      const combinedTypeBadge = (r) => r._kind === 'ext'
+        ? '<span class="badge text-bg-success">Extension</span>'
+        : '<span class="badge text-bg-info text-dark">Early checkout</span>';
+      const combinedDetails = (r) => r._kind === 'ext'
+        ? `${esc(r.current_checkout)} → <strong>${esc(r.requested_checkout)}</strong><div class="small text-muted">${esc(r.extra_nights)} night${Number(r.extra_nights) === 1 ? '' : 's'}</div><div class="small text-muted mt-1">${esc(r.reason || 'No reason given')}${r.status === 'REJECTED' && r.review_note ? `<br>Note: ${esc(r.review_note)}` : ''}</div>`
+        : `${esc(String(r.request_type).replaceAll('_', ' '))}<div class="small text-muted">${esc(r.policy)} · Departs ${esc(r.requested_departure_at || '—')}</div><div class="small text-muted mt-1">${esc(r.reason || '')}</div>`;
+      const combinedRequestedBy = (r) => r._kind === 'ext' ? (r.requested_by_name || 'Guest portal') : (r.requested_by_name || 'Staff');
+      const combinedCharge = (r) => r._kind === 'ext' ? r.proposed_charge : r.proposed_room_charge;
+      const combinedAction = (r) => r._kind === 'ext' ? renderExtAction(r) : renderEarlyAction(r);
+      const combinedBody = combinedRows.map(r => `<tr><td>${guestCell(r)}</td><td>${combinedTypeBadge(r)}</td><td>${combinedDetails(r)}</td><td>${esc(combinedRequestedBy(r))}</td><td>${php(combinedCharge(r))}</td><td>${pill(r.status)}</td><td>${combinedAction(r)}</td></tr>`).join('');
+      const combinedCards = combinedRows.map(r => `
+        <div class="card border-0 shadow-sm p-3 mb-2">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="fw-bold fs-6">#${Number(r.id)} · ${esc(guestName(r))}</span>
+              <div class="small text-muted">Room ${esc(r.room_number)} · Folio ${esc(r.folio_number)}</div>
+            </div>
+            ${combinedTypeBadge(r)}
+          </div>
+          <div class="p-2 bg-light rounded small mb-2">
+            <div class="fw-semibold text-dark">${combinedDetails(r)}</div>
+          </div>
+          <div class="row g-2 mb-2 small text-muted">
+            <div class="col-6">Requested by: <strong class="text-dark">${esc(combinedRequestedBy(r))}</strong></div>
+            <div class="col-6 text-end">Proposed: <strong class="text-primary fs-6">${php(combinedCharge(r))}</strong></div>
+          </div>
+          <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+            ${pill(r.status)}
+            ${combinedAction(r)}
+          </div>
+        </div>
+      `).join('') || '<div class="card border-0 shadow-sm p-3 text-center text-muted">No approval requests found.</div>';
+
+      host.innerHTML = isFrontdesk
+        ? `${topBar}
 
       <div class="d-none d-md-block">${table(['Stay / Folio','Request','Reason','Requested by','Requested departure','Proposed charge','Status','Action'],body,'No early-checkout requests found.')}</div>
 
-      <div class="d-md-none">${mobileEarlyCards}</div>${extSection}`;
+      <div class="d-md-none">${mobileEarlyCards}</div>${extSection}`
+        : `${topBar}
+
+      <div class="d-none d-md-block">${table(['Guest / Stay · Folio','Type','Details','Requested by','Proposed charge','Status','Action'],combinedBody,'No approval requests found.')}</div>
+
+      <div class="d-md-none">${combinedCards}</div>`;
 
     }catch(e){host.innerHTML=`<div class="alert alert-danger">${esc(e.message||'Unable to load early-checkout requests.')}</div>`;}
 

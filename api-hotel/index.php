@@ -5192,7 +5192,7 @@ if ($action === 'early_checkout_request') {
  */
 if ($action === 'early_checkout_requests') {
     require_role(['admin', 'manager', 'frontdesk']);
-    $q = $pdo->query("SELECT e.id, e.stay_id, e.folio_id, e.request_type, e.requested_departure_at, e.actual_departure_at, e.reason, e.policy, e.proposed_room_charge, e.status, e.created_at, e.updated_at, s.stay_code, r.room_number, f.folio_number, ur.username AS requested_by_name, ua.username AS approved_by_name FROM early_checkout_requests e JOIN stays s ON s.id=e.stay_id JOIN rooms r ON r.id=s.room_id JOIN folios f ON f.id=e.folio_id LEFT JOIN users ur ON ur.id=e.requested_by LEFT JOIN users ua ON ua.id=e.approved_by ORDER BY CASE e.status WHEN 'REQUESTED' THEN 0 WHEN 'APPROVED' THEN 1 WHEN 'REJECTED' THEN 2 ELSE 3 END, e.created_at DESC");
+    $q = $pdo->query("SELECT e.id, e.stay_id, e.folio_id, e.request_type, e.requested_departure_at, e.actual_departure_at, e.reason, e.policy, e.proposed_room_charge, e.status, e.created_at, e.updated_at, s.stay_code, r.room_number, f.folio_number, TRIM(CONCAT_WS(' ', c.first_name, NULLIF(c.middle_name, ''), c.last_name)) AS guest_name, ur.username AS requested_by_name, ua.username AS approved_by_name FROM early_checkout_requests e JOIN stays s ON s.id=e.stay_id JOIN rooms r ON r.id=s.room_id JOIN folios f ON f.id=e.folio_id LEFT JOIN customers c ON c.customer_id=s.customer_id LEFT JOIN users ur ON ur.id=e.requested_by LEFT JOIN users ua ON ua.id=e.approved_by ORDER BY CASE e.status WHEN 'REQUESTED' THEN 0 WHEN 'APPROVED' THEN 1 WHEN 'REJECTED' THEN 2 ELSE 3 END, e.created_at DESC");
     out(['requests' => $q->fetchAll()]);
 }
 
@@ -5358,7 +5358,7 @@ if ($action === 'early_checkout_finalize') {
  * Lists stay extension requests for the approvals inbox.
  */
 if ($action === 'stay_extension_requests') {
-    $q = $pdo->query("SELECT e.id, e.stay_id, e.folio_id, e.current_checkout, e.requested_checkout, e.extra_nights, e.nightly_rate, e.proposed_charge, e.reason, e.review_note, e.status, e.created_at, e.updated_at, s.stay_code, r.room_number, f.folio_number, ur.username AS requested_by_name, ua.username AS approved_by_name FROM stay_extension_requests e JOIN stays s ON s.id=e.stay_id JOIN rooms r ON r.id=s.room_id JOIN folios f ON f.id=e.folio_id LEFT JOIN users ur ON ur.id=e.requested_by LEFT JOIN users ua ON ua.id=e.approved_by ORDER BY CASE e.status WHEN 'REQUESTED' THEN 0 WHEN 'APPROVED' THEN 1 WHEN 'REJECTED' THEN 2 ELSE 3 END, e.created_at DESC");
+    $q = $pdo->query("SELECT e.id, e.stay_id, e.folio_id, e.current_checkout, e.requested_checkout, e.extra_nights, e.nightly_rate, e.proposed_charge, e.reason, e.review_note, e.status, e.created_at, e.updated_at, s.stay_code, r.room_number, f.folio_number, TRIM(CONCAT_WS(' ', c.first_name, NULLIF(c.middle_name, ''), c.last_name)) AS guest_name, ur.username AS requested_by_name, ua.username AS approved_by_name FROM stay_extension_requests e JOIN stays s ON s.id=e.stay_id JOIN rooms r ON r.id=s.room_id JOIN folios f ON f.id=e.folio_id LEFT JOIN customers c ON c.customer_id=s.customer_id LEFT JOIN users ur ON ur.id=e.requested_by LEFT JOIN users ua ON ua.id=e.approved_by ORDER BY CASE e.status WHEN 'REQUESTED' THEN 0 WHEN 'APPROVED' THEN 1 WHEN 'REJECTED' THEN 2 ELSE 3 END, e.created_at DESC");
     out(['requests' => $q->fetchAll()]);
 }
 
