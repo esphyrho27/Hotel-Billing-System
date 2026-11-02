@@ -796,6 +796,20 @@ if ($action === 'room_save') {
         out(['error' => 'Choose an existing room type.'], 400);
     }
 
+    // Explicit duplicate check: the table may or may not carry a UNIQUE key
+    // on room_number (live does, the schema dump does not), so never rely on
+    // the constraint alone. The row itself is excluded on edit so keeping
+    // its own number is not a false duplicate.
+    $dup = $pdo->prepare('SELECT 1 FROM rooms WHERE room_number = ?' . ($id ? ' AND id <> ?' : '') . ' LIMIT 1');
+    if ($id) {
+        $dup->execute([$number, $id]);
+    } else {
+        $dup->execute([$number]);
+    }
+    if ($dup->fetchColumn()) {
+        out(['error' => 'Room number already exists.'], 409);
+    }
+
     try {
         if ($id) {
             $check = $pdo->prepare('SELECT status FROM rooms WHERE id=?');
@@ -829,7 +843,14 @@ if ($action === 'room_save') {
         }
         out(['ok' => true, 'id' => $id]);
     } catch (PDOException $e) {
-        out(['error' => 'Room number already exists or room data is invalid.'], 400);
+        error_log('[room-save] ' . $e->getMessage());
+        if ((string)$e->getCode() === '23000') {
+            out(['error' => 'Room number already exists.'], 409);
+        }
+        // Any other database failure is reported honestly with the real
+        // reason instead of being relabelled as a duplicate number. This is a
+        // staff-only endpoint and driver messages carry no credentials.
+        out(['error' => 'Could not save room: ' . $e->getMessage()], 500);
     }
 }
 

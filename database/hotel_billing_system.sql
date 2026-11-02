@@ -1427,12 +1427,15 @@ CREATE TABLE `role_permissions` (
 --
 
 CREATE TABLE `rooms` (
-  `id` bigint(20) UNSIGNED NOT NULL,
+  `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
   `room_number` varchar(20) NOT NULL,
   `room_type_id` bigint(20) UNSIGNED NOT NULL,
   `floor_number` int(11) NOT NULL DEFAULT 1,
   `capacity` int(11) DEFAULT NULL,
-  `status` enum('AVAILABLE','OCCUPIED','CLEANING','MAINTENANCE','RESERVED') NOT NULL DEFAULT 'AVAILABLE'
+  `status` enum('AVAILABLE','OCCUPIED','CLEANING','MAINTENANCE','RESERVED') NOT NULL DEFAULT 'AVAILABLE',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `room_number` (`room_number`),
+  KEY `room_type_id` (`room_type_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
