@@ -589,7 +589,7 @@ if ($action === 'dashboard') {
             // checkout date); a finalized manager-exception early departure
             // overrides it with its approved departure time.
             $nextCheckouts = [];
-            $ncRows = $pdo->query("SELECT s.id AS stay_id, s.planned_checkout, r.room_number, f.folio_number, TRIM(CONCAT_WS(' ', c.first_name, NULLIF(c.middle_name, ''), c.last_name)) AS guest_name FROM stays s JOIN rooms r ON r.id=s.room_id JOIN folios f ON f.stay_id=s.id LEFT JOIN customers c ON c.customer_id=s.customer_id WHERE s.status='ACTIVE' AND f.status='OPEN' ORDER BY s.planned_checkout ASC, r.room_number ASC LIMIT 10")->fetchAll();
+            $ncRows = $pdo->query("SELECT s.id AS stay_id, s.checkin_at, s.planned_checkout, r.room_number, f.folio_number, TRIM(CONCAT_WS(' ', c.first_name, NULLIF(c.middle_name, ''), c.last_name)) AS guest_name FROM stays s JOIN rooms r ON r.id=s.room_id JOIN folios f ON f.stay_id=s.id LEFT JOIN customers c ON c.customer_id=s.customer_id WHERE s.status='ACTIVE' AND f.status='OPEN' ORDER BY s.planned_checkout ASC, r.room_number ASC LIMIT 10")->fetchAll();
             $ncToday = new DateTimeImmutable('today', hotel_timezone());
             $ncTomorrow = $ncToday->modify('+1 day');
             foreach ($ncRows as $ncRow) {
@@ -605,13 +605,42 @@ if ($action === 'dashboard') {
                     $ncLabel = 'in ' . $ncToday->diff($ncPlanned)->format('%a') . ' days';
                 }
                 $ncEarly = false;
-                $ncEq = $pdo->prepare("SELECT requested_departure_at FROM early_checkout_requests WHERE stay_id=? AND status='FINALIZED' AND request_type='EARLY_CHECKOUT' AND policy='MANAGER_EXCEPTION' ORDER BY approved_at DESC, id DESC LIMIT 1");
+                $ncEq = $pdo->prepare("SELECT * FROM early_checkout_requests WHERE stay_id=? AND status='FINALIZED' AND request_type='EARLY_CHECKOUT' AND policy='MANAGER_EXCEPTION' ORDER BY approved_at DESC, id DESC LIMIT 1");
                 $ncEq->execute([(int)$ncRow['stay_id']]);
                 $ncEarlyRow = $ncEq->fetch();
                 if ($ncEarlyRow && !empty($ncEarlyRow['requested_departure_at'])) {
                     $ncCheckoutAt = new DateTimeImmutable((string)$ncEarlyRow['requested_departure_at'], hotel_timezone());
                     $ncLabel = 'Early departure';
                     $ncEarly = true;
+                }
+                // Checkout gating: mirror the server checkout guard so the
+                // dashboard button is disabled exactly when checkout would
+                // be refused — before noon on the planned date, before an
+                // approved departure time, or while an early-checkout
+                // request is still pending. Computed server-side from hotel
+                // time, never the client clock.
+                $ncNow = hotel_local_now();
+                $ncAllowed = true;
+                $ncBlockReason = '';
+                $ncPq = $pdo->prepare("SELECT status FROM early_checkout_requests WHERE stay_id=? AND status IN ('REQUESTED','APPROVED') ORDER BY created_at DESC LIMIT 1");
+                $ncPq->execute([(int)$ncRow['stay_id']]);
+                $ncPending = $ncPq->fetch();
+                if ($ncPending) {
+                    $ncAllowed = false;
+                    $ncBlockReason = $ncPending['status'] === 'REQUESTED'
+                        ? 'Early checkout request is waiting for manager approval.'
+                        : 'Early checkout request is approved but not yet finalized.';
+                } else {
+                    $ncCheckinAt = !empty($ncRow['checkin_at']) ? new DateTimeImmutable((string)$ncRow['checkin_at'], hotel_timezone()) : null;
+                    $ncScheduledAt = hotel_scheduled_checkout_at((string)$ncRow['planned_checkout']);
+                    $ncAllowed = hotel_checkout_is_allowed((string)$ncRow['planned_checkout'], $ncNow, $ncEarlyRow ?: null, $ncCheckinAt);
+                    if (!$ncAllowed) {
+                        if ($ncEarlyRow && !empty($ncEarlyRow['requested_departure_at']) && $ncNow < new DateTimeImmutable((string)$ncEarlyRow['requested_departure_at'], hotel_timezone())) {
+                            $ncBlockReason = 'Checkout is blocked until the manager-approved departure time of ' . $ncEarlyRow['requested_departure_at'] . '.';
+                        } else {
+                            $ncBlockReason = 'Checkout is available at 12:00 PM on the scheduled checkout date (' . $ncScheduledAt->format('Y-m-d H:i:s') . ') unless a finalized manager-approved early-checkout exception applies.';
+                        }
+                    }
                 }
                 $nextCheckouts[] = [
                     'stay_id' => (int)$ncRow['stay_id'],
@@ -622,6 +651,8 @@ if ($action === 'dashboard') {
                     'checkout_at' => $ncCheckoutAt->format('Y-m-d H:i:s'),
                     'label' => $ncLabel,
                     'is_early_departure' => $ncEarly,
+                    'checkout_allowed' => $ncAllowed,
+                    'checkout_block_reason' => $ncBlockReason,
                 ];
             }
             $response['frontdesk']['next_checkouts'] = $nextCheckouts;

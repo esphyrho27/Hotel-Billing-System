@@ -1480,7 +1480,7 @@
               <div class="small fw-semibold">${fmtCheckoutAt(row.checkout_at)}</div>
               <div>${badgeFor(row)}</div>
             </div>
-            ${ncCanCheckout ? `<button class="btn btn-sm btn-outline-success flex-shrink-0" onclick="HotelBilling.checkout(${Number(row.stay_id)})"><i class="bi bi-box-arrow-right me-1"></i>Checkout</button>` : ''}
+            ${ncCanCheckout ? (row.checkout_allowed === false ? `<button class="btn btn-sm btn-outline-success flex-shrink-0" disabled title="${esc(row.checkout_block_reason || 'Checkout is not available yet.')}"><i class="bi bi-box-arrow-right me-1"></i>Checkout</button>` : `<button class="btn btn-sm btn-outline-success flex-shrink-0" onclick="HotelBilling.checkout(${Number(row.stay_id)})"><i class="bi bi-box-arrow-right me-1"></i>Checkout</button>`) : ''}
           </div>`).join('') : '<div class="text-muted py-2">No upcoming checkouts.</div>';
         return `
           <div class="card border-0 shadow-sm mb-4">
