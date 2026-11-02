@@ -7937,7 +7937,7 @@ async function transfer(id) {
 
       const canCheckout = folioCan('stays.checkout', ['admin', 'frontdesk'].includes(curRole));
 
-      const canAddCharge = folioCan('charges.create', ['admin', 'manager', 'cashier', 'frontdesk'].includes(curRole));
+      const canAddCharge = curRole !== 'frontdesk' && folioCan('charges.create', ['admin', 'manager', 'cashier'].includes(curRole));
 
       const dateOnly=v=>String(v||'—').replace('T',' ').replace(/\s\d{2}:\d{2}:\d{2}.*/, '');
 
