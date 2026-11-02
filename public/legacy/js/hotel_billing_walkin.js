@@ -3515,7 +3515,7 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
             <input class="form-control fw-bold" type="number" name="nights" id="ck-nights" min="1" max="90" value="1" required>
           </div>
 
-          <!-- Occupants: one row per guest (mirrors group check-in) -->
+          <!-- Occupants: one row per guest; first row required, rest optional -->
           <div class="col-12" id="ck-occupants-section">
             <div class="border rounded p-3">
               <div class="d-flex justify-content-between align-items-center mb-1">
@@ -3526,7 +3526,7 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
               </div>
               <div id="ck-occupants-hint" class="alert alert-info py-2 mb-2 small d-none">Booked under <strong id="ck-occupants-booker"></strong> — list the people actually staying in this room.</div>
               <div id="ck-occupant-rows"></div>
-              <div class="small text-muted">One occupant per guest. First and last names are required; contact number is optional.</div>
+              <div class="small text-muted">First occupant is required; the rest can be added later in Guest details. First and last names are required for each occupant listed; contact number is optional.</div>
             </div>
           </div>
 
@@ -3710,6 +3710,9 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
       // Occupants: one row per guest, re-rendered when Guests changes.
       // Already-typed values survive by row index; "Use booker" copies the
       // booker fields into a row (for when the booker is also staying).
+      // Only the first row is required — companions who arrive later (or
+      // whose names are not known yet) can be added afterwards in Guest
+      // details, so blank rows below the first are ignored on submit.
       const renderOccupantRows = () => {
         const prev = [];
         occupantRowsBox.querySelectorAll('[data-occupant-row]').forEach(row => {
@@ -3721,17 +3724,18 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
         });
         let count = parseInt(guestsInput.value || 1, 10);
         if (isNaN(count) || count < 1) count = 1;
-        occupantsCountNote.textContent = `${count} occupant${count > 1 ? 's' : ''} for ${count} guest${count > 1 ? 's' : ''}`;
+        occupantsCountNote.textContent = `First occupant required; up to ${count} for ${count} guest${count > 1 ? 's' : ''}`;
         occupantRowsBox.innerHTML = Array.from({length: count}, (_, i) => {
           const p = prev[i] || {first: '', last: '', contact: ''};
+          const req = i === 0;
           return `<div class="mb-2" data-occupant-row>
             <div class="d-flex justify-content-between align-items-center">
-              <span class="small fw-semibold text-muted">Occupant ${i + 1}</span>
+              <span class="small fw-semibold text-muted">Occupant ${i + 1}${req ? ' *' : ' (optional)'}</span>
               <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" data-occ-fill="${i}">Use booker</button>
             </div>
             <div class="row g-2">
-              <div class="col-md-4"><input class="form-control" type="text" data-occ-first maxlength="100" placeholder="First name *" value="${esc(p.first)}" required></div>
-              <div class="col-md-4"><input class="form-control" type="text" data-occ-last maxlength="100" placeholder="Last name *" value="${esc(p.last)}" required></div>
+              <div class="col-md-4"><input class="form-control" type="text" data-occ-first maxlength="100" placeholder="First name${req ? ' *' : ' (optional)'}" value="${esc(p.first)}"${req ? ' required' : ''}></div>
+              <div class="col-md-4"><input class="form-control" type="text" data-occ-last maxlength="100" placeholder="Last name${req ? ' *' : ' (optional)'}" value="${esc(p.last)}"${req ? ' required' : ''}></div>
               <div class="col-md-4"><input class="form-control" type="tel" data-occ-contact maxlength="30" placeholder="Contact (optional)" value="${esc(p.contact)}"></div>
             </div>
           </div>`;
@@ -3762,11 +3766,13 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
             const first = (row.querySelector('[data-occ-first]')?.value || '').trim();
             const last = (row.querySelector('[data-occ-last]')?.value || '').trim();
             const contact = (row.querySelector('[data-occ-contact]')?.value || '').trim();
+            if (first === '' && last === '') return;
             if (!first || !last) throw new Error('Enter a first and last name for each occupant.');
             occupants.push({ first_name: first, last_name: last, contact_number: contact });
           });
           const guestCount = Number(f.guests);
-          if (occupants.length !== guestCount) throw new Error('Enter exactly one occupant for each guest.');
+          if (occupants.length === 0) throw new Error('Enter at least one occupant.');
+          if (occupants.length > guestCount) throw new Error('Enter no more than one occupant per guest.');
           const r = await api('checkin', {
             room_id: Number(f.room_id),
             guests: guestCount,
@@ -3839,14 +3845,17 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
         const sp = t.indexOf(' ');
         return sp === -1 ? [t, ''] : [t.slice(0, sp), t.slice(sp + 1).trim()];
       };
-      const occupantRowHtml = (i, first, last, contact) => `<div class="mb-2" data-gd-occ-row>
-          <div class="small fw-semibold text-muted">Occupant ${i + 1}</div>
+      const occupantRowHtml = (i, first, last, contact) => {
+        const req = i === 0;
+        return `<div class="mb-2" data-gd-occ-row>
+          <div class="small fw-semibold text-muted">Occupant ${i + 1}${req ? ' *' : ' (optional)'}</div>
           <div class="row g-2">
-            <div class="col-md-4"><input class="form-control" type="text" data-gd-occ-first maxlength="100" placeholder="First name *" value="${esc(first)}" required></div>
-            <div class="col-md-4"><input class="form-control" type="text" data-gd-occ-last maxlength="100" placeholder="Last name *" value="${esc(last)}" required></div>
+            <div class="col-md-4"><input class="form-control" type="text" data-gd-occ-first maxlength="100" placeholder="First name${req ? ' *' : ' (optional)'}" value="${esc(first)}"${req ? ' required' : ''}></div>
+            <div class="col-md-4"><input class="form-control" type="text" data-gd-occ-last maxlength="100" placeholder="Last name${req ? ' *' : ' (optional)'}" value="${esc(last)}"${req ? ' required' : ''}></div>
             <div class="col-md-4"><input class="form-control" type="tel" data-gd-occ-contact maxlength="30" placeholder="Contact (optional)" value="${esc(contact)}"></div>
           </div>
         </div>`;
+      };
       const occupantEditForm = (prefill, note) => {
         const rows = Array.from({length: Math.max(1, Number(s.guest_count) || 1)}, (_, i) => {
           const [first, last] = prefill[i] ? splitOccupantName(prefill[i].full_name) : ['', ''];
@@ -3857,7 +3866,7 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
       let occupantSection = '';
       if (tableOccupants.length) {
         occupantSection = canEditOccupants
-          ? occupantEditForm(tableOccupants, `Fixed count: ${s.guest_count} guest(s)`)
+          ? occupantEditForm(tableOccupants, `First occupant required; up to ${s.guest_count} occupant(s)`)
           : `<section class="col-12"><div class="card border-primary-subtle"><div class="card-header bg-light py-2"><strong><i class="bi bi-people me-1"></i>Room occupants</strong></div><div class="card-body py-2"><ol class="mb-0 ps-3">${tableOccupants.map(o => `<li>${esc(o.full_name)}${o.contact_number ? ` <span class="small text-muted">(${esc(o.contact_number)})</span>` : ''}</li>`).join('')}</ol></div></div></section>`;
       } else if (auditNames.length) {
         // Old group stay: names live only in the audit log. Staff with edit
@@ -3878,15 +3887,17 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
       if (occupantsForm) {
         occupantsForm.onsubmit = async e => {
           e.preventDefault();
-          const occupants = [];
-          occupantsForm.querySelectorAll('[data-gd-occ-row]').forEach(row => {
-            const first = (row.querySelector('[data-gd-occ-first]')?.value || '').trim();
-            const last = (row.querySelector('[data-gd-occ-last]')?.value || '').trim();
-            const contact = (row.querySelector('[data-gd-occ-contact]')?.value || '').trim();
-            if (!first || !last) throw new Error('Enter a first and last name for each occupant.');
-            occupants.push({ first_name: first, last_name: last, contact_number: contact });
-          });
           try {
+            const occupants = [];
+            occupantsForm.querySelectorAll('[data-gd-occ-row]').forEach(row => {
+              const first = (row.querySelector('[data-gd-occ-first]')?.value || '').trim();
+              const last = (row.querySelector('[data-gd-occ-last]')?.value || '').trim();
+              const contact = (row.querySelector('[data-gd-occ-contact]')?.value || '').trim();
+              if (first === '' && last === '') return;
+              if (!first || !last) throw new Error('Enter a first and last name for each occupant.');
+              occupants.push({ first_name: first, last_name: last, contact_number: contact });
+            });
+            if (occupants.length === 0) throw new Error('Enter at least one occupant.');
             await api('update_stay_occupants', { stay_id: Number(stayId), occupants: occupants });
             notify('Occupant details saved.');
             m.hide();
@@ -6748,6 +6759,28 @@ async function transfer(id) {
 
 
 
+                <div class="col-12" id="wkd-occupants-section">
+
+                  <div class="border rounded p-3">
+
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+
+                      <span class="fw-semibold small text-uppercase text-muted"><i class="bi bi-people me-1"></i>Occupants</span>
+
+                      <span class="small text-muted" id="wkd-occupants-count-note"></span>
+
+                    </div>
+
+                    <div id="wkd-occupant-rows"></div>
+
+                    <div class="small text-muted">First occupant is required; the rest can be added later in Guest details. First and last names are required for each occupant listed; contact number is optional.</div>
+
+                  </div>
+
+                </div>
+
+
+
                 <div class="col-12">
 
                   <div class="alert alert-primary py-2 px-3 mb-0 d-flex flex-wrap align-items-center justify-content-between gap-2">
@@ -6837,6 +6870,63 @@ async function transfer(id) {
 
 
 
+      // Occupants: one row per guest, same relaxed rule as the check-in
+      // modal — first row required, the rest optional, blank rows ignored.
+      // Already-typed values survive by row index; "Use booker" copies the
+      // booker fields into a row (for when the booker is also staying).
+      const wkdOccupantRowsBox = host.querySelector('#wkd-occupant-rows');
+      const wkdOccupantsCountNote = host.querySelector('#wkd-occupants-count-note');
+      const renderWkdOccupantRows = () => {
+        if (!wkdOccupantRowsBox) return;
+        const prev = [];
+        wkdOccupantRowsBox.querySelectorAll('[data-wkd-occ-row]').forEach(row => {
+          prev.push({
+            first: row.querySelector('[data-wkd-occ-first]')?.value || '',
+            last: row.querySelector('[data-wkd-occ-last]')?.value || '',
+            contact: row.querySelector('[data-wkd-occ-contact]')?.value || ''
+          });
+        });
+        let count = parseInt(guestsInput.value || 1, 10);
+        if (isNaN(count) || count < 1) count = 1;
+        if (wkdOccupantsCountNote) wkdOccupantsCountNote.textContent = `First occupant required; up to ${count} for ${count} guest${count > 1 ? 's' : ''}`;
+        wkdOccupantRowsBox.innerHTML = Array.from({length: count}, (_, i) => {
+          const p = prev[i] || {first: '', last: '', contact: ''};
+          const req = i === 0;
+          return `<div class="mb-2" data-wkd-occ-row>
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="small fw-semibold text-muted">Occupant ${i + 1}${req ? ' *' : ' (optional)'}</span>
+              <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" data-wkd-occ-fill="${i}">Use booker</button>
+            </div>
+            <div class="row g-2">
+              <div class="col-md-4"><input class="form-control form-control-sm" type="text" data-wkd-occ-first maxlength="100" placeholder="First name${req ? ' *' : ' (optional)'}" value="${esc(p.first)}"${req ? ' required' : ''}></div>
+              <div class="col-md-4"><input class="form-control form-control-sm" type="text" data-wkd-occ-last maxlength="100" placeholder="Last name${req ? ' *' : ' (optional)'}" value="${esc(p.last)}"${req ? ' required' : ''}></div>
+              <div class="col-md-4"><input class="form-control form-control-sm" type="tel" data-wkd-occ-contact maxlength="30" placeholder="Contact (optional)" value="${esc(p.contact)}"></div>
+            </div>
+          </div>`;
+        }).join('');
+        wkdOccupantRowsBox.querySelectorAll('[data-wkd-occ-fill]').forEach(btn => btn.addEventListener('click', () => {
+          const row = wkdOccupantRowsBox.querySelectorAll('[data-wkd-occ-row]')[Number(btn.dataset.wkdOccFill)];
+          if (!row) return;
+          row.querySelector('[data-wkd-occ-first]').value = host.querySelector('#wkd-first-name')?.value || '';
+          row.querySelector('[data-wkd-occ-last]').value = host.querySelector('#wkd-last-name')?.value || '';
+          row.querySelector('[data-wkd-occ-contact]').value = host.querySelector('#wkd-contact')?.value || '';
+        }));
+      };
+      const collectWkdOccupants = () => {
+        const occupants = [];
+        wkdOccupantRowsBox?.querySelectorAll('[data-wkd-occ-row]').forEach(row => {
+          const first = (row.querySelector('[data-wkd-occ-first]')?.value || '').trim();
+          const last = (row.querySelector('[data-wkd-occ-last]')?.value || '').trim();
+          const contact = (row.querySelector('[data-wkd-occ-contact]')?.value || '').trim();
+          if (first === '' && last === '') return;
+          if (!first || !last) throw new Error('Enter a first and last name for each occupant.');
+          occupants.push({ first_name: first, last_name: last, contact_number: contact });
+        });
+        return occupants;
+      };
+
+
+
       const updateEstimate = () => {
 
         const opt = roomSelect?.selectedOptions?.[0];
@@ -6895,6 +6985,9 @@ async function transfer(id) {
       roomSelect?.addEventListener('change', updateEstimate);
       checkoutInput?.addEventListener('change', updateEstimate);
       guestsInput?.addEventListener('input', updateEstimate);
+      guestsInput?.addEventListener('input', renderWkdOccupantRows);
+      renderWkdOccupantRows();
+      form?.addEventListener('reset', () => setTimeout(renderWkdOccupantRows, 0));
 
 
 
@@ -6949,6 +7042,19 @@ async function transfer(id) {
           return notify('Guest first and last name are required.', true);
         }
 
+        let occupants;
+        try {
+          occupants = collectWkdOccupants();
+        } catch (occErr) {
+          return notify(occErr.message, true);
+        }
+        if (occupants.length === 0) {
+          return notify('Enter at least one occupant.', true);
+        }
+        if (occupants.length > guests) {
+          return notify('Enter no more than one occupant per guest.', true);
+        }
+
 
 
         const submitBtn = host.querySelector('#btn-wkd-submit');
@@ -6978,6 +7084,7 @@ async function transfer(id) {
             last_name: lastName,
 
             email: email,
+            occupants: occupants,
             discount_amount: 0
 
           });

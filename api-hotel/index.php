@@ -95,28 +95,30 @@ function htl_ensure_stay_occupants(PDO $pdo): void {
 }
 
 /**
- * Validates a check-in occupant list: exactly one occupant per guest, each
- * with a first and last name (<=100 chars each, combined <=150 to fit the
- * stay_occupants.full_name column) and an optional contact number (<=30).
- * Returns normalized rows [['full_name' => ..., 'contact_number' => ...|null,
- * 'sort_order' => int], ...]. Throws RuntimeException on any violation.
+ * Validates a check-in occupant list: at least one occupant is required and
+ * at most one per guest, so companions who arrive later (or whose names are
+ * not known yet) can be added afterwards in Guest details. Each listed
+ * occupant needs a first and last name (<=100 chars each, combined <=150 to
+ * fit the stay_occupants.full_name column) and an optional contact number
+ * (<=30). Fully-blank rows are ignored, not errors. Returns normalized rows
+ * [['full_name' => ..., 'contact_number' => ...|null, 'sort_order' => int],
+ * ...]. Throws RuntimeException on any violation.
  */
 function htl_validate_occupants($raw, int $guestCount): array {
     if (!is_array($raw)) {
-        throw new RuntimeException('Enter occupant details for each guest.');
-    }
-    $rows = array_values($raw);
-    if (count($rows) !== $guestCount) {
-        throw new RuntimeException('Enter exactly one occupant for each guest.');
+        throw new RuntimeException('Enter at least one occupant.');
     }
     $out = [];
-    foreach ($rows as $i => $occ) {
+    foreach (array_values($raw) as $occ) {
         if (!is_array($occ)) {
             throw new RuntimeException('Enter occupant details for each guest.');
         }
         $first = trim((string)($occ['first_name'] ?? ''));
         $last = trim((string)($occ['last_name'] ?? ''));
         $contact = trim((string)($occ['contact_number'] ?? ''));
+        if ($first === '' && $last === '') {
+            continue;
+        }
         if ($first === '' || strlen($first) > 100) {
             throw new RuntimeException('Each occupant first name is required.');
         }
@@ -130,7 +132,13 @@ function htl_validate_occupants($raw, int $guestCount): array {
         if (strlen($full) > 150) {
             throw new RuntimeException('Each occupant full name must be 150 characters or fewer.');
         }
-        $out[] = ['full_name' => $full, 'contact_number' => $contact !== '' ? $contact : null, 'sort_order' => $i];
+        $out[] = ['full_name' => $full, 'contact_number' => $contact !== '' ? $contact : null, 'sort_order' => count($out)];
+    }
+    if (count($out) === 0) {
+        throw new RuntimeException('Enter at least one occupant.');
+    }
+    if (count($out) > $guestCount) {
+        throw new RuntimeException('Enter no more than one occupant per guest.');
     }
     return $out;
 }
@@ -2756,8 +2764,9 @@ if ($action === 'checkin') {
         $customerReused = true;
     }
 
-    // Occupants are required: exactly one per guest (mirrors group check-in).
-    // Validated before any write so a bad list never creates a partial stay.
+    // Occupants: at least one is required; the rest may be added later in
+    // Guest details (companions often arrive after the booker). Validated
+    // before any write so a bad list never creates a partial stay.
     try {
         htl_ensure_stay_occupants($pdo);
         $occupantRows = htl_validate_occupants($in['occupants'] ?? null, $guests);
@@ -2987,10 +2996,11 @@ if ($action === 'update_stay_guest') {
 
 /**
  * Replaces the occupant list attached to a stay (staff-side correction).
- * Roles mirror update_stay_guest. Row count is fixed: it must equal the
- * stay's guest_count (no add/remove — a guest-count change is a different
- * operation). Allowed for ACTIVE and PENDING_PAYMENT stays; CHECKED_OUT and
- * CANCELLED stays keep their historical occupant record untouched.
+ * Roles mirror update_stay_guest. At least one occupant is required and at
+ * most one per guest (no add/remove beyond the guest count — a guest-count
+ * change is a different operation). The rest may be added later. Allowed for
+ * ACTIVE and PENDING_PAYMENT stays; CHECKED_OUT and CANCELLED stays keep
+ * their historical occupant record untouched.
  */
 if ($action === 'update_stay_occupants') {
     require_role(['admin', 'manager', 'frontdesk']);
