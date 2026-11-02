@@ -393,6 +393,17 @@ try {
             // has no restaurant order and stays visible. Staff side untouched.
             $liveOrderCodes = array_map(static fn(array $order): string => (string)($order['order_code'] ?? ''), $liveOrders);
             $liveRequests = array_values(array_filter($liveRequests, static fn(array $liveRequestRow): bool => !in_array((string)($liveRequestRow['request_code'] ?? ''), $liveOrderCodes, true)));
+            // Room transfers are a manager-page approval, not a guest-portal
+            // item (2026-11-03): a staff-initiated transfer that is still
+            // pending must not appear in the guest's live request list.
+            // Guest-initiated transfers are not staff-prefixed, so they stay
+            // visible with their normal status; completed/rejected staff
+            // transfers are history, not pending, so they stay visible too.
+            $liveRequests = array_values(array_filter($liveRequests, static fn(array $liveRequestRow): bool => !(
+                ($liveRequestRow['request_kind'] ?? '') === 'ROOM_TRANSFER'
+                && in_array($liveRequestRow['status'] ?? '', ['NEW', 'PENDING', 'ASSIGNED', 'ACKNOWLEDGED', 'IN_PROGRESS', 'ON_HOLD'], true)
+                && str_starts_with((string)($liveRequestRow['description'] ?? ''), 'Front desk requested')
+            )));
             $liveExtensions = [];
             try {
                 $liveExtensionsQuery = $pdo->prepare(
@@ -717,7 +728,7 @@ try {
                         );
                         $duplicateQuery->execute([(int)$currentStay['id']]);
                         if ((int)$duplicateQuery->fetchColumn() > 0) {
-                            throw new RuntimeException('You already have a room-change request awaiting staff action.');
+                            throw new RuntimeException('You already have a room-change request awaiting manager approval.');
                         }
                         $destinationRequestQuery = $pdo->prepare(
                             "SELECT COUNT(*) FROM service_requests
@@ -1404,6 +1415,17 @@ try {
         unset($order);
         $orderCodes = array_map(static fn(array $orderRow): string => (string)($orderRow['order_code'] ?? ''), $orders);
         $requests = array_values(array_filter($requests, static fn(array $requestRow): bool => !in_array((string)($requestRow['request_code'] ?? ''), $orderCodes, true)));
+        // Same manager-page rule as the live list above: hide a pending
+        // staff-initiated transfer from My requests / Recent activity.
+        // The guest still cannot file a second transfer while one is
+        // pending (the service button is disabled by $hasPendingTransfer),
+        // so this is a neutral "already awaiting staff action" state, not
+        // a silent duplicate.
+        $requests = array_values(array_filter($requests, static fn(array $requestRow): bool => !(
+            ($requestRow['request_kind'] ?? '') === 'ROOM_TRANSFER'
+            && in_array($requestRow['status'] ?? '', ['NEW', 'PENDING', 'ASSIGNED', 'ACKNOWLEDGED', 'IN_PROGRESS', 'ON_HOLD'], true)
+            && str_starts_with((string)($requestRow['description'] ?? ''), 'Front desk requested')
+        )));
         $recentActivity = [];
         foreach ($requests as $request) {
             $recentActivity[] = ['kind' => 'request', 'created_at' => (string)$request['created_at'], 'data' => $request];
@@ -2132,14 +2154,14 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
               <button class="service-choice" type="button" data-service-choice="HOUSEKEEPING" aria-pressed="false"><span class="service-choice-icon" aria-hidden="true">⌂</span><strong>Housekeeping</strong><span>Towels, pillows and essentials</span></button>
               <button class="service-choice" type="button" data-service-choice="MAINTENANCE" aria-pressed="false"><span class="service-choice-icon" aria-hidden="true">⚒</span><strong>Maintenance</strong><span>Something needs fixing</span></button>
               <button class="service-choice" type="button" data-service-choice="OTHER" aria-pressed="false"><span class="service-choice-icon" aria-hidden="true">⋯</span><strong>Other assistance</strong><span>Anything else we can help with</span></button>
-              <button class="service-choice" type="button" data-service-choice="ROOM_TRANSFER" aria-pressed="false" <?= $hasPendingTransfer || !$transferRooms ? 'disabled' : '' ?>><span class="service-choice-icon" aria-hidden="true">⇄</span><strong>Request a room change</strong><span><?= $hasPendingTransfer ? 'A request is already awaiting staff action' : ($transferRooms ? 'Ask the front desk to move you' : 'No rooms are currently available') ?></span></button>
+              <button class="service-choice" type="button" data-service-choice="ROOM_TRANSFER" aria-pressed="false" <?= $hasPendingTransfer || !$transferRooms ? 'disabled' : '' ?>><span class="service-choice-icon" aria-hidden="true">⇄</span><strong>Request a room change</strong><span><?= $hasPendingTransfer ? 'A request is already awaiting manager approval' : ($transferRooms ? 'Ask the front desk to move you' : 'No rooms are currently available') ?></span></button>
             </div>
             <div class="service-quick-picks" data-service-quick-picks role="group" aria-label="Quick request options" hidden></div>
             <label class="field service-type-fallback">Department
               <select name="service_type" data-service-type required><option value="FRONT_DESK">Front desk</option><option value="HOUSEKEEPING">Housekeeping</option><option value="MAINTENANCE">Maintenance</option><option value="OTHER">Other assistance</option><?php if (!$hasPendingTransfer && $transferRooms): ?><option value="ROOM_TRANSFER">Request a room change</option><?php endif; ?></select>
             </label>
             <div class="field" data-transfer-fields hidden>
-              <p class="notice" data-transfer-notice <?= ($hasPendingTransfer || !$transferRooms) ? '' : 'hidden' ?>><?= $hasPendingTransfer ? 'A room-change request is already awaiting staff action. You can submit another request after it is approved or rejected.' : 'No other rooms are currently available. Please contact the front desk for assistance.' ?></p>
+              <p class="notice" data-transfer-notice <?= ($hasPendingTransfer || !$transferRooms) ? '' : 'hidden' ?>><?= $hasPendingTransfer ? 'A room-change request is already awaiting manager approval. You can submit another request after it is approved or rejected.' : 'No other rooms are currently available. Please contact the front desk for assistance.' ?></p>
               <label class="field" style="margin:0">Requested destination room
                 <select name="requested_room_id" data-transfer-room disabled required>
                   <option value="">Choose an available room</option>
@@ -3600,7 +3622,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           choice.disabled = !available;
           const spans = choice.querySelectorAll("span");
           const label = spans.length ? spans[spans.length - 1] : null;
-          if (label) label.textContent = hasPending ? "A request is already awaiting staff action" : (available ? "Ask the front desk to move you" : "No rooms are currently available");
+          if (label) label.textContent = hasPending ? "A request is already awaiting manager approval" : (available ? "Ask the front desk to move you" : "No rooms are currently available");
         }
         if (departmentSelect instanceof HTMLSelectElement && !isMidTransfer) {
           let option = departmentSelect.querySelector('option[value="ROOM_TRANSFER"]');
@@ -3616,7 +3638,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         const notice = serviceForm.querySelector("[data-transfer-notice]");
         if (notice instanceof HTMLElement) {
           if (hasPending) {
-            notice.textContent = "A room-change request is already awaiting staff action. You can submit another request after it is approved or rejected.";
+            notice.textContent = "A room-change request is already awaiting manager approval. You can submit another request after it is approved or rejected.";
             notice.hidden = false;
           } else if (!rooms.length) {
             notice.textContent = "No other rooms are currently available. Please contact the front desk for assistance.";

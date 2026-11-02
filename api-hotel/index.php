@@ -241,7 +241,7 @@ if ($action === 'session') {
 
 $readActions = [
     'dashboard', 'rooms', 'room_types', 'service_catalog', 'active_stays', 'checkout_history', 'hotel_time_policy', 'demo_clock_status',
-    'requests', 'request_history', 'early_checkout_policies', 'early_checkout_requests', 'stay_extension_requests',
+    'requests', 'request_history', 'early_checkout_policies', 'early_checkout_requests', 'stay_extension_requests', 'room_transfer_requests',
     'chat_conversations', 'chat_messages',
     'discount_policy_admin_list', 'pending_discounts', 'discount_policies',
     'vat_settings', 'reports', 'payment_history', 'receipt_details', 'report_transactions', 'audit_logs', 'users',
@@ -682,6 +682,12 @@ if ($action === 'dashboard') {
         if (hotel_user_can($u, 'payments.process', $pdo) || $roleKey === 'cashier') {
             htl_ensure_checkin_payments($pdo);
             $approvals['checkin_payments'] = (int)$pdo->query("SELECT COUNT(*) n FROM checkin_payments WHERE status='FOR_PAYMENT'")->fetch()['n'];
+        }
+        // Room transfers are manager-approved, so only the manager's inbox
+        // counts them (same pending definition as room_transfer_approvals
+        // above). They then count toward the inbox total.
+        if ($roleKey === 'manager') {
+            $approvals['room_transfers'] = (int)$pdo->query("SELECT COUNT(DISTINCT sr.id) n FROM service_requests sr JOIN stays s ON s.id=sr.stay_id JOIN folios f ON f.stay_id=s.id AND f.status='OPEN' WHERE s.status='ACTIVE' AND sr.request_kind='ROOM_TRANSFER' AND sr.status IN ('NEW','PENDING','ASSIGNED','ACKNOWLEDGED','ON_HOLD')")->fetch()['n'];
         }
     } catch (Throwable $e) {
         $approvals = [];
@@ -4024,13 +4030,18 @@ if ($action === 'cancel_pending_checkin') {
 }
 
 /**
- * Transfers an active stay to another available room, updates room statuses,
- * logs room transfer history, and posts rate adjustment charges if rates differ.
+ * Staff room-transfer request (2026-11-03): Front Desk no longer moves a
+ * guest immediately. Calling `transfer` now creates a PENDING ROOM_TRANSFER
+ * service request that only a manager may approve (via request_status
+ * COMPLETED) or reject (via request_status REJECTED) on the manager
+ * approvals page. Nothing moves, no room status changes, and no folio
+ * charge is posted until that manager decision. This also closes the
+ * direct-API bypass: the old instant-move path no longer exists.
  */
 if ($action === 'transfer') {
     $transferRole = strtolower(trim(str_replace([' ', '_', '-'], '', (string)($u['role'] ?? ''))));
     if ($transferRole !== 'frontdesk') {
-        out(['error' => 'Only Front Desk may authorize and execute room transfers.'], 403);
+        out(['error' => 'Only Front Desk may request a room transfer.'], 403);
     }
     $sid = (int)($in['stay_id'] ?? 0);
     $to = (int)($in['to_room_id'] ?? 0);
@@ -4046,54 +4057,47 @@ if ($action === 'transfer') {
         $q->execute([$sid]);
         $s = $q->fetch();
 
-        $q = $pdo->prepare('SELECT r.*, rt.nightly_rate AS new_rate FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.id=? FOR UPDATE');
+        $q = $pdo->prepare('SELECT r.*, rt.nightly_rate AS new_rate, rt.capacity AS type_capacity FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.id=? FOR UPDATE');
         $q->execute([$to]);
         $r = $q->fetch();
 
         if (!$s || !$r || $r['status'] !== 'AVAILABLE' || (int)$s['room_id'] === $to) {
             throw new RuntimeException('Stay or destination room is invalid.');
         }
-
-        $effective = (new DateTimeImmutable('today'))->format('Y-m-d');
-        $q = $pdo->prepare('INSERT INTO room_transfers(stay_id, from_room_id, to_room_id, effective_date, old_rate, new_rate, reason, authorized_by) VALUES(?, ?, ?, ?, ?, ?, ?, ?)');
-        $q->execute([$sid, $s['room_id'], $to, $effective, $s['old_rate'], $r['new_rate'], $reason, $u['id']]);
-
-        $pdo->prepare("UPDATE rooms SET status='AVAILABLE' WHERE id=?")->execute([$s['room_id']]);
-        $pdo->prepare("UPDATE rooms SET status='OCCUPIED' WHERE id=?")->execute([$to]);
-        $pdo->prepare('UPDATE stays SET room_id=? WHERE id=?')->execute([$to, $sid]);
-
-        $q = $pdo->prepare('SELECT id FROM folios WHERE stay_id=?');
-        $q->execute([$sid]);
-        $fid = (int)$q->fetch()['id'];
-
-        // Signed nights remaining: DateTime::diff()->days is absolute, so an
-        // overdue stay (planned checkout already past) used to report positive
-        // nights and post a spurious adjustment. A signed diff yields 0 once
-        // no nights remain.
-        $remaining = max(0, (int)(new DateTimeImmutable($effective))->diff(new DateTimeImmutable($s['planned_checkout']))->format('%r%a'));
-        $delta = round((float)$r['new_rate'] - (float)$s['old_rate'], 2);
-
-        if ($remaining > 0 && abs($delta) > 0.001) {
-            $desc = ($delta > 0 ? 'Room rate increase from ' : 'Room rate credit from ') . $effective;
-            $pdo->prepare("INSERT INTO charges(folio_id, category, description, quantity, unit_price, amount, created_by) VALUES(?, 'ADJUSTMENT', ?, ?, ?, ?, ?)")
-                ->execute([$fid, $desc, $remaining, $delta, $remaining * $delta, $u['id']]);
+        // Room-type capacity, not rooms.capacity (which is NULL for rooms
+        // created without a capacity value) — same source the portal's
+        // transfer-availability list uses.
+        if ((int)$r['type_capacity'] < (int)$s['guest_count']) {
+            throw new RuntimeException('That room cannot accommodate everyone on this stay.');
         }
 
-        $code = 'RQ' . strtoupper(bin2hex(random_bytes(4)));
-        // This row is the audit record of a transfer that has ALREADY been
-        // executed above, so it is born COMPLETED. (As IN_PROGRESS it stayed
-        // "open" forever and the checkout guard then blocked the stay.)
-        $pdo->prepare("INSERT INTO service_requests(stay_id, request_code, service_type, request_kind, requested_room_id, description, status) VALUES(?, ?, 'FRONT_DESK', 'ROOM_TRANSFER', ?, ?, 'COMPLETED')")
-            ->execute([$sid, $code, $to, 'Front desk initiated room transfer from room ' . $s['from_room'] . ' to ' . $r['room_number'] . '. Transfer effective immediately.']);
+        $dupQ = $pdo->prepare("SELECT COUNT(*) FROM service_requests WHERE stay_id=? AND request_kind='ROOM_TRANSFER' AND status IN ('NEW','PENDING','ASSIGNED','ACKNOWLEDGED','IN_PROGRESS','ON_HOLD')");
+        $dupQ->execute([$sid]);
+        if ((int)$dupQ->fetchColumn() > 0) {
+            throw new RuntimeException('This stay already has a room-transfer request awaiting manager approval.');
+        }
+        $destQ = $pdo->prepare("SELECT COUNT(*) FROM service_requests WHERE requested_room_id=? AND request_kind='ROOM_TRANSFER' AND status IN ('NEW','PENDING','ASSIGNED','ACKNOWLEDGED','IN_PROGRESS','ON_HOLD')");
+        $destQ->execute([$to]);
+        if ((int)$destQ->fetchColumn() > 0) {
+            throw new RuntimeException('That room is already requested for another transfer awaiting manager approval.');
+        }
+
+        $code = 'RT' . strtoupper(bin2hex(random_bytes(4)));
+        // PENDING, not COMPLETED: the guest stays in the current room until
+        // a manager approves. The description prefix is what keeps a
+        // staff-initiated pending transfer out of the guest portal's
+        // request list (guest-initiated requests start 'Requested room').
+        $pdo->prepare("INSERT INTO service_requests(stay_id, request_code, service_type, assigned_department, request_kind, requested_room_id, description, status, chargeable, price) VALUES(?, ?, 'FRONT_DESK', 'frontdesk', 'ROOM_TRANSFER', ?, ?, 'PENDING', 0, 0)")
+            ->execute([$sid, $code, $to, 'Front desk requested room transfer to Room ' . $r['room_number'] . ': ' . $reason . '. Awaiting manager approval.']);
+        $requestId = (int)$pdo->lastInsertId();
+        $pdo->prepare("INSERT INTO service_request_history (request_id, from_status, to_status, changed_by_user_id, changed_by_role, assigned_department, notes) VALUES (?, NULL, 'PENDING', ?, ?, 'frontdesk', ?)")
+            ->execute([$requestId, $u['id'], $u['role'], 'Front desk requested room ' . $r['room_number'] . '; manager approval required.']);
 
         $pdo->commit();
 
-        audit($pdo, $u['id'], 'ROOM_TRANSFER', 'stay', $sid, ['from' => $s['from_room'], 'to' => $r['room_number'], 'effective' => $effective]);
-        ws_broadcast('ROOM_STATUS_CHANGED', ['room_id' => (int)$s['room_id'], 'room_number' => $s['from_room'], 'status' => 'AVAILABLE'], null, null, null, true);
-        ws_broadcast('ROOM_STATUS_CHANGED', ['room_id' => $to, 'room_number' => $r['room_number'], 'status' => 'OCCUPIED'], null, null, null, true);
-        ws_broadcast('STAY_UPDATED', ['stay_id' => $sid, 'stay_code' => $s['stay_code'], 'room_id' => $to, 'room_number' => $r['room_number']], null, 'frontdesk', $s['stay_code']);
+        audit($pdo, $u['id'], 'ROOM_TRANSFER_REQUESTED', 'service_request', $requestId, ['stay_id' => $sid, 'from' => $s['from_room'], 'to' => $r['room_number'], 'request_code' => $code]);
 
-        out(['ok' => true, 'effective_date' => $effective]);
+        out(['ok' => true, 'request_id' => $requestId, 'request_code' => $code, 'status' => 'PENDING', 'message' => 'Room transfer request sent for manager approval. The guest has not moved.']);
     } catch (Throwable $e) {
         $pdo->rollBack();
         out(['error' => $e->getMessage()], 400);
@@ -5093,10 +5097,14 @@ if ($action === 'request_status') {
 
         if ($isRoomTransfer) {
             if (!$isManager) {
-                throw new RuntimeException('Only a manager may approve or finalize a room-transfer request.');
+                throw new RuntimeException('Only a manager may approve, reject, or finalize a room-transfer request.');
             }
-            if ($status !== 'COMPLETED') {
-                throw new RuntimeException('Managers must approve and complete room transfers in one step.');
+            // Approve-and-move is one step (COMPLETED); rejection needs a
+            // reason (enforced by the REJECTED check below). No other
+            // status moves a transfer — frontdesk cannot acknowledge or
+            // park it into IN_PROGRESS/ON_HOLD as a way around approval.
+            if ($status !== 'COMPLETED' && $status !== 'REJECTED') {
+                throw new RuntimeException('Managers must approve or reject room transfers; approval completes the move in one step.');
             }
         } elseif ($isFrontdesk && !$isFrontDeskOwnedRequest) {
             throw new RuntimeException('Front Desk may only fulfill guest requests assigned directly to Front Desk. Route other requests to their department.');
@@ -5151,7 +5159,8 @@ if ($action === 'request_status') {
         if (!$isRoomTransferApproval && !$isLegacyTransferFinalization && !in_array($status, $transitions[$oldStatus] ?? [], true)) {
             throw new RuntimeException("Request cannot move from {$oldStatus} to {$status}.");
         }
-        if ($isRoomTransfer && !$isRoomTransferApproval && !$isLegacyTransferFinalization) {
+        $isRoomTransferRejection = $isRoomTransfer && $status === 'REJECTED';
+        if ($isRoomTransfer && !$isRoomTransferApproval && !$isLegacyTransferFinalization && !$isRoomTransferRejection) {
             throw new RuntimeException('This transfer request cannot be approved from its current state.');
         }
         if ($status === 'CANCELLED' && !$isSupervisory) {
@@ -5173,12 +5182,12 @@ if ($action === 'request_status') {
             $q->execute([$sid]);
             $stay = $q->fetch();
 
-            $q = $pdo->prepare('SELECT r.*, rt.nightly_rate AS new_rate FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.id=? FOR UPDATE');
+            $q = $pdo->prepare('SELECT r.*, rt.nightly_rate AS new_rate, rt.capacity AS type_capacity FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.id=? FOR UPDATE');
             $q->execute([$to]);
             $dest = $q->fetch();
 
             if (!$stay || !$dest || $dest['status'] !== 'AVAILABLE' || (int)$stay['room_id'] === $to
-                || (int)$dest['capacity'] < (int)$stay['guest_count']) {
+                || (int)$dest['type_capacity'] < (int)$stay['guest_count']) {
                 throw new RuntimeException('Requested room is no longer available.');
             }
 
@@ -5186,7 +5195,7 @@ if ($action === 'request_status') {
             $transferEffective = $effective;
 
             $pdo->prepare('INSERT INTO room_transfers(stay_id, from_room_id, to_room_id, effective_date, old_rate, new_rate, reason, authorized_by) VALUES(?, ?, ?, ?, ?, ?, ?, ?)')
-                ->execute([$sid, $stay['room_id'], $to, $effective, $stay['old_rate'], $dest['new_rate'], 'Guest portal transfer ' . $req['request_code'], $u['id']]);
+                ->execute([$sid, $stay['room_id'], $to, $effective, $stay['old_rate'], $dest['new_rate'], 'Room transfer ' . $req['request_code'], $u['id']]);
 
             $pdo->prepare("UPDATE rooms SET status='AVAILABLE' WHERE id=?")->execute([$stay['room_id']]);
             $pdo->prepare("UPDATE rooms SET status='OCCUPIED' WHERE id=?")->execute([$to]);
@@ -5824,6 +5833,39 @@ if ($action === 'early_checkout_finalize') {
 if ($action === 'stay_extension_requests') {
     $q = $pdo->query("SELECT e.id, e.stay_id, e.folio_id, e.current_checkout, e.requested_checkout, e.extra_nights, e.nightly_rate, e.proposed_charge, e.reason, e.review_note, e.status, e.created_at, e.updated_at, s.stay_code, r.room_number, f.folio_number, TRIM(CONCAT_WS(' ', c.first_name, NULLIF(c.middle_name, ''), c.last_name)) AS guest_name, ur.username AS requested_by_name, ua.username AS approved_by_name FROM stay_extension_requests e JOIN stays s ON s.id=e.stay_id JOIN rooms r ON r.id=s.room_id JOIN folios f ON f.id=e.folio_id LEFT JOIN customers c ON c.customer_id=s.customer_id LEFT JOIN users ur ON ur.id=e.requested_by LEFT JOIN users ua ON ua.id=e.approved_by ORDER BY CASE e.status WHEN 'REQUESTED' THEN 0 WHEN 'APPROVED' THEN 1 WHEN 'REJECTED' THEN 2 ELSE 3 END, e.created_at DESC");
     out(['requests' => $q->fetchAll()]);
+}
+
+/**
+ * Lists room-transfer requests for the manager approvals page (2026-11-03).
+ * This is the manager page's list: guest-requested and frontdesk-requested
+ * transfers alike, pending first. Approval/rejection itself still goes
+ * through request_status, which is manager-only and re-checks availability
+ * and recomputes the rate adjustment at decision time, so the numbers
+ * here are a preview, not a locked-in charge. A request is "pending" for
+ * this list while its service_requests status is one of the open states;
+ * COMPLETED/REJECTED/CANCELLED rows are history.
+ */
+if ($action === 'room_transfer_requests') {
+    require_role(['admin', 'manager', 'frontdesk']);
+    $rows = $pdo->query("SELECT sr.id, sr.stay_id, sr.request_code, sr.description, sr.requested_room_id, sr.status, sr.rejection_reason, sr.created_at, s.stay_code, s.planned_checkout, s.guest_count, r.room_number AS current_room_number, rr.room_number AS requested_room_number, rt_old.nightly_rate AS current_rate, rt_new.nightly_rate AS requested_rate, f.id AS folio_id, f.folio_number, TRIM(CONCAT_WS(' ', c.first_name, NULLIF(c.middle_name, ''), c.last_name)) AS guest_name FROM service_requests sr JOIN stays s ON s.id=sr.stay_id JOIN rooms r ON r.id=s.room_id JOIN room_types rt_old ON rt_old.id=r.room_type_id LEFT JOIN rooms rr ON rr.id=sr.requested_room_id LEFT JOIN room_types rt_new ON rt_new.id=rr.room_type_id LEFT JOIN folios f ON f.stay_id=s.id AND f.status='OPEN' LEFT JOIN customers c ON c.customer_id=s.customer_id WHERE sr.request_kind='ROOM_TRANSFER' ORDER BY CASE WHEN sr.status IN ('NEW','PENDING','ASSIGNED','ACKNOWLEDGED','ON_HOLD') THEN 0 WHEN sr.status='COMPLETED' THEN 1 WHEN sr.status='REJECTED' THEN 2 ELSE 3 END, sr.created_at DESC")->fetchAll();
+    $today = new DateTimeImmutable('today');
+    foreach ($rows as &$row) {
+        $remaining = 0;
+        if (!empty($row['planned_checkout'])) {
+            $remaining = max(0, (int)$today->diff(new DateTimeImmutable((string)$row['planned_checkout']))->format('%r%a'));
+        }
+        $delta = round((float)($row['requested_rate'] ?? 0) - (float)($row['current_rate'] ?? 0), 2);
+        $row['remaining_nights'] = $remaining;
+        $row['rate_delta'] = $delta;
+        $row['estimated_adjustment'] = round($remaining * $delta, 2);
+        $row['is_pending'] = in_array($row['status'], ['NEW', 'PENDING', 'ASSIGNED', 'ACKNOWLEDGED', 'ON_HOLD'], true);
+        // Origin for the manager row, from the request wording (the table
+        // has no requester column): staff requests are written with the
+        // 'Front desk requested' prefix; guest requests are not.
+        $row['requested_by'] = str_starts_with((string)$row['description'], 'Front desk requested') ? 'Front desk' : 'Guest portal';
+    }
+    unset($row);
+    out(['requests' => $rows]);
 }
 
 /**

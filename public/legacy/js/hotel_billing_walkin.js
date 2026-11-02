@@ -1002,6 +1002,7 @@
 
           ('early_checkouts' in a) ? approvalRow('Early checkout approvals', a.early_checkouts, 'early-checkouts', 'clock-history') : '',
           ('stay_extensions' in a) ? approvalRow('Stay extension approvals', a.stay_extensions, 'early-checkouts', 'calendar-plus') : '',
+          ('room_transfers' in a) ? approvalRow('Room transfer approvals', a.room_transfers, 'early-checkouts', 'arrow-left-right') : '',
 
         ].join('');
 
@@ -1009,20 +1010,12 @@
 
       }
 
-      const managerTransferCount = Number(d.room_transfer_approvals || 0);
-      const managerTransferApprovalCard = isManager ? `
-        <div class="card border-primary border-start border-4 shadow-sm mb-3">
-          <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
-            <div>
-              <h6 class="fw-bold mb-1"><i class="bi bi-arrow-left-right me-2"></i>Room Transfer Approvals</h6>
-              <div class="small text-muted">Review guest requests and approve transfers to available rooms.</div>
-            </div>
-            <div class="d-flex align-items-center gap-3">
-              <span class="badge ${managerTransferCount ? 'text-bg-warning text-dark' : 'text-bg-light border text-muted'}">${managerTransferCount} pending</span>
-              <button class="btn btn-sm btn-primary" onclick="HotelBilling.open('service-requests')"><i class="bi bi-list-check me-1"></i>Review requests</button>
-            </div>
-          </div>
-        </div>` : '';
+      // Room transfers no longer get a separate dashboard card that sent
+      // the manager to the service queue: they live in the approvals inbox
+      // above, which links to the manager approvals page. The variable
+      // stays (empty) so the dashboard layout concatenation below is
+      // unchanged.
+      const managerTransferApprovalCard = '';
 
       let managerRoomChart = '';
       if (isManager) {
@@ -1712,7 +1705,7 @@
         const folioItem = `<button type="button" class="dropdown-item" onclick="HotelBilling.folio(${s.folio_id})"><i class="bi bi-receipt me-1"></i>Folio</button>`;
         const guestItem = `<button type="button" class="dropdown-item" onclick="HotelBilling.guestDetails(${s.id})"><i class="bi bi-person-lines-fill me-1"></i>Guest details</button>`;
         const bookItem = `<button type="button" class="dropdown-item" onclick="HotelBilling.bookAdditionalRoom(${s.id})"><i class="bi bi-person-plus me-1"></i>Book additional room</button>`;
-        const transferItem = `<button type="button" class="dropdown-item" onclick="HotelBilling.transfer(${s.id})">Transfer</button>`;
+        const transferItem = `<button type="button" class="dropdown-item" onclick="HotelBilling.transfer(${s.id})">Request transfer</button>`;
         const earlyItem = `<button type="button" class="dropdown-item" onclick="HotelBilling.earlyCheckout(${s.id})">Early checkout</button>`;
         const folioBtn = `<button class="btn btn-sm btn-outline-primary" onclick="HotelBilling.folio(${s.folio_id})">Folio</button>`;
         const checkoutBtn = `<button class="btn btn-sm btn-outline-success" onclick="HotelBilling.checkout(${s.id})"><i class="bi bi-box-arrow-right me-1"></i>Checkout</button>`;
@@ -5268,6 +5261,38 @@ async function activateGroupCheckin(groupBookingId) {
       const extPending=erows.filter(r=>r.status==='REQUESTED').length;
       const canDecideExt = ecPerms.length ? (ecPerms.includes('*') || ecPerms.includes('stay_extension.approve')) : !isFrontdesk;
 
+      // Room transfers live on this same manager approvals page (2026-11-03).
+      // The backend gate is role-only (manager), not a permission, so admin
+      // must NOT get approve buttons here even though admin holds '*':
+      // the API would 403 them. Admin and frontdesk see a status badge.
+      let trows=[], trOk=true;
+      try{ const td=await api('room_transfer_requests',{},'GET'); trows=td.requests||[]; }catch(e){ trOk=false; }
+      const trPendingStatuses=['NEW','PENDING','ASSIGNED','ACKNOWLEDGED','ON_HOLD'];
+      const isTransferPending=(r)=> r.is_pending !== undefined ? !!r.is_pending : trPendingStatuses.includes(r.status);
+      const trPending=trows.filter(isTransferPending).length;
+      const canDecideTransfer = curRole === 'manager';
+      const transferAdjustmentText=(r)=>{
+        const adj=Number(r.estimated_adjustment||0);
+        if(!adj) return 'No rate change';
+        const sign=adj>0?'+':'−';
+        return `${sign}${php(Math.abs(adj))} for ${Number(r.remaining_nights||0)} night${Number(r.remaining_nights||0)===1?'':'s'}`;
+      };
+      const renderTransferAction = (r) => {
+        const folioBtn = r.folio_id ? `<button class="btn btn-sm btn-outline-primary" onclick="HotelBilling.folio(${Number(r.folio_id)})"><i class="bi bi-receipt me-1"></i>Folio</button>` : '';
+        if (isTransferPending(r)) {
+          return canDecideTransfer
+            ? `<div class="d-flex gap-1 flex-wrap"><button class="btn btn-sm btn-success" onclick="HotelBilling.decideRoomTransfer(${Number(r.id)},'APPROVE')">Approve &amp; Transfer</button><button class="btn btn-sm btn-outline-danger" onclick="HotelBilling.decideRoomTransfer(${Number(r.id)},'REJECT')">Reject</button><button class="btn btn-sm btn-outline-secondary" onclick="HotelBilling.changeTransferDestination(${Number(r.id)},${Number(r.requested_room_id)||0},'${esc(r.requested_room_number||'')}',true)">Change room</button>${folioBtn}</div>`
+            : '<span class="badge text-bg-warning text-dark"><i class="bi bi-clock me-1"></i>Pending Manager Review</span>';
+        }
+        if (r.status === 'COMPLETED') {
+          return `<div class="d-flex gap-1 align-items-center flex-wrap"><span class="badge text-bg-success"><i class="bi bi-check2-all me-1"></i>Transferred</span>${folioBtn}</div>`;
+        }
+        if (r.status === 'REJECTED') {
+          return '<span class="badge text-bg-danger"><i class="bi bi-x-circle me-1"></i>Rejected</span>';
+        }
+        return '—';
+      };
+
       const renderExtAction = (r) => {
         if (r.status === 'REQUESTED') {
           return canDecideExt
@@ -5361,13 +5386,13 @@ async function activateGroupCheckin(groupBookingId) {
 
 
 
-      const combinedPending = pending + (extOk ? extPending : 0);
+      const combinedPending = pending + (extOk ? extPending : 0) + (trOk ? trPending : 0);
 
       const topBar = isFrontdesk
 
         ? `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><div><h5 class="fw-bold mb-1">Early Checkout Requests</h5><p class="text-muted mb-0">Record and submit early departure requests for review and manager authorization.</p></div><div class="d-flex align-items-center gap-2"><span class="badge text-bg-warning">${pending} pending</span><button class="btn btn-primary btn-sm" onclick="HotelBilling.earlyCheckout()"><i class="bi bi-plus-lg me-1"></i>Submit Request</button><button class="btn btn-outline-secondary btn-sm" onclick="HotelBilling.open('early-checkout-requests')"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button></div></div>`
 
-        : `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><div><h5 class="fw-bold mb-1">Approvals</h5><p class="text-muted mb-0">Approve or reject early checkout and stay extension requests. Early checkout approvals can post a clearly labelled charge to the guest folio; extension approvals move the checkout date and post the extra nights to the folio. This does not check out the guest; collect payment against the folio, then use the normal Checkout action.</p></div><div class="d-flex align-items-center gap-2"><span class="badge text-bg-warning">${combinedPending} pending</span><button class="btn btn-outline-secondary btn-sm" onclick="HotelBilling.open('early-checkouts')"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button></div></div>`;
+        : `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><div><h5 class="fw-bold mb-1">Approvals</h5><p class="text-muted mb-0">Approve or reject early checkout, stay extension, and room transfer requests. Early checkout approvals can post a clearly labelled charge to the guest folio; extension approvals move the checkout date and post the extra nights to the folio. This does not check out the guest; collect payment against the folio, then use the normal Checkout action. Transfer approvals move the guest immediately and post the rate adjustment to the folio.</p></div><div class="d-flex align-items-center gap-2"><span class="badge text-bg-warning">${combinedPending} pending</span><button class="btn btn-outline-secondary btn-sm" onclick="HotelBilling.open('early-checkouts')"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button></div></div>`;
 
 
 
@@ -5440,6 +5465,49 @@ async function activateGroupCheckin(groupBookingId) {
         </div>
       `).join('') || '<div class="card border-0 shadow-sm p-3 text-center text-muted">No approval requests found.</div>';
 
+      const transferReason = (r) => {
+        const desc = String(r.description || '');
+        const staffPrefix = `Front desk requested room transfer to Room ${r.requested_room_number}: `;
+        if (desc.startsWith(staffPrefix)) return desc.slice(staffPrefix.length).replace(/\. Awaiting manager approval\.$/, '');
+        const guestPrefix = `Requested room ${r.requested_room_number}: `;
+        if (desc.startsWith(guestPrefix)) return desc.slice(guestPrefix.length);
+        return desc;
+      };
+      const transferGuestCell = (r) => `<strong>#${Number(r.id)} · ${esc(guestName(r))}</strong><div class="small text-muted">Room ${esc(r.current_room_number)} · Folio ${esc(r.folio_number)}</div>`;
+      const transferDetails = (r) => isTransferPending(r)
+        ? `${esc(r.current_room_number)} → <strong>${esc(r.requested_room_number)}</strong><div class="small text-muted mt-1">${esc(transferReason(r))}${r.status === 'REJECTED' && r.rejection_reason ? `<br>Note: ${esc(r.rejection_reason)}` : ''}</div>`
+        : (r.status === 'COMPLETED'
+          ? `Moved to Room <strong>${esc(r.requested_room_number)}</strong><div class="small text-muted mt-1">${esc(transferReason(r))}</div>`
+          : `${esc(r.current_room_number)} → <strong>${esc(r.requested_room_number)}</strong><div class="small text-muted mt-1">${esc(transferReason(r))}${r.status === 'REJECTED' && r.rejection_reason ? `<br>Note: ${esc(r.rejection_reason)}` : ''}</div>`);
+      const transferAdjustmentCell = (r) => isTransferPending(r)
+        ? `${transferAdjustmentText(r)}<div class="small text-muted">Preview; recomputed at approval</div>`
+        : '—';
+      const trBody = trows.map(r => `<tr><td>${transferGuestCell(r)}</td><td>${transferDetails(r)}</td><td>${php(r.current_rate)}/night → ${php(r.requested_rate)}/night</td><td>${transferAdjustmentCell(r)}</td><td>${esc(r.requested_by || 'Guest portal')}</td><td>${pill(r.status)}</td><td>${renderTransferAction(r)}</td></tr>`).join('');
+      const trCards = trows.map(r => `
+        <div class="card border-0 shadow-sm p-3 mb-2">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="fw-bold fs-6">#${Number(r.id)} · ${esc(guestName(r))}</span>
+              <div class="small text-muted">Room ${esc(r.current_room_number)} · Folio ${esc(r.folio_number)}</div>
+            </div>
+            ${pill(r.status)}
+          </div>
+          <div class="p-2 bg-light rounded small mb-2">
+            <div class="fw-semibold text-dark">${transferDetails(r)}</div>
+            <div class="text-muted mt-1">${php(r.current_rate)}/night → ${php(r.requested_rate)}/night · ${transferAdjustmentCell(r)}</div>
+          </div>
+          <div class="row g-2 mb-2 small text-muted">
+            <div class="col-6">Requested by: <strong class="text-dark">${esc(r.requested_by || 'Guest portal')}</strong></div>
+          </div>
+          <div class="pt-2 border-top">
+            ${renderTransferAction(r)}
+          </div>
+        </div>
+      `).join('') || '<div class="card border-0 shadow-sm p-3 text-center text-muted">No room transfer requests found.</div>';
+      const transferSection = !isFrontdesk ? (trOk ? `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 mt-4"><div><h5 class="fw-bold mb-1">Room Transfer Requests</h5><p class="text-muted mb-0">Approve or reject room transfers from guests and Front Desk. Approval moves the guest immediately and posts the rate adjustment to the folio; rejection moves nothing and charges nothing. The guest does not see this approval list.</p></div><div class="d-flex align-items-center gap-2"><span class="badge text-bg-warning">${trPending} pending</span></div></div>
+      <div class="d-none d-md-block">${table(['Guest / Stay · Folio','Room change','Rates','Adjustment','Requested by','Status','Action'],trBody,'No room transfer requests found.')}</div>
+      <div class="d-md-none">${trCards}</div>` : `<div class="alert alert-warning mt-4">Could not load room transfer requests. Check that the latest api-hotel files were copied to the live server, then refresh this page.</div>`) : '';
+
       host.innerHTML = isFrontdesk
         ? `${topBar}
 
@@ -5450,7 +5518,7 @@ async function activateGroupCheckin(groupBookingId) {
 
       <div class="d-none d-md-block">${table(['Guest / Stay · Folio','Type','Details','Requested by','Proposed charge','Status','Action'],combinedBody,'No approval requests found.')}</div>
 
-      <div class="d-md-none">${combinedCards}</div>`;
+      <div class="d-md-none">${combinedCards}</div>${transferSection}`;
 
     }catch(e){host.innerHTML=`<div class="alert alert-danger">${esc(e.message||'Unable to load early-checkout requests.')}</div>`;}
 
@@ -5482,6 +5550,30 @@ async function activateGroupCheckin(groupBookingId) {
     if(!confirmed)return;
     try{const r=await api(decision==='APPROVE'?'stay_extension_approve':'stay_extension_reject',{request_id:id,note});notify(r.message||`Request ${r.status}.`);await renderEarlyCheckoutRequests();}
     catch(e){notify(e.message,true);}
+  }
+
+  async function decideRoomTransfer(id,decision){
+    const isApprove=decision==='APPROVE';
+    const note=await window.HotelDialogs.input({title:`${isApprove?'Approve':'Reject'} room transfer #${id}`,text:isApprove?'Optional note for this transfer. Approval moves the guest immediately and posts the rate adjustment to the folio.':'A rejection reason is required. Rejection moves nothing and charges nothing.',label:'Note',type:'textarea',placeholder:isApprove?'Enter an optional note':'Enter the reason for rejection'});
+    if(note===null)return;
+    if(!isApprove && !String(note).trim()){ notify('A rejection reason is required.',true); return; }
+    const confirmed=await window.HotelDialogs.confirm({title:`${isApprove?'Approve':'Reject'} transfer #${id}?`,text:isApprove?'Approve and move the guest now? Availability and the rate adjustment are re-checked at approval; if the room was taken, approval fails and the guest stays put.':'Reject this transfer? The guest stays in the current room and nothing is charged.',confirmButtonText:isApprove?'Approve & Transfer':'Reject'});
+    if(!confirmed)return;
+    try{
+      const r=await api('request_status',{request_id:id,status:isApprove?'COMPLETED':'REJECTED',reason:note});
+      if(isApprove && r.room_transfer){
+        const amt=Number(r.transfer_adjustment||0);
+        const signed=(amt>0?'+':amt<0?'−':'')+php(Math.abs(amt));
+        notify(`Transfer approved and completed to Room ${r.transfer_room_number || '—'}. Bill adjustment ${signed} for ${Number(r.transfer_nights||0)} remaining night(s).`);
+      } else {
+        notify(r.message||`Request ${r.status}.`);
+      }
+      await renderEarlyCheckoutRequests();
+      await refreshRequestBadge();
+    }catch(e){
+      if(e.message.includes('no longer available')){ notify('That room is no longer available. The guest’s room has not changed and the request remains pending. Choose another available room, then approve again.',true); await renderEarlyCheckoutRequests(); return; }
+      notify(e.message,true);
+    }
   }
 
   async function finalizeEarlyCheckout(id,policy){
@@ -6563,7 +6655,7 @@ async function transfer(id) {
 
       if(!avail.length)return notify('No available destination rooms.',true);
 
-      const x=modal('Room Transfer',`<form id="transfer-form" class="row g-3"><div class="col-12 alert alert-light border">The new VAT-inclusive rate applies starting the next night. The current night remains at its original rate.</div><div class="col-md-8"><label class="form-label">Destination room</label><select class="form-select" name="to_room_id">${avail.map(r=>`<option value="${r.id}">${esc(r.room_number)} · ${esc(r.type)} · ${php(r.nightly_rate)}/night (VAT-inclusive)</option>`).join('')}</select></div><div class="col-md-4"><label class="form-label">Reason</label><input class="form-control" name="reason" maxlength="255" required></div><div class="col-12 text-end"><button class="btn btn-primary">Confirm Transfer</button></div></form>`);
+      const x=modal('Request Room Transfer',`<form id="transfer-form" class="row g-3"><div class="col-12 alert alert-info border">This only sends a request to the manager. The guest stays in the current room until a manager approves it on the approvals page. If approved, the new VAT-inclusive rate applies starting the next night; the current night remains at its original rate.</div><div class="col-md-8"><label class="form-label">Destination room</label><select class="form-select" name="to_room_id">${avail.map(r=>`<option value="${r.id}">${esc(r.room_number)} · ${esc(r.type)} · ${php(r.nightly_rate)}/night (VAT-inclusive)</option>`).join('')}</select></div><div class="col-md-4"><label class="form-label">Reason</label><input class="form-control" name="reason" maxlength="255" required></div><div class="col-12 text-end"><button class="btn btn-primary">Send for Manager Approval</button></div></form>`);
 
       x.root.querySelector('#transfer-form').onsubmit=async e=>{
 
@@ -6573,11 +6665,11 @@ async function transfer(id) {
 
         const confirmed = await window.HotelDialogs.confirm({
 
-          title: 'Confirm Room Transfer?',
+          title: 'Send Room Transfer Request?',
 
-          text: 'Transfer this guest to the selected room? Rate adjustments apply starting the next night.',
+          text: 'Send this transfer to the manager for approval? The guest will not move until it is approved. Rate adjustments apply starting the next night if approved.',
 
-          confirmButtonText: 'Transfer Room',
+          confirmButtonText: 'Send Request',
 
           actionType: 'primary'
 
@@ -6591,7 +6683,7 @@ async function transfer(id) {
 
           x.m.hide();
 
-          notify('Room transferred. New rate effective '+r.effective_date);
+          notify(r.message||'Room transfer request sent for manager approval. The guest has not moved.');
 
           open(activeModule);
 
@@ -7903,7 +7995,7 @@ async function transfer(id) {
 
   async function requestStatus(id,status,reason='') { if(!status)return;try{const r=await api('request_status',{request_id:id,status,reason});if(r.room_transfer){if(r.transfer_finalized){notify(`Transfer to Room ${r.transfer_room_number || '—'} finalized. The room move was already completed; no duplicate move or charge was made.`);}else{const amt=Number(r.transfer_adjustment||0);const signed=(amt>0?'+':amt<0?'−':'')+php(Math.abs(amt));notify(`Transfer approved and completed to Room ${r.transfer_room_number || '—'}. Bill adjustment ${signed} for ${Number(r.transfer_nights||0)} remaining night(s).`);}await open('dashboard');await open('active-stays');}else{notify(status==='COMPLETED'?'Request fulfilled; any chargeable amount was posted once.':'Request updated.');await open('service-requests')}await refreshRequestBadge()}catch(e){if(e.message.includes('no longer available')){notify('That room is no longer available. The guest’s room has not changed and the request remains unchanged awaiting approval. Refreshing the queue—choose another available room, then approve again.',true);await open('service-requests');await refreshRequestBadge();return}notify(e.message,true)} }
 
-  async function changeTransferDestination(id, currentRequestedRoomId, currentRequestedRoomNumber) {
+  async function changeTransferDestination(id, currentRequestedRoomId, currentRequestedRoomNumber, stayOnPage = false) {
     try {
       const currentRole = (window.HotelAuth?.getUser()?.role || '').toLowerCase();
       if (!['manager', 'frontdesk'].includes(currentRole)) {
@@ -7914,7 +8006,7 @@ async function transfer(id) {
       const availableRooms = (roomData.rooms || []).filter(room => room.status === 'AVAILABLE' && Number(room.id) !== Number(currentRequestedRoomId));
       if (!availableRooms.length) {
         notify('There are no available rooms to select. The transfer request remains pending.', true);
-        await open('service-requests');
+        if (!stayOnPage) await open('service-requests');
         return;
       }
 
@@ -7940,14 +8032,16 @@ async function transfer(id) {
           const result = await api('request_transfer_destination', { request_id: id, to_room_id: toRoomId });
           dialog.m.hide();
           notify(`Destination changed to Room ${result.requested_room_number}. The transfer is still pending approval.`);
-          await open('service-requests');
+          if (stayOnPage) await renderEarlyCheckoutRequests();
+          else await open('service-requests');
           await refreshRequestBadge();
         } catch (error) {
           submitButton.disabled = false;
           if (error.message.includes('no longer available')) {
             dialog.m.hide();
             notify('That room is no longer available. The guest’s room has not changed. Refresh the queue and choose another available room.', true);
-            await open('service-requests');
+            if (stayOnPage) await renderEarlyCheckoutRequests();
+            else await open('service-requests');
             return;
           }
           notify(error.message, true);
@@ -8608,7 +8702,7 @@ async function transfer(id) {
     }
   }
 
-  window.HotelBilling={api,open,getActiveModule:()=>activeModule,notify,refreshRequestBadge,checkin,bookAdditionalRoom,guestDetails,approveCheckinPayment,approveGroupCheckinPayment,confirmCheckinPayment,activateCheckinPayment,activateGroupCheckin,cancelPendingCheckin,renderWalkinCheckin,renderCheckoutDashboard,renderEarlyCheckoutRequests,selectRoomForWalkin:(roomId)=>{const sel=document.getElementById('wkd-room-id');if(sel){sel.value=String(roomId);sel.dispatchEvent(new Event('change'));sel.scrollIntoView({behavior:'smooth',block:'center'});sel.focus();}},folio,addCharge,pay,earlyCheckout,decideEarlyCheckout,finalizeEarlyCheckout,decideStayExtension,editEarlyPolicy,editDiscountPolicy,deleteDiscountPolicy,transfer,checkout,roomStatus,requestStatus,assignRequest,handleRequestAction,viewHistory,addRoom,editRoom,addRoomType,editRoomType,addMenuItem,editMenuItem,toggleMenuItem,reportDetails,savedGuestLinks,showCheckinComplete,showStayQr,showReceiptModal,showCheckoutReceipts,viewCheckoutReceipt,downloadCheckoutReceipt,printOfficialReceipt,downloadOfficialReceipt,refreshChatBadge};
+  window.HotelBilling={api,open,getActiveModule:()=>activeModule,notify,refreshRequestBadge,checkin,bookAdditionalRoom,guestDetails,approveCheckinPayment,approveGroupCheckinPayment,confirmCheckinPayment,activateCheckinPayment,activateGroupCheckin,cancelPendingCheckin,renderWalkinCheckin,renderCheckoutDashboard,renderEarlyCheckoutRequests,selectRoomForWalkin:(roomId)=>{const sel=document.getElementById('wkd-room-id');if(sel){sel.value=String(roomId);sel.dispatchEvent(new Event('change'));sel.scrollIntoView({behavior:'smooth',block:'center'});sel.focus();}},folio,addCharge,pay,earlyCheckout,decideEarlyCheckout,finalizeEarlyCheckout,decideStayExtension,decideRoomTransfer,changeTransferDestination,editEarlyPolicy,editDiscountPolicy,deleteDiscountPolicy,transfer,checkout,roomStatus,requestStatus,assignRequest,handleRequestAction,viewHistory,addRoom,editRoom,addRoomType,editRoomType,addMenuItem,editMenuItem,toggleMenuItem,reportDetails,savedGuestLinks,showCheckinComplete,showStayQr,showReceiptModal,showCheckoutReceipts,viewCheckoutReceipt,downloadCheckoutReceipt,printOfficialReceipt,downloadOfficialReceipt,refreshChatBadge};
 
   document.addEventListener('hotel:authenticated',(event)=>{
 

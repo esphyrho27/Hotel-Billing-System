@@ -447,6 +447,7 @@ const HOTEL_ACTION_PERMISSIONS = [
     'early_checkout_decision' => 'early_checkout.approve',
     'early_checkout_finalize' => 'early_checkout.view',
     'stay_extension_requests' => 'stay_extension.view',
+    'room_transfer_requests' => 'service_requests.view',
     'stay_extension_approve' => 'stay_extension.approve',
     'stay_extension_reject' => 'stay_extension.approve',
     'chat_conversations' => 'chat.view',
