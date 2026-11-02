@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Nov 02, 2026 at 11:59 AM
+-- Generation Time: Nov 02, 2026 at 03:14 PM
 -- Server version: 10.11.16-MariaDB
 -- PHP Version: 8.5.12
 
@@ -59,7 +59,8 @@ INSERT INTO `applied_discounts` (`id`, `folio_id`, `policy_id`, `name`, `categor
 (14, 38, 8, 'Birthday promotion (9%)', 'BIRTHDAY', 'PERCENT', 9.00, 594.00, 'APPLIED', 'Group check-in discount: Birthday promotion', 4, 4, NULL, '2026-10-31 14:04:58'),
 (15, 39, 8, 'Birthday promotion (9%)', 'BIRTHDAY', 'PERCENT', 9.00, 756.00, 'APPLIED', 'Group check-in discount: Birthday promotion', 4, 4, NULL, '2026-10-31 14:04:58'),
 (16, 40, 8, 'Birthday promotion (9%)', 'BIRTHDAY', 'PERCENT', 9.00, 1350.00, 'APPLIED', 'Group check-in discount: Birthday promotion', 4, 4, NULL, '2026-10-31 14:04:58'),
-(17, 41, 0, 'Senior citizen (20%)', 'SENIOR_CITIZEN', 'PERCENT', 20.00, 3035.71, 'APPLIED', 'Applied during cashier check-in approval: Senior citizen (20%)', 4, 4, NULL, '2026-11-02 03:56:33');
+(17, 41, 0, 'Senior citizen (20%)', 'SENIOR_CITIZEN', 'PERCENT', 20.00, 3035.71, 'APPLIED', 'Applied during cashier check-in approval: Senior citizen (20%)', 4, 4, NULL, '2026-11-02 03:56:33'),
+(18, 43, 0, 'Senior citizen (20%)', 'SENIOR_CITIZEN', 'PERCENT', 20.00, 1785.71, 'APPLIED', 'Applied during cashier check-in approval: Senior citizen (20%)', 4, 4, NULL, '2026-11-02 13:34:04');
 
 -- --------------------------------------------------------
 
@@ -545,7 +546,45 @@ INSERT INTO `audit_logs` (`id`, `user_id`, `action`, `entity_type`, `entity_id`,
 (476, 1, 'LOGIN', 'user', 1, '[]', '::1', '2026-11-02 09:14:17'),
 (477, 1, 'DEMO_CLOCK_SET', 'demo_clock', 1, '{\"simulated_at\":\"2026-11-03 17:14:00\",\"timezone\":\"Asia\\/Manila\"}', '::1', '2026-11-02 09:14:27'),
 (478, 1, 'DEMO_CLOCK_SET', 'demo_clock', 1, '{\"simulated_at\":\"2026-11-03 17:14:00\",\"timezone\":\"Asia\\/Manila\"}', '::1', '2026-11-02 09:18:36'),
-(479, 1, 'DEMO_CLOCK_SET', 'demo_clock', 1, '{\"simulated_at\":\"2026-11-04 17:14:00\",\"timezone\":\"Asia\\/Manila\"}', '::1', '2026-11-02 09:18:55');
+(479, 1, 'DEMO_CLOCK_SET', 'demo_clock', 1, '{\"simulated_at\":\"2026-11-04 17:14:00\",\"timezone\":\"Asia\\/Manila\"}', '::1', '2026-11-02 09:18:55'),
+(480, 3, 'LOGIN', 'user', 3, '[]', '::1', '2026-11-02 11:12:46'),
+(481, 1, 'LOGIN', 'user', 1, '[]', '::1', '2026-11-02 11:19:00'),
+(482, 1, 'DEMO_CLOCK_RESET', 'demo_clock', 1, '{\"timezone\":\"Asia\\/Manila\"}', '::1', '2026-11-02 11:19:09'),
+(483, 3, 'LOGIN', 'user', 3, '[]', '::1', '2026-11-02 11:19:47'),
+(484, 0, 'LOGIN', 'user', 0, '[]', '::1', '2026-11-02 11:25:24'),
+(485, 0, 'SERVICE_STATUS', 'service_request', 34, '{\"from\":\"PENDING\",\"to\":\"ACKNOWLEDGED\",\"kind\":\"SERVICE\",\"room_transfer\":false,\"legacy_transfer_finalized\":false}', '::1', '2026-11-02 11:46:18'),
+(486, 0, 'SERVICE_STATUS', 'service_request', 33, '{\"from\":\"PENDING\",\"to\":\"ACKNOWLEDGED\",\"kind\":\"SERVICE\",\"room_transfer\":false,\"legacy_transfer_finalized\":false}', '::1', '2026-11-02 11:46:24'),
+(487, 0, 'SERVICE_STATUS', 'service_request', 32, '{\"from\":\"PENDING\",\"to\":\"ACKNOWLEDGED\",\"kind\":\"SERVICE\",\"room_transfer\":false,\"legacy_transfer_finalized\":false}', '::1', '2026-11-02 11:46:39'),
+(488, 0, 'SERVICE_STATUS', 'service_request', 31, '{\"from\":\"PENDING\",\"to\":\"ACKNOWLEDGED\",\"kind\":\"SERVICE\",\"room_transfer\":false,\"legacy_transfer_finalized\":false}', '::1', '2026-11-02 11:46:48'),
+(489, 0, 'SERVICE_STATUS', 'service_request', 34, '{\"from\":\"ACKNOWLEDGED\",\"to\":\"IN_PROGRESS\",\"kind\":\"SERVICE\",\"room_transfer\":false,\"legacy_transfer_finalized\":false}', '::1', '2026-11-02 11:46:55'),
+(490, 0, 'SERVICE_STATUS', 'service_request', 33, '{\"from\":\"ACKNOWLEDGED\",\"to\":\"IN_PROGRESS\",\"kind\":\"SERVICE\",\"room_transfer\":false,\"legacy_transfer_finalized\":false}', '::1', '2026-11-02 11:46:59'),
+(491, 0, 'SERVICE_STATUS', 'service_request', 32, '{\"from\":\"ACKNOWLEDGED\",\"to\":\"IN_PROGRESS\",\"kind\":\"SERVICE\",\"room_transfer\":false,\"legacy_transfer_finalized\":false}', '::1', '2026-11-02 11:47:01'),
+(492, 0, 'SERVICE_STATUS', 'service_request', 31, '{\"from\":\"ACKNOWLEDGED\",\"to\":\"IN_PROGRESS\",\"kind\":\"SERVICE\",\"room_transfer\":false,\"legacy_transfer_finalized\":false}', '::1', '2026-11-02 11:47:02'),
+(493, 0, 'SERVICE_STATUS', 'service_request', 34, '{\"from\":\"IN_PROGRESS\",\"to\":\"COMPLETED\",\"kind\":\"SERVICE\",\"room_transfer\":false,\"legacy_transfer_finalized\":false}', '::1', '2026-11-02 11:47:18'),
+(494, 0, 'SERVICE_STATUS', 'service_request', 33, '{\"from\":\"IN_PROGRESS\",\"to\":\"COMPLETED\",\"kind\":\"SERVICE\",\"room_transfer\":false,\"legacy_transfer_finalized\":false}', '::1', '2026-11-02 11:47:31'),
+(495, 0, 'SERVICE_STATUS', 'service_request', 32, '{\"from\":\"IN_PROGRESS\",\"to\":\"COMPLETED\",\"kind\":\"SERVICE\",\"room_transfer\":false,\"legacy_transfer_finalized\":false}', '::1', '2026-11-02 11:47:36'),
+(496, 0, 'SERVICE_STATUS', 'service_request', 31, '{\"from\":\"IN_PROGRESS\",\"to\":\"COMPLETED\",\"kind\":\"SERVICE\",\"room_transfer\":false,\"legacy_transfer_finalized\":false}', '::1', '2026-11-02 11:47:39'),
+(497, 3, 'LOGIN', 'user', 3, '[]', '::1', '2026-11-02 11:51:24'),
+(498, 0, 'LOGIN', 'user', 0, '[]', '::1', '2026-11-02 12:13:15'),
+(499, 3, 'LOGIN', 'user', 3, '[]', '::1', '2026-11-02 12:13:50'),
+(500, 1, 'LOGIN', 'user', 1, '[]', '::1', '2026-11-02 13:07:02'),
+(501, 2, 'LOGIN', 'user', 2, '[]', '::1', '2026-11-02 13:15:51'),
+(502, 2, 'CREATE_ROOM_TYPE', 'room_type', 8, '{\"name\":\"Balay ni Pitok\",\"nightly_rate\":1,\"capacity\":10}', '::1', '2026-11-02 13:16:35'),
+(503, 2, 'CREATE_ROOM', 'room', 22, '{\"room_number\":\"801\",\"room_type_id\":8,\"floor_number\":8}', '::1', '2026-11-02 13:16:50'),
+(504, 3, 'LOGIN', 'user', 3, '[]', '::1', '2026-11-02 13:17:23'),
+(505, 0, 'LOGIN', 'user', 0, '[]', '::1', '2026-11-02 13:20:22'),
+(506, 3, 'LOGIN', 'user', 3, '[]', '::1', '2026-11-02 13:20:38'),
+(507, 3, 'CHECK_IN', 'stay', 42, '{\"room\":\"801\",\"nights\":2,\"customer_id\":27,\"guest_name\":\"Sharmaine Jacob\",\"checkin_payment_id\":42,\"required_amount\":2,\"required_percent\":100,\"discount_amount\":0}', '::1', '2026-11-02 13:24:54'),
+(508, 3, 'CHECK_IN', 'stay', 43, '{\"room\":\"701\",\"nights\":1,\"customer_id\":28,\"customer_reused\":false,\"guest_name\":\"Hannah Tillano\",\"checkin_payment_id\":43,\"required_amount\":10000,\"required_percent\":100,\"discount_amount\":0}', '::1', '2026-11-02 13:32:40'),
+(509, 4, 'LOGIN', 'user', 4, '[]', '::1', '2026-11-02 13:33:35'),
+(510, 4, 'APPLY_CHECKIN_DISCOUNT', 'folio', 43, '{\"discount_id\":18,\"checkin_payment_id\":43,\"category\":\"SENIOR_CITIZEN\",\"rate\":20,\"eligible_amount\":\"10000.00\",\"amount\":\"1785.71\",\"eligibility_confirmed\":true}', '::1', '2026-11-02 13:34:04'),
+(511, 4, 'CHECKIN_PAYMENT_APPROVED', 'stay', 43, '{\"checkin_payment_id\":43,\"payment_id\":39,\"receipt_number\":\"OR2611028D016D\",\"amount\":7142.86,\"applied\":7142.86,\"received\":7142.86,\"change\":0,\"method\":\"CASH\",\"discount_amount\":\"1785.71\",\"discount_category\":\"SENIOR_CITIZEN\",\"guest_name\":\"Hannah Tillano\",\"room\":\"701\"}', '::1', '2026-11-02 13:34:04'),
+(512, 3, 'LOGIN', 'user', 3, '[]', '::1', '2026-11-02 13:34:25'),
+(513, 3, 'CHECKIN_PAYMENT_CONFIRMED', 'stay', 43, '{\"checkin_payment_id\":43,\"receipt_number\":\"OR2611028D016D\",\"guest_name\":\"Hannah Tillano\",\"room\":\"701\"}', '::1', '2026-11-02 13:34:46'),
+(514, 2, 'LOGIN', 'user', 2, '[]', '::1', '2026-11-02 13:47:46'),
+(515, 3, 'LOGIN', 'user', 3, '[]', '::1', '2026-11-02 13:50:46'),
+(516, 4, 'LOGIN', 'user', 4, '[]', '::1', '2026-11-02 13:58:05'),
+(517, 3, 'LOGIN', 'user', 3, '[]', '::1', '2026-11-02 14:00:25');
 
 -- --------------------------------------------------------
 
@@ -568,6 +607,7 @@ CREATE TABLE `auth_login_attempts` (
 INSERT INTO `auth_login_attempts` (`attempt_key`, `attempts`, `window_started_at`, `locked_until`, `updated_at`) VALUES
 ('708daccc3e36386a96b46093380b450acf89c037287dfc29581683bec2cd2a2d', 1, '2026-10-29 13:50:08', NULL, '2026-10-29 05:50:08'),
 ('915198d62ef1e8598605050aad033b4fe56307ce9fc6d55d837061700b65e776', 1, '2026-11-02 15:21:04', NULL, '2026-11-02 07:21:04'),
+('a075cea9945b23a5c98b76c723b68bc5846d2f6e21eab0fad1a5a1716d3f229a', 1, '2026-11-02 21:20:13', NULL, '2026-11-02 13:20:13'),
 ('de0c62c53df2c6557d0ba118af8747c1202f6748d3c5c91ef43f0ba694c6f418', 1, '2026-10-29 18:03:44', NULL, '2026-10-29 10:03:44');
 
 -- --------------------------------------------------------
@@ -686,7 +726,13 @@ INSERT INTO `charges` (`id`, `folio_id`, `category`, `description`, `quantity`, 
 (62, 35, 'ROOM', 'Overstay night — 2026-11-01', 1.00, 1500.00, 1500.00, NULL, 'overstay:35:2026-11-01', 3, '2026-11-02 08:26:44'),
 (63, 36, 'LATE_CHECKOUT', 'Late checkout fee — scheduled 12:00 PM, checked out 4:29 PM (50% nightly rate)', 1.00, 1400.00, 1400.00, NULL, 'late-checkout:36:2026-10-31', 3, '2026-11-02 08:29:23'),
 (64, 36, 'ROOM', 'Overstay night — 2026-10-31', 1.00, 2800.00, 2800.00, NULL, 'overstay:36:2026-10-31', 3, '2026-11-02 08:29:23'),
-(65, 36, 'ROOM', 'Overstay night — 2026-11-01', 1.00, 2800.00, 2800.00, NULL, 'overstay:36:2026-11-01', 3, '2026-11-02 08:29:23');
+(65, 36, 'ROOM', 'Overstay night — 2026-11-01', 1.00, 2800.00, 2800.00, NULL, 'overstay:36:2026-11-01', 3, '2026-11-02 08:29:23'),
+(66, 41, 'SERVICE', 'Deep Tissue Massage', 1.00, 1200.00, 1200.00, 34, 'service-request-34', 0, '2026-11-02 11:47:18'),
+(67, 41, 'SERVICE', 'Yoga Class', 1.00, 400.00, 400.00, 33, 'service-request-33', 0, '2026-11-02 11:47:31'),
+(68, 41, 'SERVICE', 'Pool Access for Extra Guest (quantity: 2)', 1.00, 600.00, 600.00, 32, 'service-request-32', 0, '2026-11-02 11:47:36'),
+(69, 41, 'SERVICE', 'Personal Trainer', 1.00, 900.00, 900.00, 31, 'service-request-31', 0, '2026-11-02 11:47:39'),
+(70, 42, 'ROOM', 'Accommodation - 2 night(s)', 2.00, 1.00, 2.00, NULL, NULL, 3, '2026-11-02 13:24:54'),
+(71, 43, 'ROOM', 'Accommodation - 1 night(s)', 1.00, 10000.00, 10000.00, NULL, NULL, 3, '2026-11-02 13:32:40');
 
 -- --------------------------------------------------------
 
@@ -799,7 +845,9 @@ INSERT INTO `checkin_payments` (`id`, `stay_id`, `folio_id`, `subject`, `nights`
 (38, 38, 38, 'CHECK-IN PAYMENT', 3, 6006.00, 100, 6006.00, 'APPROVED', 28, 3, 4, '2026-10-31 22:04:58', 3, '2026-10-31 22:19:51', '2026-10-31 14:02:55', '2026-10-31 14:19:51', 6600.00, 594.00, 'BIRTHDAY', 'Group check-in discount: Birthday promotion', 0.00),
 (39, 39, 39, 'CHECK-IN PAYMENT', 3, 7644.00, 100, 7644.00, 'APPROVED', 29, 3, 4, '2026-10-31 22:04:58', 3, '2026-10-31 22:19:54', '2026-10-31 14:02:55', '2026-10-31 14:19:54', 8400.00, 756.00, 'BIRTHDAY', 'Group check-in discount: Birthday promotion', 0.00),
 (40, 40, 40, 'CHECK-IN PAYMENT', 3, 13650.00, 100, 13650.00, 'APPROVED', 30, 3, 4, '2026-10-31 22:04:58', 3, '2026-10-31 22:19:57', '2026-10-31 14:02:55', '2026-10-31 14:19:57', 15000.00, 1350.00, 'BIRTHDAY', 'Group check-in discount: Birthday promotion', 0.00),
-(41, 41, 41, 'CHECK-IN PAYMENT', 2, 12142.86, 100, 12142.86, 'APPROVED', 32, 3, 4, '2026-11-02 11:56:33', 3, '2026-11-02 15:52:16', '2026-11-02 03:25:55', '2026-11-02 07:52:16', 17000.00, 3035.71, 'SENIOR_CITIZEN', 'Applied during cashier check-in approval: Senior citizen (20%)', 0.00);
+(41, 41, 41, 'CHECK-IN PAYMENT', 2, 12142.86, 100, 12142.86, 'APPROVED', 32, 3, 4, '2026-11-02 11:56:33', 3, '2026-11-02 15:52:16', '2026-11-02 03:25:55', '2026-11-02 07:52:16', 17000.00, 3035.71, 'SENIOR_CITIZEN', 'Applied during cashier check-in approval: Senior citizen (20%)', 0.00),
+(42, 42, 42, 'CHECK-IN PAYMENT', 2, 2.00, 100, 2.00, 'FOR_PAYMENT', NULL, 3, NULL, NULL, NULL, NULL, '2026-11-02 13:24:54', '2026-11-02 13:24:54', 2.00, 0.00, 'NONE', NULL, 0.00),
+(43, 43, 43, 'CHECK-IN PAYMENT', 1, 7142.86, 100, 7142.86, 'APPROVED', 39, 3, 4, '2026-11-02 21:34:04', 3, '2026-11-02 21:34:46', '2026-11-02 13:32:40', '2026-11-02 13:34:46', 10000.00, 1785.71, 'SENIOR_CITIZEN', 'Applied during cashier check-in approval: Senior citizen (20%)', 0.00);
 
 -- --------------------------------------------------------
 
@@ -886,7 +934,9 @@ INSERT INTO `customers` (`customer_id`, `first_name`, `middle_name`, `last_name`
 (23, 'Laong', '', 'Laan', 'laan@gmail.com', '0904164598751', '', '', '', 'Filipino', '', 1),
 (24, 'Thera', '', 'Benta', 'benta@gmail.com', '', '', '', '', 'Filipino', '', 1),
 (25, 'Phil', '', 'Degana', 'degana@gmail.com', '09164879512', '', '', '', 'Filipino', '', 1),
-(26, 'Boi', '', 'Kilig', 'kilig@gmail.com', '', '', '', '', 'Filipino', '', 1);
+(26, 'Boi', '', 'Kilig', 'kilig@gmail.com', '', '', '', '', 'Filipino', '', 1),
+(27, 'Sharmaine', '', 'Jacob', 'jacob@gmail.com', '', '', '', '', 'Filipino', '', 1),
+(28, 'Hannah', '', 'Tillano', 'tillano@gmail.com', '0904164598771', '', '', '', 'Filipino', '', 1);
 
 -- --------------------------------------------------------
 
@@ -906,7 +956,7 @@ CREATE TABLE `demo_clock_state` (
 --
 
 INSERT INTO `demo_clock_state` (`id`, `simulated_at`, `updated_by`, `updated_at`) VALUES
-(1, '2026-11-04 17:14:00', 1, '2026-11-02 09:18:55');
+(1, NULL, 1, '2026-11-02 11:19:09');
 
 -- --------------------------------------------------------
 
@@ -1094,7 +1144,9 @@ INSERT INTO `folios` (`id`, `stay_id`, `folio_number`, `status`, `created_at`) V
 (38, 38, 'F2610319107B9', 'OPEN', '2026-10-31 14:02:55'),
 (39, 39, 'F261031645981', 'OPEN', '2026-10-31 14:02:55'),
 (40, 40, 'F261031B903EF', 'OPEN', '2026-10-31 14:02:55'),
-(41, 41, 'F26110240CAF5', 'OPEN', '2026-11-02 03:25:55');
+(41, 41, 'F26110240CAF5', 'OPEN', '2026-11-02 03:25:55'),
+(42, 42, 'F261102B9883D', 'OPEN', '2026-11-02 13:24:54'),
+(43, 43, 'F261102CCD1CF', 'OPEN', '2026-11-02 13:32:40');
 
 -- --------------------------------------------------------
 
@@ -1333,7 +1385,8 @@ INSERT INTO `payments` (`id`, `folio_id`, `receipt_number`, `method`, `amount`, 
 (35, 38, 'OR2611020251A7', 'CASH', 3080.00, 3080.00, 0.00, '', 4, '6177c4cd449d198c50c759fc71c07ce6791fb353e717eb496f29ebd49eb75650', 0, '2026-11-02 07:51:30'),
 (36, 15, 'OR261102D9745E', 'CASH', 6472.00, 6472.00, 0.00, '', 4, '419daeb4c9b000e819f4634814446a53754ae1aa46b094070aa6d60b416b9c50', 0, '2026-11-02 07:51:48'),
 (37, 35, 'OR2611029E6207', 'CASH', 3428.57, 3428.57, 0.00, '', 4, '4d2e483b8b33b5f33cd678c1259203d688cb035220ad00475b2ed8a8d20c4a66', 0, '2026-11-02 08:28:30'),
-(38, 36, 'OR2611022A04D2', 'CASH', 6400.00, 6400.00, 0.00, '', 4, '8c3c3aecad4fbb52da779180584267bbf923686c9628e9ffe04121bf4c512be8', 0, '2026-11-02 08:29:52');
+(38, 36, 'OR2611022A04D2', 'CASH', 6400.00, 6400.00, 0.00, '', 4, '8c3c3aecad4fbb52da779180584267bbf923686c9628e9ffe04121bf4c512be8', 0, '2026-11-02 08:29:52'),
+(39, 43, 'OR2611028D016D', 'CASH', 7142.86, 7142.86, 0.00, 'Check-in payment (100% of total) · Discount: Senior citizen', 4, 'b0ffd626c4bc407c4288813a65031259c1bb9bb04d8a8aef736f429462d90495', 0, '2026-11-02 13:34:04');
 
 -- --------------------------------------------------------
 
@@ -1388,7 +1441,9 @@ INSERT INTO `portal_tokens` (`id`, `stay_id`, `token_hash`, `expires_at`, `revok
 (62, 40, 'bc7060fe30aea9379159e813a63be0f23f7c7881ef1aad28a7272db79ae72b8f', '2026-11-03 23:59:59', NULL, '2026-10-31 14:02:55'),
 (63, 38, 'ade62f8710093650e88713f84e8c388dd163ca2778163ebae3a8f274eb24fc54', '2026-11-03 23:59:59', NULL, '2026-10-31 14:21:00'),
 (64, 39, '1b3ece3bd718c306c202ec2e3b3d052452496fae07966bdb2f7388eaf8aba839', '2026-11-03 23:59:59', NULL, '2026-10-31 16:41:42'),
-(65, 41, '622292e89832c46e149c00d66b8b6739280d1c9f201f39201b1263b914edc682', '2026-11-04 23:59:59', NULL, '2026-11-02 03:25:55');
+(65, 41, '622292e89832c46e149c00d66b8b6739280d1c9f201f39201b1263b914edc682', '2026-11-04 23:59:59', NULL, '2026-11-02 03:25:55'),
+(66, 42, 'f3a10712b71ee32f49cc709a726ac7955ebe0acaa6859591edc6ebf8b0a4f222', '2026-11-04 23:59:59', NULL, '2026-11-02 13:24:54'),
+(67, 43, 'b3bdfa3d50257c1edc381e3fad0721be88ff50a5846ebbf9245279c1caad089d', '2026-11-03 23:59:59', NULL, '2026-11-02 13:32:40');
 
 -- --------------------------------------------------------
 
@@ -1529,9 +1584,10 @@ INSERT INTO `rooms` (`id`, `room_number`, `room_type_id`, `floor_number`, `capac
 (16, '603', 6, 6, 4, 'OCCUPIED'),
 (17, '602', 6, 6, 4, 'AVAILABLE'),
 (18, '601', 6, 6, 4, 'AVAILABLE'),
-(19, '701', 7, 7, NULL, 'AVAILABLE'),
+(19, '701', 7, 7, NULL, 'OCCUPIED'),
 (20, '702', 7, 7, NULL, 'AVAILABLE'),
-(21, '703', 7, 7, NULL, 'AVAILABLE');
+(21, '703', 7, 7, NULL, 'AVAILABLE'),
+(22, '801', 8, 8, NULL, 'RESERVED');
 
 -- --------------------------------------------------------
 
@@ -1585,7 +1641,8 @@ INSERT INTO `room_types` (`id`, `name`, `nightly_rate`, `capacity`) VALUES
 (4, 'Family', 3500.00, 4),
 (5, 'Executive Suite', 5000.00, 3),
 (6, 'Presidential Suite', 8500.00, 4),
-(7, 'Penthouse', 10000.00, 6);
+(7, 'Penthouse', 10000.00, 6),
+(8, 'Balay ni Pitok', 1.00, 10);
 
 -- --------------------------------------------------------
 
@@ -1718,7 +1775,11 @@ INSERT INTO `service_requests` (`id`, `stay_id`, `request_code`, `service_type`,
 (27, 15, 'RO-20261031-C6C31D', 'FOOD_BEVERAGE', 'restaurant', NULL, NULL, NULL, NULL, 'SERVICE', NULL, '1x French Fries, 1x Tanduay Select Set', 'COMPLETED', 'NORMAL', 0, NULL, NULL, NULL, 1, 400.00, NULL, NULL, NULL, NULL, '2026-10-31 09:56:48'),
 (28, 38, 'RQF90AE5F6', 'FRONT_DESK', NULL, NULL, NULL, NULL, NULL, 'ROOM_TRANSFER', 12, 'Front desk initiated room transfer from room 203 to 401. Transfer effective immediately.', 'COMPLETED', 'NORMAL', 0, NULL, NULL, NULL, 0, 0.00, NULL, NULL, NULL, NULL, '2026-11-01 14:26:57'),
 (29, 37, 'RO-20261101-299EBA', 'FOOD_BEVERAGE', 'restaurant', NULL, NULL, NULL, NULL, 'SERVICE', NULL, '1x Leche Flan', 'COMPLETED', 'NORMAL', 0, NULL, NULL, NULL, 1, 90.00, NULL, NULL, NULL, NULL, '2026-11-01 15:35:56'),
-(30, 38, 'RO-20261102-79E9A5', 'FOOD_BEVERAGE', 'restaurant', NULL, NULL, 7, '2026-11-02 11:06:13', 'SERVICE', NULL, '2x Grilled Bangus', 'COMPLETED', 'NORMAL', 0, NULL, NULL, NULL, 1, 480.00, '2026-11-02 11:07:23', 7, NULL, NULL, '2026-11-02 03:05:41');
+(30, 38, 'RO-20261102-79E9A5', 'FOOD_BEVERAGE', 'restaurant', NULL, NULL, 7, '2026-11-02 11:06:13', 'SERVICE', NULL, '2x Grilled Bangus', 'COMPLETED', 'NORMAL', 0, NULL, NULL, NULL, 1, 480.00, '2026-11-02 11:07:23', 7, NULL, NULL, '2026-11-02 03:05:41'),
+(31, 41, 'RQ5C558537', 'OTHER', 'service', NULL, NULL, 0, '2026-11-02 19:46:48', 'SERVICE', NULL, 'Personal Trainer', 'COMPLETED', 'NORMAL', 0, NULL, NULL, NULL, 1, 900.00, '2026-11-02 19:47:39', 0, NULL, NULL, '2026-11-02 11:01:20'),
+(32, 41, 'RQ80772CF1', 'OTHER', 'service', NULL, NULL, 0, '2026-11-02 19:46:39', 'SERVICE', NULL, 'Pool Access for Extra Guest (quantity: 2)', 'COMPLETED', 'NORMAL', 0, NULL, NULL, NULL, 1, 600.00, '2026-11-02 19:47:36', 0, NULL, NULL, '2026-11-02 11:23:31'),
+(33, 41, 'RQAF7E5C2F', 'OTHER', 'service', NULL, NULL, 0, '2026-11-02 19:46:24', 'SERVICE', NULL, 'Yoga Class', 'COMPLETED', 'NORMAL', 0, NULL, NULL, NULL, 1, 400.00, '2026-11-02 19:47:31', 0, NULL, NULL, '2026-11-02 11:24:08'),
+(34, 41, 'RQ43E8EFA9', 'OTHER', 'service', NULL, NULL, 0, '2026-11-02 19:46:18', 'SERVICE', NULL, 'Deep Tissue Massage', 'COMPLETED', 'NORMAL', 0, NULL, NULL, NULL, 1, 1200.00, '2026-11-02 19:47:18', 0, NULL, NULL, '2026-11-02 11:24:28');
 
 -- --------------------------------------------------------
 
@@ -1818,7 +1879,23 @@ INSERT INTO `service_request_history` (`id`, `request_id`, `from_status`, `to_st
 (78, 30, NULL, 'PENDING', NULL, NULL, 'restaurant', 'Created with room-service order from the guest portal.', '2026-11-02 03:05:41'),
 (79, 30, 'PENDING', 'ACKNOWLEDGED', 7, 'restaurant', 'restaurant', NULL, '2026-11-02 03:06:13'),
 (80, 30, 'ACKNOWLEDGED', 'IN_PROGRESS', 7, 'restaurant', 'restaurant', NULL, '2026-11-02 03:06:46'),
-(81, 30, 'IN_PROGRESS', 'COMPLETED', 7, 'restaurant', 'restaurant', NULL, '2026-11-02 03:07:23');
+(81, 30, 'IN_PROGRESS', 'COMPLETED', 7, 'restaurant', 'restaurant', NULL, '2026-11-02 03:07:23'),
+(82, 31, NULL, 'PENDING', NULL, NULL, 'service', 'Booked by guest from the amenity page.', '2026-11-02 11:01:20'),
+(83, 32, NULL, 'PENDING', NULL, NULL, 'service', 'Booked by guest from the amenity page.', '2026-11-02 11:23:31'),
+(84, 33, NULL, 'PENDING', NULL, NULL, 'service', 'Booked by guest from the amenity page.', '2026-11-02 11:24:08'),
+(85, 34, NULL, 'PENDING', NULL, NULL, 'service', 'Booked by guest from the amenity page.', '2026-11-02 11:24:28'),
+(86, 34, 'PENDING', 'ACKNOWLEDGED', 0, 'service', 'service', NULL, '2026-11-02 11:46:18'),
+(87, 33, 'PENDING', 'ACKNOWLEDGED', 0, 'service', 'service', NULL, '2026-11-02 11:46:24'),
+(88, 32, 'PENDING', 'ACKNOWLEDGED', 0, 'service', 'service', NULL, '2026-11-02 11:46:39'),
+(89, 31, 'PENDING', 'ACKNOWLEDGED', 0, 'service', 'service', NULL, '2026-11-02 11:46:48'),
+(90, 34, 'ACKNOWLEDGED', 'IN_PROGRESS', 0, 'service', 'service', NULL, '2026-11-02 11:46:55'),
+(91, 33, 'ACKNOWLEDGED', 'IN_PROGRESS', 0, 'service', 'service', NULL, '2026-11-02 11:46:59'),
+(92, 32, 'ACKNOWLEDGED', 'IN_PROGRESS', 0, 'service', 'service', NULL, '2026-11-02 11:47:01'),
+(93, 31, 'ACKNOWLEDGED', 'IN_PROGRESS', 0, 'service', 'service', NULL, '2026-11-02 11:47:02'),
+(94, 34, 'IN_PROGRESS', 'COMPLETED', 0, 'service', 'service', NULL, '2026-11-02 11:47:18'),
+(95, 33, 'IN_PROGRESS', 'COMPLETED', 0, 'service', 'service', NULL, '2026-11-02 11:47:31'),
+(96, 32, 'IN_PROGRESS', 'COMPLETED', 0, 'service', 'service', NULL, '2026-11-02 11:47:36'),
+(97, 31, 'IN_PROGRESS', 'COMPLETED', 0, 'service', 'service', NULL, '2026-11-02 11:47:39');
 
 -- --------------------------------------------------------
 
@@ -1840,21 +1917,6 @@ CREATE TABLE `stays` (
   `created_by` bigint(20) UNSIGNED DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `group_booking_id` bigint(20) UNSIGNED DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Table structure for table `stay_occupants`
---
-
-CREATE TABLE `stay_occupants` (
-  `id` bigint(20) NOT NULL AUTO_INCREMENT,
-  `stay_id` bigint(20) NOT NULL,
-  `full_name` varchar(150) NOT NULL,
-  `contact_number` varchar(30) DEFAULT NULL,
-  `sort_order` int(11) NOT NULL DEFAULT 0,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `stay_id` (`stay_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -1882,7 +1944,9 @@ INSERT INTO `stays` (`id`, `stay_code`, `room_id`, `customer_id`, `guest_count`,
 (38, 'STC9CC80082B', 12, 25, 1, '2026-10-31 14:00:00', '2026-10-31 22:04:58', '2026-11-03', NULL, 'ACTIVE', 3, '2026-10-31 14:02:55', 19),
 (39, 'ST58D1943E95', 9, 25, 1, '2026-10-31 14:00:00', '2026-10-31 22:04:58', '2026-11-03', NULL, 'ACTIVE', 3, '2026-10-31 14:02:55', 19),
 (40, 'ST54FF6EC4E8', 15, 25, 1, '2026-10-31 14:00:00', '2026-10-31 22:04:58', '2026-11-03', NULL, 'ACTIVE', 3, '2026-10-31 14:02:55', 19),
-(41, 'ST7B0E050C14', 16, 26, 1, '2026-11-02 14:00:00', '2026-11-02 14:01:00', '2026-11-04', NULL, 'ACTIVE', 3, '2026-11-02 03:25:55', NULL);
+(41, 'ST7B0E050C14', 16, 26, 1, '2026-11-02 14:00:00', '2026-11-02 14:01:00', '2026-11-04', NULL, 'ACTIVE', 3, '2026-11-02 03:25:55', NULL),
+(42, 'STB3B09800B2', 22, 27, 1, '2026-11-02 14:00:00', NULL, '2026-11-04', NULL, 'PENDING_PAYMENT', 3, '2026-11-02 13:24:54', NULL),
+(43, 'ST2776402B9C', 19, 28, 1, '2026-11-02 14:00:00', '2026-11-02 21:34:04', '2026-11-03', NULL, 'ACTIVE', 3, '2026-11-02 13:32:40', NULL);
 
 --
 -- Triggers `stays`
@@ -2021,6 +2085,21 @@ CREATE TABLE `stay_extension_requests` (
 
 INSERT INTO `stay_extension_requests` (`id`, `stay_id`, `folio_id`, `current_checkout`, `requested_checkout`, `extra_nights`, `nightly_rate`, `proposed_charge`, `reason`, `status`, `review_note`, `requested_by`, `approved_by`, `approved_at`, `created_at`, `updated_at`) VALUES
 (1, 15, 15, '2026-10-31', '2026-11-03', 3, 2200.00, 6600.00, 'wa ra gud.', 'APPROVED', NULL, NULL, 2, '2026-10-31 18:36:18', '2026-10-31 09:46:22', '2026-10-31 10:36:18');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `stay_occupants`
+--
+
+CREATE TABLE `stay_occupants` (
+  `id` bigint(20) NOT NULL,
+  `stay_id` bigint(20) NOT NULL,
+  `full_name` varchar(150) NOT NULL,
+  `contact_number` varchar(30) DEFAULT NULL,
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2375,6 +2454,13 @@ ALTER TABLE `stay_extension_requests`
   ADD KEY `folio_id` (`folio_id`);
 
 --
+-- Indexes for table `stay_occupants`
+--
+ALTER TABLE `stay_occupants`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `stay_id` (`stay_id`);
+
+--
 -- Indexes for table `users`
 --
 ALTER TABLE `users`
@@ -2388,19 +2474,19 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `applied_discounts`
 --
 ALTER TABLE `applied_discounts`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT for table `audit_logs`
 --
 ALTER TABLE `audit_logs`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=480;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=518;
 
 --
 -- AUTO_INCREMENT for table `charges`
 --
 ALTER TABLE `charges`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=66;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=72;
 
 --
 -- AUTO_INCREMENT for table `chat_messages`
@@ -2412,7 +2498,7 @@ ALTER TABLE `chat_messages`
 -- AUTO_INCREMENT for table `checkin_payments`
 --
 ALTER TABLE `checkin_payments`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=42;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=44;
 
 --
 -- AUTO_INCREMENT for table `checkout_records`
@@ -2424,7 +2510,7 @@ ALTER TABLE `checkout_records`
 -- AUTO_INCREMENT for table `customers`
 --
 ALTER TABLE `customers`
-  MODIFY `customer_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
+  MODIFY `customer_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- AUTO_INCREMENT for table `early_checkout_policy_configs`
@@ -2442,7 +2528,7 @@ ALTER TABLE `early_checkout_requests`
 -- AUTO_INCREMENT for table `folios`
 --
 ALTER TABLE `folios`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=42;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=44;
 
 --
 -- AUTO_INCREMENT for table `group_bookings`
@@ -2472,13 +2558,13 @@ ALTER TABLE `menu_items`
 -- AUTO_INCREMENT for table `payments`
 --
 ALTER TABLE `payments`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=39;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=40;
 
 --
 -- AUTO_INCREMENT for table `portal_tokens`
 --
 ALTER TABLE `portal_tokens`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=66;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=68;
 
 --
 -- AUTO_INCREMENT for table `restaurant_orders`
@@ -2496,7 +2582,7 @@ ALTER TABLE `restaurant_order_items`
 -- AUTO_INCREMENT for table `rooms`
 --
 ALTER TABLE `rooms`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 --
 -- AUTO_INCREMENT for table `room_transfers`
@@ -2508,31 +2594,37 @@ ALTER TABLE `room_transfers`
 -- AUTO_INCREMENT for table `room_types`
 --
 ALTER TABLE `room_types`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `service_requests`
 --
 ALTER TABLE `service_requests`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=31;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
 
 --
 -- AUTO_INCREMENT for table `service_request_history`
 --
 ALTER TABLE `service_request_history`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=82;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=98;
 
 --
 -- AUTO_INCREMENT for table `stays`
 --
 ALTER TABLE `stays`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=42;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=44;
 
 --
 -- AUTO_INCREMENT for table `stay_extension_requests`
 --
 ALTER TABLE `stay_extension_requests`
   MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT for table `stay_occupants`
+--
+ALTER TABLE `stay_occupants`
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT;
 
 --
 -- Constraints for dumped tables
