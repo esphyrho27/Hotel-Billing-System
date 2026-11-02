@@ -1324,6 +1324,11 @@
             .cashier-overview-footer { align-items: flex-start; flex-direction: column; }
             .cashier-overview-metric { min-height: 122px; padding: .8rem; }
         }
+        /* Active Stays cleaner v2: let the vertical-dots dropdown overflow
+           the main stays table instead of being clipped by table-responsive.
+           Scoped to the desktop stays table only, so the pending and
+           confirm tables above it keep their own scrolling. */
+        #active-stays-content > div.d-none.d-md-block .table-responsive { overflow: visible; }
     </style>
 </head>
 <body>
@@ -1991,7 +1996,7 @@
 <script src="./js/qrcode.min.js"></script>
 <script src="./js/hotel_billing_dialogs.js?v=20261022_22"></script>
 <script src="./js/hotel_billing_master_files.js?v=20261102_16"></script>
-<script src="./js/hotel_billing_walkin.js?v=20261102_29"></script>
+<script src="./js/hotel_billing_walkin.js?v=20261102_30"></script>
 <script src="./js/hotel_billing_users.js?v=20261022_22"></script>
 <script src="./js/hotel_billing_approvals.js?v=20261022_22"></script>
 <script src="./js/hotel_billing_department.js?v=20261022_22"></script>

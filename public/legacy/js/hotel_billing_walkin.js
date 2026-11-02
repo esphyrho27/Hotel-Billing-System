@@ -1628,52 +1628,39 @@
 
 
 
+      // Active Stays cleaner v2: one visible primary action + a Bootstrap
+      // vertical-dots dropdown holding every other action for that role.
+      // No action is removed and no handler changes — the same onclick
+      // strings move into dropdown-items. Cashier keeps its single
+      // Billing button. Manager has no Checkout in its set, so Folio
+      // stays visible for manager; admin/frontdesk keep Checkout visible;
+      // any other view role falls back to Folio visible.
       const renderStayActions = (s, isMobile = false) => {
-
         if (isCashier) {
-
           return `
-
             <button class="btn btn-sm btn-outline-primary" onclick="HotelBilling.folio(${s.folio_id})" title="View Folio &amp; Billing"><i class="bi bi-receipt me-1"></i>Billing</button>
-
           `;
-
         }
-
+        const qrItem = `<button type="button" class="dropdown-item" onclick="HotelBilling.showStayQr('${esc(s.stay_code)}','${esc(s.folio_number)}')"><i class="bi bi-qr-code me-1"></i>QR Pass</button>`;
+        const folioItem = `<button type="button" class="dropdown-item" onclick="HotelBilling.folio(${s.folio_id})"><i class="bi bi-receipt me-1"></i>Folio</button>`;
+        const guestItem = `<button type="button" class="dropdown-item" onclick="HotelBilling.guestDetails(${s.id})"><i class="bi bi-person-lines-fill me-1"></i>Guest details</button>`;
+        const bookItem = `<button type="button" class="dropdown-item" onclick="HotelBilling.bookAdditionalRoom(${s.id})"><i class="bi bi-person-plus me-1"></i>Book additional room</button>`;
+        const transferItem = `<button type="button" class="dropdown-item" onclick="HotelBilling.transfer(${s.id})">Transfer</button>`;
+        const earlyItem = `<button type="button" class="dropdown-item" onclick="HotelBilling.earlyCheckout(${s.id})">Early checkout</button>`;
+        const folioBtn = `<button class="btn btn-sm btn-outline-primary" onclick="HotelBilling.folio(${s.folio_id})">Folio</button>`;
+        const checkoutBtn = `<button class="btn btn-sm btn-outline-success" onclick="HotelBilling.checkout(${s.id})"><i class="bi bi-box-arrow-right me-1"></i>Checkout</button>`;
+        const stayMenu = (items) => items.length ? `<div class="btn-group"><button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions"><i class="bi bi-three-dots-vertical"></i></button><ul class="dropdown-menu dropdown-menu-end">${items.map(it => '<li>' + it + '</li>').join('')}</ul></div>` : '';
         if (isManager) {
-
-          return `
-
-            <button class="btn btn-sm btn-outline-dark" onclick="HotelBilling.showStayQr('${esc(s.stay_code)}','${esc(s.folio_number)}')"><i class="bi bi-qr-code me-1"></i>${isMobile ? 'QR' : 'QR Pass'}</button>
-
-            <button class="btn btn-sm btn-outline-primary" onclick="HotelBilling.folio(${s.folio_id})">Folio</button>
-
-            <button class="btn btn-sm btn-outline-info" onclick="HotelBilling.guestDetails(${s.id})"><i class="bi bi-person-lines-fill me-1"></i>${isMobile ? 'Guest' : 'Guest details'}</button>
-
-            <button class="btn btn-sm btn-outline-primary" onclick="HotelBilling.bookAdditionalRoom(${s.id})"><i class="bi bi-person-plus me-1"></i>${isMobile ? 'Add room' : 'Book additional room'}</button>
-
-          `;
-
+          return folioBtn + ' ' + stayMenu([qrItem, guestItem, bookItem]);
         }
-
-        return `
-
-          <button class="btn btn-sm btn-outline-dark" onclick="HotelBilling.showStayQr('${esc(s.stay_code)}','${esc(s.folio_number)}')"><i class="bi bi-qr-code me-1"></i>${isMobile ? 'QR' : 'QR Pass'}</button>
-
-          <button class="btn btn-sm btn-outline-primary" onclick="HotelBilling.folio(${s.folio_id})">Folio</button>
-
-          <button class="btn btn-sm btn-outline-info" onclick="HotelBilling.guestDetails(${s.id})"><i class="bi bi-person-lines-fill me-1"></i>${isMobile ? 'Guest' : 'Guest details'}</button>
-
-          ${['admin','frontdesk'].includes(curRole) ? `<button class="btn btn-sm btn-outline-primary" onclick="HotelBilling.bookAdditionalRoom(${s.id})"><i class="bi bi-person-plus me-1"></i>${isMobile ? 'Add room' : 'Book additional room'}</button>` : ''}
-
-          ${curRole === 'frontdesk' ? `<button class="btn btn-sm btn-outline-secondary" onclick="HotelBilling.transfer(${s.id})">Transfer</button>` : ''}
-
-          <button class="btn btn-sm btn-outline-warning" onclick="HotelBilling.earlyCheckout(${s.id})">${isMobile ? 'Early' : 'Early checkout'}</button>
-
-          ${['admin','frontdesk'].includes(curRole) ? `<button class="btn btn-sm btn-outline-success" onclick="HotelBilling.checkout(${s.id})"><i class="bi bi-box-arrow-right me-1"></i>Checkout</button>` : ''}
-
-        `;
-
+        const hasCheckout = ['admin','frontdesk'].includes(curRole);
+        const menuItems = [qrItem];
+        if (hasCheckout) menuItems.push(folioItem);
+        menuItems.push(guestItem);
+        if (['admin','frontdesk'].includes(curRole)) menuItems.push(bookItem);
+        if (curRole === 'frontdesk') menuItems.push(transferItem);
+        menuItems.push(earlyItem);
+        return (hasCheckout ? checkoutBtn : folioBtn) + ' ' + stayMenu(menuItems);
       };
 
 
@@ -1756,7 +1743,7 @@
 
         tableHeaders = ['Stay / Folio reference','Room','Guests','Scheduled / Actual Check-in','Planned checkout','Balance','Actions'];
 
-        rows = stays.map(s=>`<tr><td><strong>${esc(s.stay_code)}</strong>${s.guest_name?`<div class="fw-semibold text-primary" style="font-size:12.5px;"><i class="bi bi-person me-1"></i>${esc(s.guest_name)}</div>`:''}<div class="small text-muted">${esc(s.folio_number)}</div>${linkedLine(s)}</td><td>${esc(s.room_number)}</td><td>${s.guest_count}</td><td><div>Scheduled: ${esc(s.checkin_at)}</div><div class="small text-muted">Actual: ${esc(s.actual_checkin_at||'Not recorded')}</div></td><td>${esc(s.planned_checkout)} at 12:00 PM</td><td>${php(Number(s.charges_total)-Number(s.paid_total))}</td><td><div class="d-flex flex-wrap gap-1">${renderStayActions(s, false)}</div></td></tr>`).join('');
+        rows = stays.map(s=>`<tr><td><strong>${esc(s.stay_code)}</strong>${s.guest_name?`<div><button type="button" class="btn btn-link p-0 fw-semibold text-primary text-decoration-none" style="font-size:12.5px;" onclick="HotelBilling.guestDetails(${s.id})"><i class="bi bi-person me-1"></i>${esc(s.guest_name)}</button></div>`:''}<div class="small"><button type="button" class="btn btn-link btn-sm p-0 text-decoration-underline" onclick="HotelBilling.folio(${s.folio_id})">${esc(s.folio_number)}</button></div>${linkedLine(s)}</td><td>${esc(s.room_number)}</td><td>${s.guest_count}</td><td><div>Scheduled: ${esc(s.checkin_at)}</div><div class="small text-muted">Actual: ${esc(s.actual_checkin_at||'Not recorded')}</div></td><td>${esc(s.planned_checkout)} at 12:00 PM</td><td>${php(Number(s.charges_total)-Number(s.paid_total))}</td><td><div class="d-flex flex-wrap gap-1">${renderStayActions(s, false)}</div></td></tr>`).join('');
 
       }
 
@@ -1772,7 +1759,7 @@
 
               <span class="fw-bold fs-6">${esc(s.stay_code)}</span>
 
-              <div class="small text-muted">${esc(s.folio_number)}</div>
+              ${isCashier ? `<div class="small text-muted">${esc(s.folio_number)}</div>` : `<div class="small"><button type="button" class="btn btn-link btn-sm p-0 text-decoration-underline" onclick="HotelBilling.folio(${s.folio_id})">${esc(s.folio_number)}</button></div>`}
 
             </div>
 
@@ -1780,7 +1767,7 @@
 
           </div>
 
-          ${s.guest_name?`<div class="fw-semibold text-primary mb-2" style="font-size:13px;"><i class="bi bi-person me-1"></i>${esc(s.guest_name)}</div>`:''}
+${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style="font-size:13px;"><i class="bi bi-person me-1"></i>${esc(s.guest_name)}</div>` : `<div class="mb-2"><button type="button" class="btn btn-link p-0 fw-semibold text-primary text-decoration-none" style="font-size:13px;" onclick="HotelBilling.guestDetails(${s.id})"><i class="bi bi-person me-1"></i>${esc(s.guest_name)}</button></div>`) : ''}
 
           ${linkedLine(s)}
 
