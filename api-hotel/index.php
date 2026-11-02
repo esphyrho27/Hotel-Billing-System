@@ -3699,7 +3699,10 @@ if ($action === 'transfer') {
  * revokes guest portal tokens, and triggers real-time updates.
  */
 if ($action === 'checkout') {
-    require_role(['admin', 'frontdesk']);
+    // Manager is included so a manager can waive an automatic late charge at
+    // checkout (waive itself is still manager/admin-only, checked below).
+    // Payment itself stays restricted to cashier/management in pay().
+    require_role(['admin', 'frontdesk', 'manager']);
     $sid = (int)($in['stay_id'] ?? 0);
     hotel_ensure_actual_checkin_column($pdo);
     $actualDateTime = hotel_local_now();
@@ -4230,12 +4233,38 @@ if ($action === 'final_bill_preview') {
     $lateCheckoutOut['overstay_amount'] = money($lateCheckout['overstay_amount']);
     $lateCheckoutOut['total_auto_amount'] = money($lateCheckout['total_auto_amount']);
 
+    // VAT-simulated total with the pending automatic charges included.
+    // Do NOT add the gross auto amount to the posted final: for PWD/Senior
+    // guests the VAT breakdown grows the VAT-exempt ROOM portion, so a
+    // gross addition overstates the true final (reported case: 6551.43
+    // gross vs 6230.00 simulated). Reuse htl_vat_inclusive_breakdown with
+    // the exact charge categories/amounts that would be posted.
+    $simCharges = [];
+    foreach ($charges as $postedCharge) {
+        $simCharges[] = ['category' => $postedCharge['category'], 'amount' => number_format((float)$postedCharge['amount'], 2, '.', '')];
+    }
+    if ((float)$lateCheckout['late_fee_amount'] > 0.009) {
+        $simCharges[] = ['category' => 'LATE_CHECKOUT', 'amount' => number_format((float)$lateCheckout['late_fee_amount'], 2, '.', '')];
+    }
+    foreach ($lateCheckout['overstay_dates'] as $overstayDate) {
+        $simCharges[] = ['category' => 'ROOM', 'amount' => number_format((float)$lateCheckout['nightly_rate'], 2, '.', '')];
+    }
+    $simDiscounts = [];
+    foreach ($discountDetails as $discountRow) {
+        $simDiscounts[] = ['category' => $discountRow['category'] ?? '', 'amount' => number_format((float)$discountRow['amount'], 2, '.', ''), 'status' => $discountRow['status'] ?? 'APPLIED'];
+    }
+    $simTax = htl_vat_inclusive_breakdown($simCharges, $simDiscounts, htl_vat_rate_basis_points($pdo));
+    $simFinal = $simTax['total_amount_cents'] / 100;
+
     out([
         'stay' => $stay,
         'charges' => $charges,
         'discounts' => $discountDetails,
         'late_checkout' => $lateCheckoutOut,
-        'final_amount_with_late_checkout' => money(round($final + $lateCheckout['total_auto_amount'], 2)),
+        'final_amount_with_late_checkout' => money($simFinal),
+        'vat_with_late_checkout' => money($simTax['vat_amount_cents'] / 100),
+        'vatable_sales_with_late_checkout' => money($simTax['vatable_sales_cents'] / 100),
+        'vat_exempt_sales_with_late_checkout' => money($simTax['vat_exempt_sales_cents'] / 100),
         'pending_early_checkout_request' => $pendingEarly,
         'early_checkout_exception' => $earlyCheckoutException ? [
             'requested_departure_at' => $earlyCheckoutException['requested_departure_at'],
@@ -4247,6 +4276,7 @@ if ($action === 'final_bill_preview') {
         'scheduled_checkout_at' => $planned->format('Y-m-d H:i:s'),
         'original_room_amount' => money($originalRoomAmount),
         'nightly_rate' => money($plannedNights ? $originalRoomAmount / $plannedNights : 0),
+        'planned_nights' => $plannedNights,
         'nights_stayed' => $stayNights,
         'unused_nights' => max(0, $plannedNights - $stayNights),
         'charges_total' => money($chargesTotal),

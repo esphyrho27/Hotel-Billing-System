@@ -6713,18 +6713,43 @@ async function transfer(id) {
 
 
   function checkoutReceiptHtml(d, finalized=false) {
+    const lc = d.late_checkout || null;
+    const autoTotal = (!finalized && lc) ? Number(lc.total_auto_amount || 0) : 0;
+    const hasPending = autoTotal > 0.009;
+    const simFinal = hasPending ? Number(d.final_amount_with_late_checkout ?? (Number(d.final_amount || 0) + autoTotal)) : Number(d.final_amount || 0);
+    const paid = Number(d.payments_received || 0);
+    const postedOutstanding = Math.max(0, Number(d.final_amount || 0) - paid);
+    const outstandingIncludingPending = Math.max(0, simFinal - paid);
     const rows=(d.charges||[]).map(c=>`<tr><td>${esc(roomStayTitle(c))}${c.category==='ROOM'?' (VAT-inclusive)':''}</td><td class="num">${php(c.amount)}</td></tr>`).join('')
       + `<tr><td>Charges before VAT</td><td class="num">${php(d.vatable_sales||0)}</td></tr>`
       + (Number(d.vat_exempt_sales||0)>0?`<tr><td>VAT-free charges</td><td class="num">${php(d.vat_exempt_sales)}</td></tr>`:'');
     const discountRows=(d.discounts||[]).map(discount=>`<tr><td class="text-success">Discount: ${esc(discountDisplayName(discount))}</td><td class="text-end text-success">− ${php(discount.amount)}</td></tr>`).join('')
       || (Number(d.discount_total)>0?`<tr><td>Discounts / credits</td><td class="text-end">− ${php(d.discount_total)}</td></tr>`:'');
-    const status=d.settlement_status==='ADDITIONAL_PAYMENT_DUE'
-      ? `Balance due: ${php(Math.abs(Number(d.settlement_delta)))}`
-      : 'Fully settled';
-    const settled=d.settlement_status!=='ADDITIONAL_PAYMENT_DUE';
-    const outstandingBalance=Math.max(0,Number(d.final_amount||0)-Number(d.payments_received||0));
+    const postedSettled = d.settlement_status !== 'ADDITIONAL_PAYMENT_DUE';
+    const status = finalized
+      ? (postedSettled ? 'Fully settled' : `Balance due: ${php(Math.abs(Number(d.settlement_delta)))}`)
+      : hasPending
+        ? (postedSettled ? `Posted balance settled · Pending automatic charge ${php(autoTotal)} not yet posted` : `Balance due (posted): ${php(postedOutstanding)} · Pending automatic charge ${php(autoTotal)} not yet posted`)
+        : (postedSettled ? 'Fully settled' : `Balance due: ${php(Math.abs(Number(d.settlement_delta)))}`);
+    const alertClass = (finalized ? postedSettled : (postedSettled && !hasPending)) ? 'success' : 'warning';
+    const plannedNights = Number(d.planned_nights || 0);
+    const stayedNights = Number(d.nights_stayed || 0);
+    const nightsLine = plannedNights > 0 ? `Planned ${plannedNights} night(s) · Stayed ${stayedNights} night(s)` : `${stayedNights} night(s)`;
+    let pendingHtml = '';
+    if (hasPending) {
+      const pendingRows = (lc.lines || []).map(l => `<tr><td>${esc(l)} (pending)</td><td class="text-end">${php(l.indexOf('Late checkout fee') === 0 ? lc.late_fee_amount : lc.nightly_rate)}</td></tr>`).join('');
+      pendingHtml = `<div class="mt-3"><h6 class="fw-bold">Pending automatic charges — not yet posted</h6><p class="small text-muted mb-2">These charges are not in the posted totals above. They are added to the folio only when you confirm them; only a manager can waive them. Scheduled checkout ${esc(lc.scheduled_checkout_at)} · Hotel time ${esc(lc.actual_checkout_at)} · Nightly rate ${php(lc.nightly_rate)} · Grace ${esc(lc.grace_minutes)} min · Evening cutoff ${esc(lc.cutoff_time)} · Late fee ${esc(lc.fee_percent)}%.</p><table class="table table-sm"><tbody>${pendingRows}<tr><td>Pending total (gross)</td><td class="text-end">${php(autoTotal)}</td></tr><tr><th>New total to pay if confirmed (VAT-recomputed)</th><th class="text-end">${php(simFinal)}</th></tr><tr><td>Outstanding including pending</td><td class="text-end">${php(outstandingIncludingPending)}</td></tr></tbody></table></div>`;
+    }
+    let lateBox = '';
+    if (finalized) {
+      const postedLate = (d.charges || []).filter(c => String(c.description || '').indexOf('Late checkout fee') === 0 || String(c.description || '').indexOf('Overstay night') === 0);
+      if (postedLate.length) {
+        const lateRows = postedLate.map(c => `<tr><td>${esc(c.description)}</td><td class="text-end">${php(c.amount)}</td></tr>`).join('');
+        lateBox = `<div class="mt-3"><h6 class="fw-bold">Automatic late charge (included above — not an additional charge)</h6><table class="table table-sm"><tbody>${lateRows}</tbody></table><div class="small text-muted">Scheduled checkout ${esc(d.scheduled_checkout_at || `${d.stay.planned_checkout} at 12:00 PM`)} · Actual checkout ${esc(d.stay.actual_checkout || 'Not recorded')}${lc ? ` · Nightly rate ${php(lc.nightly_rate)} · Grace ${esc(lc.grace_minutes)} min · Evening cutoff ${esc(lc.cutoff_time)}` : ''}.</div></div>`;
+      }
+    }
 
-    return `<div class="checkout-receipt"><div class="text-center mb-3"><h4 class="mb-1">SHESH DEV HOTEL</h4><div class="small text-muted">Agora, Lapasan, Cagayan de Oro</div><h5 class="mt-3">${finalized?'FINAL CHECKOUT RECEIPT':'CHECKOUT BILL REVIEW'}</h5><div class="small text-muted">${finalized?'Finalized transaction':'Estimate — not yet finalized'}</div></div><hr><div class="row g-2 mb-3"><div class="col-6"><div class="small text-muted">Stay reference</div><strong>${esc(d.stay.stay_code)}</strong></div><div class="col-6 text-end"><div class="small text-muted">Folio</div><strong>${esc(d.stay.folio_number)}</strong></div><div class="col-6"><div class="small text-muted">Room</div><strong>${esc(d.stay.room_number)}</strong></div><div class="col-6 text-end"><div class="small text-muted">Guests / Nights</div><strong>${Number(d.nights_stayed)} night(s)</strong></div>${d.stay.guest_name?`<div class="col-12"><div class="small text-muted">Guest</div><strong>${esc(d.stay.guest_name)}</strong></div>`:''}<div class="col-12"><div class="small text-muted">Scheduled check-in</div><strong>${esc(d.stay.checkin_at)}</strong><div class="small text-muted mt-1">Actual check-in</div><strong>${esc(d.stay.actual_checkin_at||'Not recorded')}</strong><div class="small text-muted mt-1">Scheduled checkout</div><strong>${esc(d.stay.planned_checkout)} at 12:00 PM</strong></div></div><table class="table table-sm"><thead><tr><th>Item</th><th class="text-end">Amount</th></tr></thead><tbody>${rows}${discountRows}<tr><td>VAT (${Number(d.vat_rate)}%) included</td><td class="text-end">${php(d.vat)}</td></tr></tbody><tfoot><tr><th>Total to pay</th><th class="text-end">${php(d.final_amount)}</th></tr><tr><td>Amount paid</td><td class="text-end">${php(d.payments_received)}</td></tr><tr><td>Outstanding balance</td><td class="text-end">${php(outstandingBalance)}</td></tr></tfoot></table><div class="alert alert-${settled?'success':'warning'} mb-0"><strong>${esc(status)}</strong></div>${finalized?'<p class="small text-muted text-center mt-3 mb-0">Thank you for staying with us.</p>':''}</div>`;
+    return `<div class="checkout-receipt"><div class="text-center mb-3"><h4 class="mb-1">SHESH DEV HOTEL</h4><div class="small text-muted">Agora, Lapasan, Cagayan de Oro</div><h5 class="mt-3">${finalized?'FINAL CHECKOUT RECEIPT':'CHECKOUT BILL REVIEW'}</h5><div class="small text-muted">${finalized?'Finalized transaction':'Estimate — not yet finalized'}</div></div><hr><div class="row g-2 mb-3"><div class="col-6"><div class="small text-muted">Stay reference</div><strong>${esc(d.stay.stay_code)}</strong></div><div class="col-6 text-end"><div class="small text-muted">Folio</div><strong>${esc(d.stay.folio_number)}</strong></div><div class="col-6"><div class="small text-muted">Room</div><strong>${esc(d.stay.room_number)}</strong></div><div class="col-6 text-end"><div class="small text-muted">Nights</div><strong>${esc(nightsLine)}</strong></div>${d.stay.guest_name?`<div class="col-12"><div class="small text-muted">Guest</div><strong>${esc(d.stay.guest_name)}</strong></div>`:''}<div class="col-12"><div class="small text-muted">Scheduled check-in</div><strong>${esc(d.stay.checkin_at)}</strong><div class="small text-muted mt-1">Actual check-in</div><strong>${esc(d.stay.actual_checkin_at||'Not recorded')}</strong><div class="small text-muted mt-1">Scheduled checkout</div><strong>${esc(d.stay.planned_checkout)} at 12:00 PM</strong><div class="small text-muted mt-1">Actual checkout</div><strong>${esc(d.stay.actual_checkout||'Not yet checked out')}</strong></div></div><table class="table table-sm"><thead><tr><th>Item</th><th class="text-end">Amount</th></tr></thead><tbody>${rows}${discountRows}<tr><td>VAT (${Number(d.vat_rate)}%) included</td><td class="text-end">${php(d.vat)}</td></tr></tbody><tfoot><tr><th>${hasPending?'Total to pay (posted charges only)':'Total to pay'}</th><th class="text-end">${php(d.final_amount)}</th></tr><tr><td>Amount paid</td><td class="text-end">${php(d.payments_received)}</td></tr><tr><td>Outstanding balance${hasPending?' (posted only)':''}</td><td class="text-end">${php(postedOutstanding)}</td></tr></tfoot></table>${pendingHtml}${lateBox}<div class="alert alert-${alertClass} mb-0"><strong>${esc(status)}</strong></div>${finalized?'<p class="small text-muted text-center mt-3 mb-0">Thank you for staying with us.</p>':''}</div>`;
 
   }
 
@@ -6741,7 +6766,11 @@ async function transfer(id) {
       ? `Balance due ${php(Math.abs(Number(d.settlement_delta)))}`
       : 'Fully settled';
     const outstandingBalance=Math.max(0,Number(d.final_amount||0)-Number(d.payments_received||0));
-    w.document.write(`<!doctype html><html><head><title>Checkout Receipt · ${esc(d.stay.stay_code)}</title><meta charset="utf-8"><style>body{font:14px Arial,sans-serif;color:#111;margin:28px}h2,h3,p{text-align:center;margin:5px}table{width:100%;border-collapse:collapse;margin-top:18px}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}.num{text-align:right}.totals{margin-top:14px}.totals div{display:flex;justify-content:space-between;padding:5px 0}.muted{color:#555;font-size:12px}.status{border:1px solid #aaa;padding:10px;margin-top:15px;text-align:center}@media print{button{display:none}body{margin:12mm}}</style></head><body><h2>SHESH DEV HOTEL</h2><p>Agora, Lapasan, Cagayan de Oro</p><h3>FINAL CHECKOUT RECEIPT</h3><p class="muted">Stay ${esc(d.stay.stay_code)} · Folio ${esc(d.stay.folio_number)} · Room ${esc(d.stay.room_number)}${d.stay.guest_name?` · Guest: ${esc(d.stay.guest_name)}`:''}</p><p>Scheduled check-in: ${esc(d.stay.checkin_at)} · Actual check-in: ${esc(d.stay.actual_checkin_at||'Not recorded')} · Actual checkout: ${esc(d.stay.actual_checkout||'Not recorded')}</p><table><thead><tr><th>Item</th><th class="num">Amount</th></tr></thead><tbody>${rows}${discountRows}<tr><td>VAT (${Number(d.vat_rate)}%) included</td><td class="num">${php(d.vat)}</td></tr></tbody></table><div class="totals"><div><strong>Total to pay</strong><strong>${php(d.final_amount)}</strong></div><div><span>Amount paid</span><span>${php(d.payments_received)}</span></div><div><span>Outstanding balance</span><span>${php(outstandingBalance)}</span></div><div><strong>Balance / settlement</strong><strong>${esc(settlementStatus)}</strong></div></div><div class="status">Checkout finalized · Room status: Cleaning</div><p style="margin-top:24px">Thank you for staying with us.</p><button onclick="window.print()">Print receipt</button><script>window.onload=()=>window.print()</script></body></html>`);
+    const printPlanned = Number(d.planned_nights || 0);
+    const printNightsLine = printPlanned > 0 ? `Planned ${printPlanned} night(s) · Stayed ${Number(d.nights_stayed || 0)} night(s)` : `Stayed ${Number(d.nights_stayed || 0)} night(s)`;
+    const printLateCharges = (d.charges || []).filter(c => String(c.description || '').indexOf('Late checkout fee') === 0 || String(c.description || '').indexOf('Overstay night') === 0);
+    const printLateBox = printLateCharges.length ? `<div style="margin-top:14px"><strong>Automatic late charge (included above — not an additional charge)</strong><table><tbody>${printLateCharges.map(c => `<tr><td>${esc(c.description)}</td><td class="num">${php(c.amount)}</td></tr>`).join('')}</tbody></table><p class="muted">Scheduled checkout ${esc(d.scheduled_checkout_at || `${d.stay.planned_checkout} at 12:00 PM`)} · Actual checkout ${esc(d.stay.actual_checkout || 'Not recorded')}${d.late_checkout ? ` · Nightly rate ${php(d.late_checkout.nightly_rate)} · Grace ${esc(d.late_checkout.grace_minutes)} min · Evening cutoff ${esc(d.late_checkout.cutoff_time)}` : ''}.</p></div>` : '';
+    w.document.write(`<!doctype html><html><head><title>Checkout Receipt · ${esc(d.stay.stay_code)}</title><meta charset="utf-8"><style>body{font:14px Arial,sans-serif;color:#111;margin:28px}h2,h3,p{text-align:center;margin:5px}table{width:100%;border-collapse:collapse;margin-top:18px}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}.num{text-align:right}.totals{margin-top:14px}.totals div{display:flex;justify-content:space-between;padding:5px 0}.muted{color:#555;font-size:12px}.status{border:1px solid #aaa;padding:10px;margin-top:15px;text-align:center}@media print{button{display:none}body{margin:12mm}}</style></head><body><h2>SHESH DEV HOTEL</h2><p>Agora, Lapasan, Cagayan de Oro</p><h3>FINAL CHECKOUT RECEIPT</h3><p class="muted">Stay ${esc(d.stay.stay_code)} · Folio ${esc(d.stay.folio_number)} · Room ${esc(d.stay.room_number)}${d.stay.guest_name?` · Guest: ${esc(d.stay.guest_name)}`:''}</p><p>Scheduled check-in: ${esc(d.stay.checkin_at)} · Actual check-in: ${esc(d.stay.actual_checkin_at||'Not recorded')} · Scheduled checkout: ${esc(d.stay.planned_checkout)} at 12:00 PM · Actual checkout: ${esc(d.stay.actual_checkout||'Not recorded')}</p><p class="muted">${printNightsLine}</p><table><thead><tr><th>Item</th><th class="num">Amount</th></tr></thead><tbody>${rows}${discountRows}<tr><td>VAT (${Number(d.vat_rate)}%) included</td><td class="num">${php(d.vat)}</td></tr></tbody></table><div class="totals"><div><strong>Total to pay</strong><strong>${php(d.final_amount)}</strong></div><div><span>Amount paid</span><span>${php(d.payments_received)}</span></div><div><span>Outstanding balance</span><span>${php(outstandingBalance)}</span></div><div><strong>Balance / settlement</strong><strong>${esc(settlementStatus)}</strong></div></div>${printLateBox}<div class="status">Checkout finalized · Room status: Cleaning</div><p style="margin-top:24px">Thank you for staying with us.</p><button onclick="window.print()">Print receipt</button><script>window.onload=()=>window.print()</script></body></html>`);
 
     w.document.close();
 
@@ -6766,7 +6795,16 @@ async function transfer(id) {
         try {
           const result = await api('checkout', { stay_id: id, confirm: 1 });
           z.m.hide(); resolve(result);
-        } catch (err) { notify(err.message, true); z.m.hide(); resolve(null); }
+        } catch (err) {
+          // The server commits just-posted late charges and then fails the
+          // balance check on purpose, so the caller can offer pay-then-retry.
+          // That is NOT a generic failure: surface it as a marker, not a
+          // toast-and-close, so checkout() can show the pay step.
+          const msg = (err && err.message) ? String(err.message) : '';
+          z.m.hide();
+          if (msg.indexOf('already been posted') !== -1) { resolve({ late_posted_unpaid: true, message: msg }); }
+          else { notify(msg || 'Checkout failed.', true); resolve(null); }
+        }
       };
       z.root.querySelector('#late-waive').onclick = async e => {
         if (!canWaive) return;
@@ -6794,23 +6832,31 @@ async function transfer(id) {
 
       const pending=d.pending_early_checkout_request;
 
-      const isSettled = d.settlement_status !== 'ADDITIONAL_PAYMENT_DUE';
-
-      const balanceDue = d.settlement_status === 'ADDITIONAL_PAYMENT_DUE' ? Math.abs(Number(d.settlement_delta)) : 0;
-
-      // Automatic late-checkout / overstay amount shown by the preview. It is
-      // NOT posted yet: confirming checkout will ask first, and the new total
-      // below (old total + pending auto amount) must be settled before the
-      // folio can close, because a confirmed charge inside the checkout
-      // transaction rolls back if the balance check then fails.
+      // Posted vs pending, kept separate on purpose. The old code gated
+      // Confirm on (posted final + pending auto) - payments, so when only
+      // the pending automatic charge was unpaid, Confirm was disabled and
+      // the confirm dialog that posts the charges was unreachable — while
+      // Settle opened pay() for the posted (zero) balance. That was the
+      // deadlock. The new gate: posted settled + only pending outstanding
+      // => Confirm becomes a first step, "Confirm late charges".
+      const postedSettled = d.settlement_status !== 'ADDITIONAL_PAYMENT_DUE';
+      const postedBalanceDue = postedSettled ? 0 : Math.abs(Number(d.settlement_delta));
       const latePreview=d.late_checkout||null;
       const autoTotal=latePreview?Number(latePreview.total_auto_amount||0):0;
-      const newFinalAmount=Number(d.final_amount||0)+autoTotal;
-      const newBalanceDue=Math.max(0,newFinalAmount-Number(d.payments_received||0));
-      const isSettledWithAuto=newBalanceDue<=0.009;
-
-
-
+      const simFinal=autoTotal>0.009 ? Number(d.final_amount_with_late_checkout ?? (Number(d.final_amount||0)+autoTotal)) : Number(d.final_amount||0);
+      const newBalanceDue=Math.max(0,simFinal-Number(d.payments_received||0));
+      const checkoutAllowed = Boolean(d.checkout_allowed);
+      // Note: posted settled is NOT required here. If a posted balance is
+      // also due, confirming late charges first still posts the late
+      // charges, after which the combined posted balance is payable in
+      // one pay call. Requiring posted-settled first would re-create the
+      // deadlock for the mixed case (and a disabled Confirm button cannot
+      // be triggered by the Settle button).
+      const pendingOnly = autoTotal>0.009 && !pending && checkoutAllowed;
+      const canFinalize = postedSettled && autoTotal<=0.009 && !pending && checkoutAllowed;
+      const canConfirm = pendingOnly || canFinalize;
+      const confirmLabel = pendingOnly ? 'Confirm late charges' : 'Confirm checkout';
+      const disabledReason = !checkoutAllowed ? 'Checkout is before the scheduled noon time or approved exception time' : pending ? 'Resolve the early checkout request first' : postedBalanceDue>0.009 ? 'Make sure the posted payment is settled before checkout' : 'Make sure payment is settled before checkout';
 
       let statusAlert = '';
 
@@ -6818,18 +6864,25 @@ async function transfer(id) {
 
         statusAlert = `<div class="alert alert-danger mt-3 mb-0"><strong>Checkout blocked.</strong> Early checkout request #${Number(pending.id)} is ${pending.status==='REQUESTED'?'pending approval':'approved but not finalized'}. Open <strong>Early Checkout Approvals</strong> to resolve and finalize this request first. Checkout will remain unavailable until the request is finalized or rejected.</div>`;
 
-      } else if (!isSettledWithAuto && newBalanceDue > 0.009) {
+      } else if (autoTotal>0.009) {
 
-        statusAlert = `<div class="alert alert-warning mt-3 mb-0 d-flex justify-content-between align-items-center flex-wrap gap-2"><div><strong><i class="bi bi-exclamation-triangle-fill me-1"></i>Payment Not Settled:</strong> Outstanding balance of <strong>${php(newBalanceDue)}</strong> must be settled before checkout.${autoTotal>0?` This includes the pending automatic late charge of <strong>${php(autoTotal)}</strong> (not yet posted).`:''}</div><button type="button" class="btn btn-sm btn-primary" id="checkout-settle-btn"><i class="bi bi-credit-card me-1"></i>Settle Balance / Pay Now</button></div>`;
+        // Pending charge exists and is not posted yet: the Settle button
+        // must NOT open pay() for the posted balance (it would be the
+        // posted amount, or zero, and can never pay the pending charge).
+        // It triggers the confirm-late-charges step instead.
+        statusAlert = `<div class="alert alert-warning mt-3 mb-0 d-flex justify-content-between align-items-center flex-wrap gap-2"><div><strong><i class="bi bi-exclamation-triangle-fill me-1"></i>Automatic late charge pending:</strong> <strong>${php(autoTotal)}</strong> not yet posted. Outstanding including pending: <strong>${php(newBalanceDue)}</strong>.${postedBalanceDue>0.009?` This includes a posted balance of <strong>${php(postedBalanceDue)}</strong> plus the pending charge.`:` Confirm the late charges first — they cannot be paid until they are posted.`}</div><button type="button" class="btn btn-sm btn-primary" id="checkout-settle-btn"><i class="bi bi-credit-card me-1"></i>Confirm late charges first</button></div>`;
+
+      } else if (!postedSettled) {
+
+        statusAlert = `<div class="alert alert-warning mt-3 mb-0 d-flex justify-content-between align-items-center flex-wrap gap-2"><div><strong><i class="bi bi-exclamation-triangle-fill me-1"></i>Payment Not Settled:</strong> Outstanding posted balance of <strong>${php(postedBalanceDue)}</strong> must be settled before checkout.</div><button type="button" class="btn btn-sm btn-primary" id="checkout-settle-btn"><i class="bi bi-credit-card me-1"></i>Settle Balance / Pay Now</button></div>`;
 
       }
 
-      if (autoTotal > 0.009) {
+      if (autoTotal>0.009) {
         const lateLines=(latePreview.lines||[]).map(l=>`<div>${esc(l)} — ${php(l.indexOf('Late checkout fee')===0?latePreview.late_fee_amount:latePreview.nightly_rate)}</div>`).join('');
-        statusAlert += `<div class="alert alert-info mt-3 mb-0"><strong>Automatic late charge pending (not yet posted):</strong> Scheduled checkout ${esc(latePreview.scheduled_checkout_at)}, hotel time ${esc(d.hotel_now)}, nightly rate ${php(latePreview.nightly_rate)}.${lateLines}<div class="mt-1">New total to pay if confirmed: <strong>${php(newFinalAmount)}</strong>. Confirming checkout will ask you to confirm these charges first; only a manager can waive them.</div>${(latePreview.notes||[]).map(n=>`<div class="small">${esc(n)}</div>`).join('')}</div>`;
+        statusAlert += `<div class="alert alert-info mt-3 mb-0"><strong>Automatic late charge pending (not yet posted):</strong> Scheduled checkout ${esc(latePreview.scheduled_checkout_at)}, hotel time ${esc(d.hotel_now)}, nightly rate ${php(latePreview.nightly_rate)}.${lateLines}<div class="mt-1">New total to pay if confirmed (VAT-recomputed): <strong>${php(simFinal)}</strong>. Confirming checkout will ask you to confirm these charges first; only a manager can waive them.</div>${(latePreview.notes||[]).map(n=>`<div class="small">${esc(n)}</div>`).join('')}</div>`;
       }
 
-      const checkoutAllowed = Boolean(d.checkout_allowed);
       if (!checkoutAllowed) {
         const scheduled = d.scheduled_checkout_at || `${d.stay.planned_checkout} 12:00:00`;
         const exceptionMessage = d.early_checkout_exception
@@ -6838,22 +6891,46 @@ async function transfer(id) {
         statusAlert += `<div class="alert alert-warning mt-3 mb-0"><strong>Checkout is not yet allowed.</strong> Standard checkout is at 12:00 PM on ${esc(d.stay.planned_checkout)} (${esc(d.hotel_timezone)}). Current hotel time: ${esc(d.hotel_now)}.${exceptionMessage}</div>`;
       }
 
-      const canConfirm = isSettledWithAuto && !pending && checkoutAllowed;
-
-      const disabledReason = !checkoutAllowed ? 'Checkout is before the scheduled noon time or approved exception time' : 'Make sure payment is settled before checkout';
-      const x=modal('Final checkout · Receipt review',`${checkoutReceiptHtml(d,false)}${statusAlert}<div class="d-flex justify-content-end gap-2 mt-3"><button type="button" class="btn btn-outline-secondary" id="cancel-checkout">Close</button><button type="button" class="btn btn-success" id="confirm-checkout" ${!canConfirm ? `disabled title="${disabledReason}"` : ''}><i class="bi bi-check2-circle me-1"></i>Confirm checkout</button></div>`);
+      const x=modal('Final checkout · Receipt review',`${checkoutReceiptHtml(d,false)}${statusAlert}<div class="d-flex justify-content-end gap-2 mt-3"><button type="button" class="btn btn-outline-secondary" id="cancel-checkout">Close</button><button type="button" class="btn btn-success" id="confirm-checkout" ${!canConfirm ? `disabled title="${disabledReason}"` : ''}><i class="bi bi-check2-circle me-1"></i>${confirmLabel}</button></div>`);
 
       x.root.querySelector('#cancel-checkout').onclick=()=>x.m.hide();
 
-      x.root.querySelector('#checkout-settle-btn')?.addEventListener('click', () => {
-
-        x.m.hide();
-
-        pay(d.stay.folio_id, newBalanceDue);
-
-      });
+      const settleBtn = x.root.querySelector('#checkout-settle-btn');
+      if (settleBtn) {
+        if (autoTotal>0.009) {
+          // Pending charge: confirming posts it; paying before that is
+          // impossible, so Settle just opens the confirm step.
+          settleBtn.addEventListener('click', () => { x.root.querySelector('#confirm-checkout')?.click(); });
+        } else {
+          settleBtn.addEventListener('click', () => {
+            x.m.hide();
+            pay(d.stay.folio_id, postedBalanceDue);
+          });
+        }
+      }
 
       if(!canConfirm)return;
+
+      // Explicit pay-then-retry step after late charges were posted by a
+      // confirm call that then failed the balance check (server commits
+      // only those charges and returns the 'already been posted' error).
+      const showLatePostedStep = async (postedMessage) => {
+        const role = (window.HotelAuth?.getUser()?.role || '').toLowerCase();
+        const canPay = role !== 'frontdesk';
+        const y = modal('Late charges posted — pay, then checkout again', `<p>Late charges have been posted to the folio and will not be posted again.</p><p class="small text-muted">${esc(postedMessage || '')}</p><p>Amount now due: <strong>${php(newBalanceDue)}</strong> (new total ${php(simFinal)} less payments received ${php(d.payments_received)}).</p>${canPay ? '' : '<p class="small text-muted">Front Desk cannot take payments — a cashier or manager must take this payment.</p>'}<div class="d-flex justify-content-end gap-2 mt-3"><button type="button" class="btn btn-outline-secondary" id="late-posted-close">Close</button>${canPay ? '<button type="button" class="btn btn-primary" id="late-posted-pay">Pay now</button>' : ''}<button type="button" class="btn btn-success" id="late-posted-reopen">Reopen checkout review</button></div>`);
+        y.root.querySelector('#late-posted-close').onclick = () => { y.m.hide(); };
+        if (canPay) {
+          y.root.querySelector('#late-posted-pay').onclick = () => {
+            y.m.hide();
+            pay(d.stay.folio_id, newBalanceDue);
+          };
+        }
+        y.root.querySelector('#late-posted-reopen').onclick = async () => {
+          y.m.hide();
+          x.m.hide();
+          await checkout(id);
+        };
+      };
 
       x.root.querySelector('#confirm-checkout').onclick=async e=>{
 
@@ -6861,39 +6938,62 @@ async function transfer(id) {
         if (b.disabled) return;
         b.disabled=true;
 
-        const confirmed = await window.HotelDialogs.confirm({
-
-          title: 'Finalize Guest Checkout?',
-
-          text: `Finalize checkout for Stay ${d.stay.stay_code} (Room ${d.stay.room_number})? Folio will be settled and room condition set to Cleaning.`,
-
-          confirmButtonText: 'Finalize Checkout',
-
-          actionType: 'success'
-
-        });
-
-        if (!confirmed) {
-          b.disabled=false;
-          return;
-        }
-
-        b.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Finalizing…';
-
         let result;
         try {
-          result=await api('checkout',{stay_id:id});
-          if (result && result.needs_confirmation && result.late_checkout) {
-            result=await lateCheckoutConfirm(id, result.late_checkout, Number(d.final_amount||0)+Number(result.late_checkout.total_auto_amount||0));
+          if (pendingOnly) {
+            // First step only: open the late-charge dialog directly. The
+            // old code never reached it because Confirm was disabled.
+            result = await lateCheckoutConfirm(id, d.late_checkout, simFinal);
             if (!result) {
               b.disabled=false;
-              b.innerHTML='<i class="bi bi-check2-circle me-1"></i>Confirm checkout';
+              b.innerHTML='<i class="bi bi-check2-circle me-1"></i>Confirm late charges';
               return;
+            }
+            if (result.late_posted_unpaid) {
+              b.disabled=false;
+              b.innerHTML='<i class="bi bi-check2-circle me-1"></i>Confirm late charges';
+              await showLatePostedStep(result.message);
+              return;
+            }
+          } else {
+            const confirmed = await window.HotelDialogs.confirm({
+
+              title: 'Finalize Guest Checkout?',
+
+              text: `Finalize checkout for Stay ${d.stay.stay_code} (Room ${d.stay.room_number})? Folio will be settled and room condition set to Cleaning.`,
+
+              confirmButtonText: 'Finalize Checkout',
+
+              actionType: 'success'
+
+            });
+
+            if (!confirmed) {
+              b.disabled=false;
+              return;
+            }
+
+            b.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Finalizing…';
+
+            result=await api('checkout',{stay_id:id});
+            if (result && result.needs_confirmation && result.late_checkout) {
+              result=await lateCheckoutConfirm(id, result.late_checkout, Number(d.final_amount_with_late_checkout ?? (Number(d.final_amount||0)+Number(result.late_checkout.total_auto_amount||0))));
+              if (!result) {
+                b.disabled=false;
+                b.innerHTML='<i class="bi bi-check2-circle me-1"></i>Confirm checkout';
+                return;
+              }
+              if (result.late_posted_unpaid) {
+                b.disabled=false;
+                b.innerHTML='<i class="bi bi-check2-circle me-1"></i>Confirm checkout';
+                await showLatePostedStep(result.message);
+                return;
+              }
             }
           }
         } catch(err) {
           b.disabled=false;
-          b.innerHTML='<i class="bi bi-check2-circle me-1"></i>Confirm checkout';
+          b.innerHTML= pendingOnly ? '<i class="bi bi-check2-circle me-1"></i>Confirm late charges' : '<i class="bi bi-check2-circle me-1"></i>Confirm checkout';
           notify(err.message,true);
           return;
         }
@@ -6920,7 +7020,6 @@ async function transfer(id) {
         const y=modal('Checkout completed',`${checkoutReceiptHtml(finalData,true)}<div class="d-flex justify-content-end gap-2 mt-3"><button type="button" class="btn btn-outline-secondary" id="close-checkout-receipt">Close</button><button type="button" class="btn btn-primary" id="print-checkout-receipt">Print receipt</button></div>`);
 
         y.root.querySelector('#close-checkout-receipt').onclick=()=>{y.m.hide();open(activeModule)};
-
         y.root.querySelector('#print-checkout-receipt').onclick=()=>printCheckoutReceipt(finalData);
 
       };
