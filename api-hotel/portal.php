@@ -1388,7 +1388,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     .stay-badge{flex:none;padding:9px 14px;border:1px solid rgba(198,234,211,.38);border-radius:999px;background:rgba(22,115,75,.23);color:#e1f5e8;font-size:12px;font-weight:700;backdrop-filter:blur(8px)}
     .content{padding:26px clamp(18px,4vw,44px) 0}
     .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 18px}
-    .journey{position:relative;display:flex;align-items:center;gap:0;margin:0 0 18px;padding:18px 68px 18px 20px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(145deg,#fff,#fafbfd);box-shadow:0 5px 18px rgba(23,43,69,.035)}
+    .journey{position:relative;display:flex;align-items:center;gap:0;margin:0 0 18px;padding:18px 56px 18px 20px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(145deg,#fff,#fafbfd);box-shadow:0 5px 18px rgba(23,43,69,.035)}
     .journey-point{display:flex;align-items:center;gap:12px;min-width:0}
     .journey-dot{flex:none;width:14px;height:14px;border:3px solid #e9b65f;border-radius:50%;background:#102a43}
     .journey-point.is-done .journey-dot{background:#16734b}
@@ -1398,17 +1398,15 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     .journey-line::before,.journey-line::after{content:"";flex:1;height:2px;background:linear-gradient(90deg,#e9b65f,#f1c878)}
     .journey-nights{flex:none;padding:5px 11px;border-radius:999px;background:#fdf6e7;color:#8a6a1f;font-size:11px;font-weight:800;white-space:nowrap}
     @media(max-width:640px){.journey{flex-wrap:wrap}.journey-point{flex:1 1 100%}.journey-line{flex:1 1 100%;margin:14px 0 0 26px}}
-    .journey-bell{position:absolute;top:12px;right:12px;flex:none;width:44px;height:44px;display:grid;place-items:center;border:1px solid #e9b65f;border-radius:50%;background:#102a43;color:#e9b65f;font-size:20px;line-height:1;cursor:pointer;box-shadow:0 4px 12px rgba(23,43,69,.18)}
+    .journey-bell{position:absolute;top:12px;right:12px;flex:none;width:32px;height:32px;display:grid;place-items:center;border:1px solid #e9b65f;border-radius:50%;background:#102a43;color:#e9b65f;font-size:15px;line-height:1;cursor:pointer;box-shadow:0 3px 8px rgba(23,43,69,.18)}
     .journey-bell[hidden]{display:none!important}
-    .journey-bell-dot{position:absolute;top:6px;right:7px;display:block;width:10px;height:10px;border-radius:50%;background:#e5484d;box-shadow:0 0 0 2px #102a43}
+    .journey-bell-dot{position:absolute;top:4px;right:5px;display:block;width:8px;height:8px;border-radius:50%;background:#e5484d;box-shadow:0 0 0 2px #102a43}
     .journey-bell-dot[hidden]{display:none!important}
     @media print{.journey-bell{display:none!important}}
     .checkout-reminder-status{margin:0;color:#17344e;font-size:15px;line-height:1.5}
     .checkout-reminder-rule{margin:8px 0 0;color:#4e5b65;font-size:13px;line-height:1.6}
     .checkout-reminder-amounts{margin:8px 0 0;color:#17344e;font-size:13px;font-weight:700;line-height:1.6}
     .checkout-reminder-note{margin:8px 0 0;color:#6b7a88;font-size:11px;line-height:1.55}
-    .checkout-reminder-footer{display:flex;flex-wrap:wrap;gap:10px}
-    .checkout-reminder-footer .button{flex:1 1 auto}
     .extend-row{margin:-6px 0 18px}
     .extend-btn{display:inline-flex;min-height:44px;align-items:center;justify-content:center;padding:10px 18px;border:1px solid #e9b65f;border-radius:12px;background:#e9b65f;color:#102a43;font-size:13px;font-weight:800;cursor:pointer}
     .extend-btn:disabled{border-color:#d4dee8;background:#eef2f6;color:#64748b;cursor:default}
@@ -2188,7 +2186,6 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         <p class="checkout-reminder-rule" data-checkout-reminder-rule><?= $checkoutReminder !== null ? portal_escape($checkoutReminder['rule']) : '' ?></p>
         <?php if ($checkoutReminder !== null && $checkoutReminder['amounts'] !== ''): ?><p class="checkout-reminder-amounts" data-checkout-reminder-amounts><?=portal_escape($checkoutReminder['amounts'])?></p><?php endif; ?>
         <p class="checkout-reminder-note" data-checkout-reminder-note><?= $checkoutReminder !== null ? portal_escape($checkoutReminder['note']) : '' ?></p>
-        <footer class="dialog-footer checkout-reminder-footer"><button class="button secondary" type="button" data-checkout-reminder-chat>Message the front desk</button><button class="button" type="button" data-checkout-reminder-extend-row>Go to Extend stay</button><button class="button secondary" type="button" data-close>Got it</button></footer>
       </div>
     </div>
   </dialog>
@@ -2918,28 +2915,6 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           amountsEl.remove();
         }
       };
-      const reminderChatBtn = document.querySelector("[data-checkout-reminder-chat]");
-      if (reminderChatBtn instanceof HTMLElement) {
-        reminderChatBtn.addEventListener("click", () => {
-          const dialog = document.getElementById("checkout-reminder-dialog");
-          if (dialog instanceof HTMLDialogElement && dialog.open) dialog.close();
-          const bubble = document.getElementById("chat-bubble-btn");
-          if (bubble instanceof HTMLElement) bubble.click();
-        });
-      }
-      const reminderExtendRowBtn = document.querySelector("[data-checkout-reminder-extend-row]");
-      if (reminderExtendRowBtn instanceof HTMLElement) {
-        reminderExtendRowBtn.addEventListener("click", () => {
-          const dialog = document.getElementById("checkout-reminder-dialog");
-          if (dialog instanceof HTMLDialogElement && dialog.open) dialog.close();
-          const row = document.getElementById("extend-row");
-          if (row instanceof HTMLElement) {
-            row.scrollIntoView({ behavior: "smooth", block: "center" });
-            const btn = row.querySelector("button");
-            if (btn instanceof HTMLButtonElement && !btn.disabled) btn.focus();
-          }
-        });
-      }
       const formatCreatedAt = (value) => {
         const parsed = parseDate(value);
         return parsed ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(parsed) : "";
