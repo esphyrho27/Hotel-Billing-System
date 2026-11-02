@@ -726,7 +726,7 @@
 
         const rowsHtml=[
 
-          ('discounts' in a) ? approvalRow('Discount approvals', a.discounts, 'discount-approvals', 'percent') : '',
+          ('discounts' in a && (window.HotelAuth.getUser()?.role || '').toLowerCase() !== 'manager') ? approvalRow('Discount approvals', a.discounts, 'discount-approvals', 'percent') : '',
 
           ('early_checkouts' in a) ? approvalRow('Early checkout approvals', a.early_checkouts, 'early-checkouts', 'clock-history') : '',
           ('stay_extensions' in a) ? approvalRow('Stay extension approvals', a.stay_extensions, 'early-checkouts', 'calendar-plus') : '',

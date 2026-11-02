@@ -47,7 +47,6 @@
       "rooms",
       "catalog",
       "payments",
-      "discount-approvals",
       "early-checkouts",
       "service-requests",
       "reports",
@@ -119,6 +118,9 @@
           && (permissions.includes("*") || permissions.includes("service_requests.view"))) {
           allowed.add("service-requests");
         }
+        // Manager view: Discount Approvals is removed for managers even when
+        // the session allowed_modules list still carries it.
+        if (roleKey === "manager") allowed.delete("discount-approvals");
         return allowed;
       }
       return new Set(departmentRoleModules[roleKey] || visibleModules[r] || visibleModules[roleKey] || serviceRoleModules);
