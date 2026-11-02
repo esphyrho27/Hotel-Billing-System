@@ -3103,9 +3103,6 @@ if ($action === 'approve_checkin_payment') {
     if ($uRoleClean !== 'cashier') {
         out(['error' => 'Only the Cashier can approve a check-in payment.'], 403);
     }
-    if (!hotel_checkin_is_open()) {
-        out(['error' => 'Check-in activation is available only from 2:00 PM in the hotel’s local time zone. The payment was not processed.'], 400);
-    }
     hotel_ensure_actual_checkin_column($pdo);
     htl_ensure_checkin_payments($pdo);
     htl_ensure_billing_schema($pdo);
@@ -3154,10 +3151,6 @@ if ($action === 'approve_checkin_payment') {
         // ENUM predates PENDING_PAYMENT (repaired by htl_ensure_checkin_payments).
         if (!in_array($cp['stay_status'], ['PENDING_PAYMENT', ''], true)) {
             throw new RuntimeException('This check-in is no longer pending payment.');
-        }
-        $checkinAt = hotel_local_now();
-        if (!hotel_checkin_is_open($checkinAt)) {
-            throw new RuntimeException('Check-in activation is available only from 2:00 PM in the hotel’s local time zone. The payment was not processed.');
         }
 
         $fid = (int)$cp['folio_id'];
@@ -3288,10 +3281,9 @@ if ($action === 'approve_checkin_payment') {
         $balanceAmount = round(max(0, $totalBill - $required), 2);
         $pdo->prepare("UPDATE checkin_payments SET status='APPROVED', approved_by=?, approved_at=NOW(), payment_id=?, total_amount=?, required_amount=?, balance_amount=?, discount_amount=?, discount_type=?, discount_reason=? WHERE id=?")
             ->execute([$u['id'], $paymentId, $totalBill, $required, $balanceAmount, $updatedDiscountAmount, $updatedDiscountType, $updatedDiscountReason, $cpId]);
-        $pdo->prepare("UPDATE stays SET status='ACTIVE', actual_checkin_at=? WHERE id=?")
-            ->execute([$checkinAt->format('Y-m-d H:i:s'), (int)$cp['stay_id']]);
-        $pdo->prepare("UPDATE rooms SET status='OCCUPIED' WHERE id=?")
-            ->execute([(int)$cp['room_id']]);
+        // Split check-in flow: the Cashier records the payment here and stops.
+        // The stay remains PENDING_PAYMENT and the room stays RESERVED until
+        // Front Desk activates the check-in (activate_checkin).
 
         audit($pdo, $u['id'], 'CHECKIN_PAYMENT_APPROVED', 'stay', (int)$cp['stay_id'], ['checkin_payment_id' => $cpId, 'payment_id' => $paymentId, 'receipt_number' => $receipt, 'amount' => $required, 'applied' => $applied, 'received' => $received, 'change' => $change, 'method' => $method, 'discount_amount' => money($grossDiscount), 'discount_category' => $selectedDiscount['category'] ?? null, 'guest_name' => $cp['guest_name'], 'room' => $cp['room_number']]);
         $pdo->commit();
@@ -3311,8 +3303,6 @@ if ($action === 'approve_checkin_payment') {
         ];
         ws_broadcast('CHECKIN_PAYMENT_APPROVED', $payload, null, 'frontdesk', $cp['stay_code']);
         ws_broadcast('FOLIO_UPDATED', ['folio_id' => $fid, 'stay_code' => $cp['stay_code'], 'type' => 'PAYMENT_RECORDED', 'amount' => $applied, 'remaining_balance' => $remaining], null, 'frontdesk', $cp['stay_code']);
-        ws_broadcast('STAY_CHECKIN', ['stay_id' => (int)$cp['stay_id'], 'stay_code' => $cp['stay_code'], 'room_id' => (int)$cp['room_id'], 'room_number' => $cp['room_number'], 'folio_number' => $cp['folio_number'], 'guest_name' => $cp['guest_name']], null, 'frontdesk');
-        ws_broadcast('ROOM_STATUS_CHANGED', ['room_id' => (int)$cp['room_id'], 'room_number' => $cp['room_number'], 'status' => 'OCCUPIED'], null, null, null, true);
 
         out([
             'ok' => true,
@@ -3343,7 +3333,7 @@ if ($action === 'approve_checkin_payment') {
             'room_number' => $cp['room_number'],
             'guest_name' => $cp['guest_name'],
             'cashier_name' => $u['username'],
-            'stay_status' => 'ACTIVE'
+            'stay_status' => 'PENDING_PAYMENT'
         ]);
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -3359,10 +3349,6 @@ if ($action === 'approve_group_checkin_payment') {
     if (strtolower(trim((string)($u['role'] ?? ''))) !== 'cashier') {
         out(['error' => 'Only the Cashier can approve a group check-in payment.'], 403);
     }
-    if (!hotel_checkin_is_open()) {
-        out(['error' => 'Check-in activation is available only from 2:00 PM in the hotel’s local time zone. The payment was not processed.'], 400);
-    }
-
     hotel_ensure_actual_checkin_column($pdo);
     htl_ensure_checkin_payments($pdo);
     htl_ensure_billing_schema($pdo);
@@ -3422,10 +3408,6 @@ if ($action === 'approve_group_checkin_payment') {
             if (!in_array($room['stay_status'], ['PENDING_PAYMENT', ''], true)) {
                 throw new RuntimeException('One of the group stays is no longer pending payment. No room was activated.');
             }
-        }
-        $checkinTime = hotel_local_now();
-        if (!hotel_checkin_is_open($checkinTime)) {
-            throw new RuntimeException('Check-in activation is available only from 2:00 PM in the hotel’s local time zone.');
         }
 
         $eligibleIds = [];
@@ -3489,7 +3471,6 @@ if ($action === 'approve_group_checkin_payment') {
 
         $roomStates = [];
         $vatRateBasisPoints = htl_vat_rate_basis_points($pdo);
-        $checkinAt = $checkinTime->format('Y-m-d H:i:s');
         $totalRequiredCents = 0;
         foreach ($rooms as $index => $room) {
             $folioId = (int)$room['folio_id'];
@@ -3640,10 +3621,9 @@ if ($action === 'approve_group_checkin_payment') {
                     $updatedDiscountAmount, $updatedDiscountType, $updatedDiscountReason,
                     (int)$room['id']
                 ]);
-            $pdo->prepare("UPDATE stays SET status='ACTIVE', actual_checkin_at=? WHERE id=?")
-                ->execute([$checkinAt, (int)$room['stay_id']]);
-            $pdo->prepare("UPDATE rooms SET status='OCCUPIED' WHERE id=?")
-                ->execute([(int)$room['room_id']]);
+            // Split check-in flow: the Cashier records the payment here and
+            // stops. Stays remain PENDING_PAYMENT and rooms stay RESERVED
+            // until Front Desk activates the group (activate_group_checkin).
 
             $vatAllocation = htl_payment_vat_allocation(
                 $roomState['tax'],
@@ -3721,17 +3701,6 @@ if ($action === 'approve_group_checkin_payment') {
                 'amount' => (float)$allocation['amount_paid'],
                 'remaining_balance' => (float)$allocation['remaining_balance']
             ], null, 'frontdesk', $allocation['stay_code']);
-            ws_broadcast('STAY_CHECKIN', [
-                'stay_id' => $allocation['stay_id'],
-                'stay_code' => $allocation['stay_code'],
-                'room_id' => $allocation['room_id'],
-                'room_number' => $allocation['room_number'],
-                'folio_number' => $allocation['folio_number'],
-                'guest_name' => $rooms[0]['guest_name'],
-                'group_booking_id' => $groupBookingId,
-                'group_code' => $group['group_code']
-            ], null, 'frontdesk');
-            ws_broadcast('ROOM_STATUS_CHANGED', ['room_id' => $allocation['room_id'], 'room_number' => $allocation['room_number'], 'status' => 'OCCUPIED'], null, null, null, true);
         }
 
         $totalDiscountCents = array_sum(array_column($roomStates, 'discount_cents'));
@@ -3817,6 +3786,160 @@ if ($action === 'confirm_checkin_payment') {
 }
 
 /**
+ * Front Desk activation of a cashier-approved check-in payment. This is the
+ * second half of the split check-in flow: the Cashier records the payment
+ * (approve_checkin_payment, no activation), and Front Desk activates the
+ * stay here. There is deliberately NO 2:00 PM gate: the gate already
+ * applied when the stay was registered, and re-gating after midnight is
+ * what blocked the Atong Ang approval. Activation also closes the confirm
+ * loop (confirmed_by/at) so the Cashier still gets the usual pop-up; the
+ * legacy confirm_checkin_payment action remains for stays that were
+ * activated under the old combined flow.
+ */
+if ($action === 'activate_checkin') {
+    if (strtolower(trim((string)($u['role'] ?? ''))) === 'cashier') {
+        out(['error' => 'Only Front Desk, Manager, or Admin can activate a check-in.'], 403);
+    }
+    require_role(['admin', 'manager', 'frontdesk']);
+    htl_ensure_checkin_payments($pdo);
+    $cpId = (int)($in['checkin_payment_id'] ?? 0);
+    if ($cpId < 1) {
+        out(['error' => 'Choose a valid check-in payment.'], 400);
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $q = $pdo->prepare("SELECT cp.*, s.stay_code, s.status AS stay_status, s.room_id, r.room_number, f.folio_number, TRIM(CONCAT_WS(' ', c.first_name, NULLIF(c.middle_name, ''), c.last_name)) AS guest_name, p.receipt_number FROM checkin_payments cp JOIN stays s ON s.id=cp.stay_id JOIN rooms r ON r.id=s.room_id JOIN folios f ON f.id=cp.folio_id LEFT JOIN customers c ON c.customer_id=s.customer_id LEFT JOIN payments p ON p.id=cp.payment_id WHERE cp.id=? FOR UPDATE");
+        $q->execute([$cpId]);
+        $cp = $q->fetch();
+        if (!$cp) {
+            throw new RuntimeException('Check-in payment not found.');
+        }
+        if ($cp['status'] !== 'APPROVED') {
+            throw new RuntimeException('Payment must be received by the Cashier before activation.');
+        }
+        if ($cp['stay_status'] !== 'PENDING_PAYMENT') {
+            if ($cp['stay_status'] === 'ACTIVE') {
+                throw new RuntimeException('This check-in is already active. Use Confirm Payment to close the loop.');
+            }
+            throw new RuntimeException('This check-in is no longer pending activation.');
+        }
+
+        $pdo->prepare("UPDATE stays SET status='ACTIVE', actual_checkin_at=NOW() WHERE id=?")
+            ->execute([(int)$cp['stay_id']]);
+        $pdo->prepare("UPDATE rooms SET status='OCCUPIED' WHERE id=?")
+            ->execute([(int)$cp['room_id']]);
+        $pdo->prepare("UPDATE checkin_payments SET confirmed_by=?, confirmed_at=NOW() WHERE id=?")
+            ->execute([$u['id'], $cpId]);
+
+        audit($pdo, $u['id'], 'CHECKIN_ACTIVATED', 'stay', (int)$cp['stay_id'], ['checkin_payment_id' => $cpId, 'receipt_number' => $cp['receipt_number'], 'guest_name' => $cp['guest_name'], 'room' => $cp['room_number']]);
+        $pdo->commit();
+
+        ws_broadcast('CHECKIN_PAYMENT_CONFIRMED', [
+            'checkin_payment_id' => $cpId,
+            'stay_id' => (int)$cp['stay_id'],
+            'stay_code' => $cp['stay_code'],
+            'room_number' => $cp['room_number'],
+            'folio_number' => $cp['folio_number'],
+            'guest_name' => $cp['guest_name'],
+            'receipt_number' => $cp['receipt_number'],
+            'confirmed_by' => $u['username'],
+            'actor_id' => (int)$u['id']
+        ], null, 'cashier');
+        ws_broadcast('STAY_CHECKIN', ['stay_id' => (int)$cp['stay_id'], 'stay_code' => $cp['stay_code'], 'room_id' => (int)$cp['room_id'], 'room_number' => $cp['room_number'], 'folio_number' => $cp['folio_number'], 'guest_name' => $cp['guest_name']], null, 'frontdesk');
+        ws_broadcast('ROOM_STATUS_CHANGED', ['room_id' => (int)$cp['room_id'], 'room_number' => $cp['room_number'], 'status' => 'OCCUPIED'], null, null, null, true);
+
+        out(['ok' => true, 'stay_id' => (int)$cp['stay_id'], 'stay_code' => $cp['stay_code'], 'room_number' => $cp['room_number'], 'folio_number' => $cp['folio_number'], 'guest_name' => $cp['guest_name'], 'stay_status' => 'ACTIVE']);
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        out(['error' => $e->getMessage()], 400);
+    }
+}
+
+/**
+ * Front Desk activation of a cashier-approved group check-in payment: all
+ * rooms activate together, all-or-nothing. Like activate_checkin, there is
+ * no 2:00 PM gate here, and activation closes the confirm loop for every
+ * room payment so the Cashier gets the usual pop-ups.
+ */
+if ($action === 'activate_group_checkin') {
+    if (strtolower(trim((string)($u['role'] ?? ''))) === 'cashier') {
+        out(['error' => 'Only Front Desk, Manager, or Admin can activate a group check-in.'], 403);
+    }
+    require_role(['admin', 'manager', 'frontdesk']);
+    htl_ensure_checkin_payments($pdo);
+    $groupBookingId = (int)($in['group_booking_id'] ?? 0);
+    if ($groupBookingId < 1) {
+        out(['error' => 'Choose a valid group booking.'], 400);
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $groupQuery = $pdo->prepare('SELECT id, group_code FROM group_bookings WHERE id=? FOR UPDATE');
+        $groupQuery->execute([$groupBookingId]);
+        $group = $groupQuery->fetch(PDO::FETCH_ASSOC);
+        if (!$group) {
+            throw new RuntimeException('Group booking not found.');
+        }
+
+        $roomQuery = $pdo->prepare("SELECT cp.*, s.stay_code, s.status AS stay_status, s.room_id, r.room_number, f.folio_number, TRIM(CONCAT_WS(' ', c.first_name, NULLIF(c.middle_name, ''), c.last_name)) AS guest_name, p.receipt_number FROM checkin_payments cp JOIN stays s ON s.id=cp.stay_id JOIN rooms r ON r.id=s.room_id JOIN folios f ON f.id=cp.folio_id LEFT JOIN customers c ON c.customer_id=s.customer_id LEFT JOIN payments p ON p.id=cp.payment_id WHERE s.group_booking_id=? FOR UPDATE");
+        $roomQuery->execute([$groupBookingId]);
+        $rooms = $roomQuery->fetchAll();
+        if (count($rooms) < 2) {
+            throw new RuntimeException('This group no longer has multiple rooms to activate.');
+        }
+        foreach ($rooms as $room) {
+            if ($room['status'] !== 'APPROVED' || !in_array($room['stay_status'], ['PENDING_PAYMENT', ''], true)) {
+                throw new RuntimeException('Not all rooms in this group are paid and pending activation. No room was activated.');
+            }
+        }
+
+        foreach ($rooms as $room) {
+            $pdo->prepare("UPDATE stays SET status='ACTIVE', actual_checkin_at=NOW() WHERE id=?")
+                ->execute([(int)$room['stay_id']]);
+            $pdo->prepare("UPDATE rooms SET status='OCCUPIED' WHERE id=?")
+                ->execute([(int)$room['room_id']]);
+            $pdo->prepare("UPDATE checkin_payments SET confirmed_by=?, confirmed_at=NOW() WHERE id=?")
+                ->execute([$u['id'], (int)$room['id']]);
+            audit($pdo, $u['id'], 'GROUP_CHECKIN_ACTIVATED', 'stay', (int)$room['stay_id'], ['checkin_payment_id' => (int)$room['id'], 'group_booking_id' => $groupBookingId, 'group_code' => $group['group_code'], 'receipt_number' => $room['receipt_number'], 'room' => $room['room_number']]);
+        }
+        $pdo->commit();
+
+        foreach ($rooms as $room) {
+            ws_broadcast('CHECKIN_PAYMENT_CONFIRMED', [
+                'checkin_payment_id' => (int)$room['id'],
+                'stay_id' => (int)$room['stay_id'],
+                'stay_code' => $room['stay_code'],
+                'room_number' => $room['room_number'],
+                'folio_number' => $room['folio_number'],
+                'guest_name' => $room['guest_name'],
+                'receipt_number' => $room['receipt_number'],
+                'group_booking_id' => $groupBookingId,
+                'group_code' => $group['group_code'],
+                'confirmed_by' => $u['username'],
+                'actor_id' => (int)$u['id']
+            ], null, 'cashier');
+            ws_broadcast('STAY_CHECKIN', [
+                'stay_id' => (int)$room['stay_id'],
+                'stay_code' => $room['stay_code'],
+                'room_id' => (int)$room['room_id'],
+                'room_number' => $room['room_number'],
+                'folio_number' => $room['folio_number'],
+                'guest_name' => $room['guest_name'],
+                'group_booking_id' => $groupBookingId,
+                'group_code' => $group['group_code']
+            ], null, 'frontdesk');
+            ws_broadcast('ROOM_STATUS_CHANGED', ['room_id' => (int)$room['room_id'], 'room_number' => $room['room_number'], 'status' => 'OCCUPIED'], null, null, null, true);
+        }
+
+        out(['ok' => true, 'group_booking_id' => $groupBookingId, 'group_code' => $group['group_code'], 'activated_rooms' => count($rooms), 'rooms' => array_map(static fn($r) => ['stay_code' => $r['stay_code'], 'room_number' => $r['room_number']], $rooms)]);
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        out(['error' => $e->getMessage()], 400);
+    }
+}
+
+/**
  * Cancels a check-in that is still pending payment (guest never settled):
  * releases the room, closes the folio, and marks the queue record CANCELLED.
  */
@@ -3835,6 +3958,17 @@ if ($action === 'cancel_pending_checkin') {
         $stay = $q->fetch();
         if (!$stay) {
             throw new RuntimeException('Pending check-in not found.');
+        }
+
+        // Split check-in flow: a stay can now be PENDING_PAYMENT with its
+        // payment already APPROVED (cash received, awaiting Front Desk
+        // activation). Cancelling that stay must not strand the payment:
+        // block the cancel so a manager handles the received money first.
+        // No refund is built here (the refund plan is parked).
+        $approvedQ = $pdo->prepare("SELECT COUNT(*) FROM checkin_payments WHERE stay_id=? AND status='APPROVED'");
+        $approvedQ->execute([$sid]);
+        if ((int)$approvedQ->fetchColumn() > 0) {
+            throw new RuntimeException('Payment has already been received for this check-in. Ask a manager to handle the received payment before cancelling.');
         }
 
         $pdo->prepare("UPDATE checkin_payments SET status='CANCELLED' WHERE stay_id=? AND status='FOR_PAYMENT'")->execute([$sid]);

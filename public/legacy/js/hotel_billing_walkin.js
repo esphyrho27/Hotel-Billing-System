@@ -1229,7 +1229,7 @@
 
                           </td>
 
-                          ${canApproveCheckinPayments ? `<td class="text-end pe-3"><button class="btn btn-sm btn-success fw-bold shadow-sm px-3 py-2" onclick="HotelBilling.approveCheckinPayment(${cp.id || cp.checkin_payment_id})"><i class="bi bi-cash-stack me-1"></i>Receive &amp; Approve</button></td>` : ''}
+                          ${canApproveCheckinPayments ? `<td class="text-end pe-3"><button class="btn btn-sm btn-success fw-bold shadow-sm px-3 py-2" onclick="HotelBilling.approveCheckinPayment(${cp.id || cp.checkin_payment_id})"><i class="bi bi-cash-stack me-1"></i>Receive Payment</button></td>` : ''}
 
                         </tr>
 
@@ -1682,9 +1682,9 @@
         }
       }
 
-      const confirmHtml = confirmRows.length ? `<div class="card border-info shadow-sm mb-4"><div class="card-header bg-info-subtle py-3 d-flex justify-content-between align-items-center flex-wrap gap-2"><h6 class="fw-bold mb-0"><i class="bi bi-patch-check me-2"></i>Payments to Confirm (${confirmRows.length})</h6><span class="small text-muted">The Cashier approved these check-in payments. Confirm to close the loop — the Cashier gets a pop-up.</span></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="table-light"><tr><th>Stay / Guest</th><th>Room</th><th>Receipt</th><th>Approved by</th><th>Action</th></tr></thead><tbody>${confirmRows.map(x=>`<tr><td><strong>${esc(x.stay_code)}</strong>${x.guest_name?`<div class="fw-semibold text-primary" style="font-size:12.5px;"><i class="bi bi-person me-1"></i>${esc(x.guest_name)}</div>`:''}</td><td><strong>${esc(x.room_number)}</strong></td><td>${esc(x.receipt_number||'')}</td><td>Cashier ${esc(x.approved_by_name||'')}</td><td><button class="btn btn-sm btn-info" onclick="HotelBilling.confirmCheckinPayment(${x.id})"><i class="bi bi-patch-check me-1"></i>Confirm Payment</button></td></tr>`).join('')}</tbody></table></div></div></div>` : '';
+      const confirmHtml = confirmRows.length ? `<div class="card border-info shadow-sm mb-4"><div class="card-header bg-info-subtle py-3 d-flex justify-content-between align-items-center flex-wrap gap-2"><h6 class="fw-bold mb-0"><i class="bi bi-patch-check me-2"></i>Check-in Payments (${confirmRows.length})</h6><span class="small text-muted">Activate pending check-ins, or confirm already-active payments — the Cashier gets a pop-up either way.</span></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="table-light"><tr><th>Stay / Guest</th><th>Room</th><th>Receipt</th><th>Approved by</th><th>Action</th></tr></thead><tbody>${confirmRows.map(x=>`<tr><td><strong>${esc(x.stay_code)}</strong>${x.guest_name?`<div class="fw-semibold text-primary" style="font-size:12.5px;"><i class="bi bi-person me-1"></i>${esc(x.guest_name)}</div>`:''}</td><td><strong>${esc(x.room_number)}</strong></td><td>${esc(x.receipt_number||'')}</td><td>Cashier ${esc(x.approved_by_name||'')}</td><td>${x.stay_status==='PENDING_PAYMENT' ? (x.group_booking_id ? `<button class="btn btn-sm btn-success" onclick="HotelBilling.activateGroupCheckin(${x.group_booking_id})"><i class="bi bi-box-arrow-in-right me-1"></i>Activate Group Check-in</button>` : `<button class="btn btn-sm btn-success" onclick="HotelBilling.activateCheckinPayment(${x.id})"><i class="bi bi-box-arrow-in-right me-1"></i>Activate Check-in</button>`) : `<button class="btn btn-sm btn-info" onclick="HotelBilling.confirmCheckinPayment(${x.id})"><i class="bi bi-patch-check me-1"></i>Confirm Payment</button>`}</td></tr>`).join('')}</tbody></table></div></div></div>` : '';
 
-      const pendingHtml = pendingStays.length ? `<div class="card border-warning shadow-sm mb-4"><div class="card-header bg-warning-subtle py-3 d-flex justify-content-between align-items-center flex-wrap gap-2"><h6 class="fw-bold mb-0"><i class="bi bi-hourglass-split me-2"></i>Pending Check-in Payments (${pendingStays.length})</h6><span class="small text-muted">Waiting for Cashier approval — the check-in completes once payment is approved.</span></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="table-light"><tr><th>Stay / Guest</th><th>Room &amp; Duration</th><th>Total Billing</th><th>Discount</th><th>Net Bill</th><th>Due at Check-in</th><th>Pass to Balance</th>${canCheckin?'<th>Action</th>':''}</tr></thead><tbody>${pendingStays.map(s=>{
+      const pendingHtml = pendingStays.length ? `<div class="card border-warning shadow-sm mb-4"><div class="card-header bg-warning-subtle py-3 d-flex justify-content-between align-items-center flex-wrap gap-2"><h6 class="fw-bold mb-0"><i class="bi bi-hourglass-split me-2"></i>Pending Check-in Payments (${pendingStays.length})</h6><span class="small text-muted">Waiting for Cashier payment — Front Desk activates the check-in once payment is received.</span></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="table-light"><tr><th>Stay / Guest</th><th>Room &amp; Duration</th><th>Total Billing</th><th>Discount</th><th>Net Bill</th><th>Due at Check-in</th><th>Pass to Balance</th>${canCheckin?'<th>Action</th>':''}</tr></thead><tbody>${pendingStays.map(s=>{
         const sNights = Number(s.payment_nights || 1);
         const sIs5Days = sNights >= 5;
         const sGross = Number(s.gross_amount) > 0 ? Number(s.gross_amount) : (Number(s.total_amount || 0) + Number(s.discount_amount || 0));
@@ -1950,9 +1950,9 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
 
         <td>${is5 ? `<strong class="text-danger">${php(bal)}</strong><div class="badge bg-danger-subtle text-danger" style="font-size:9.5px;">Passes to Folio</div>` : '<span class="text-muted small">₱0.00</span>'}</td>
 
-        <td>${x.status==='FOR_PAYMENT'?'<span class="badge text-bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>For Payment</span>':(x.status==='APPROVED'?(x.confirmed_at?`<span class="badge text-bg-success"><i class="bi bi-patch-check me-1"></i>Confirmed</span><div class="small text-muted">${esc(x.receipt_number||'')} · FD confirmed by ${esc(x.confirmed_by_name||'')}</div>`:`<span class="badge text-bg-info"><i class="bi bi-check-circle me-1"></i>Approved</span><div class="small text-muted">${esc(x.receipt_number||'')} · by Cashier ${esc(x.approved_by_name||'')} · waiting for Front Desk confirmation</div>`):'<span class="badge text-bg-secondary">Cancelled</span>')}</td>
+        <td>${x.status==='FOR_PAYMENT'?'<span class="badge text-bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>For Payment</span>':(x.status==='APPROVED'?(x.confirmed_at?`<span class="badge text-bg-success"><i class="bi bi-patch-check me-1"></i>Confirmed</span><div class="small text-muted">${esc(x.receipt_number||'')} · FD confirmed by ${esc(x.confirmed_by_name||'')}</div>`:`<span class="badge text-bg-info"><i class="bi bi-check-circle me-1"></i>Approved</span><div class="small text-muted">${esc(x.receipt_number||'')} · by Cashier ${esc(x.approved_by_name||'')} · ${x.stay_status==='PENDING_PAYMENT'?'waiting for Front Desk activation':'waiting for Front Desk confirmation'}</div>`):'<span class="badge text-bg-secondary">Cancelled</span>')}</td>
 
-        ${cpCanApproveCheckinPayments ? `<td>${withApprove ? `<button class="btn btn-sm btn-success fw-bold" onclick="HotelBilling.approveCheckinPayment(${x.id})"><i class="bi bi-cash-stack me-1"></i>Approve</button>` : ''}</td>` : ''}
+        ${cpCanApproveCheckinPayments ? `<td>${withApprove ? `<button class="btn btn-sm btn-success fw-bold" onclick="HotelBilling.approveCheckinPayment(${x.id})"><i class="bi bi-cash-stack me-1"></i>Receive</button>` : ''}</td>` : ''}
 
       </tr>`;
       };
@@ -2025,7 +2025,7 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
               <div class="small mt-1">Total Billing: <strong>${php(gross)}</strong> ${disc > 0 ? `· Disc: <span class="text-success">-${php(disc)}</span>` : ''}</div>
               <div class="small mt-1">Required: <strong>${php(x.required_amount)}</strong> (${is5 ? '60% downpayment' : '100% full'})</div>
               ${is5 ? `<div class="small text-danger">Pass to Balance: <strong>${php(bal)}</strong> (Folio)</div>` : ''}
-              ${cpCanApproveCheckinPayments?`<button class="btn btn-success btn-sm mt-2 w-100 fw-bold" onclick="HotelBilling.approveCheckinPayment(${x.id})"><i class="bi bi-cash-stack me-1"></i>Approve Payment</button>`:''}
+              ${cpCanApproveCheckinPayments?`<button class="btn btn-success btn-sm mt-2 w-100 fw-bold" onclick="HotelBilling.approveCheckinPayment(${x.id})"><i class="bi bi-cash-stack me-1"></i>Receive Payment</button>`:''}
             </div>`;
           }).join('') || '<div class="text-center text-muted p-3">No check-in payments waiting.</div>'}</div>
 
@@ -4306,7 +4306,7 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
 
       const html = `
         <div class="container-fluid p-0">
-          <div class="alert alert-info py-2"><strong>${esc(guestName)}</strong> · Group ${esc(groupCode)} · ${payments.length} room folios. One cashier payment will be allocated to each room and activate the group together.</div>
+          <div class="alert alert-info py-2"><strong>${esc(guestName)}</strong> · Group ${esc(groupCode)} · ${payments.length} room folios. One cashier payment will be allocated to each room. Front Desk then activates the group together.</div>
           <div class="table-responsive mb-3">
             <table class="table table-sm align-middle">
               <thead class="table-light"><tr><th>Discount?</th><th>Room / Folio</th><th class="text-end">Room Charges</th><th class="text-end">Existing Discount</th><th class="text-end">Net Bill</th><th class="text-end">Required</th></tr></thead>
@@ -4326,10 +4326,10 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
             <div class="col-md-6"><label class="form-label fw-semibold">Payment Method</label><select class="form-select" name="method"><option value="CASH">Cash</option><option value="CARD">Card</option><option value="GCASH">GCash</option><option value="MAYA">Maya</option><option value="QR_PH">QR Ph</option><option value="BANK_TRANSFER">Bank transfer</option><option value="OTHER">Other</option></select></div>
             <div class="col-md-6"><label class="form-label fw-semibold">Amount Received (PHP)</label><div class="input-group"><span class="input-group-text">₱</span><input class="form-control fw-bold" type="number" name="amount_received" id="group-cp-amount" min="${requiredTotal.toFixed(2)}" step="0.01" value="${requiredTotal.toFixed(2)}" required></div></div>
             <div class="col-12 p-3 bg-light border rounded"><div class="d-flex justify-content-between"><span>Group net bill</span><strong id="group-net-summary">${php(netTotal)}</strong></div><div class="d-flex justify-content-between"><span>Required at check-in</span><strong class="text-success" id="group-required-summary">${php(requiredTotal)}</strong></div><div class="d-flex justify-content-between"><span>Applied to group folios</span><strong id="group-applied-summary">${php(requiredTotal)}</strong></div><div class="d-flex justify-content-between"><span>Change</span><strong id="group-change-summary">${php(0)}</strong></div></div>
-            <div class="col-12 d-flex justify-content-end gap-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-success fw-bold" id="group-cp-submit">Receive Group Payment &amp; Check In</button></div>
+            <div class="col-12 d-flex justify-content-end gap-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-success fw-bold" id="group-cp-submit">Receive Group Payment</button></div>
           </form>
         </div>`;
-      const { root, m } = modal(`Approve Group Check-in Payment · ${esc(groupCode)}`, html);
+      const { root, m } = modal(`Receive Group Check-in Payment · ${esc(groupCode)}`, html);
       const discountSelect = root.querySelector('#group-discount-select');
       const amountInput = root.querySelector('#group-cp-amount');
       const submitButton = root.querySelector('#group-cp-submit');
@@ -4453,7 +4453,7 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
             discount_reason: selectedDiscount ? `Group check-in discount: ${selectedDiscount.policy.name}` : ''
           });
           m.hide();
-          notify(`Group payment approved · Receipt ${result.receipt_number} · Paid ${php(result.amount_paid)} · ${payments.length} rooms checked in.`);
+          notify(`Group payment received · Receipt ${result.receipt_number} · Paid ${php(result.amount_paid)} · ${payments.length} rooms paid — Front Desk will activate them.`);
           await showReceiptModal(result);
           await open(activeModule);
         } catch (err) {
@@ -4630,14 +4630,14 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
             <div class="col-12 d-flex justify-content-end gap-2 pt-2 border-top">
               <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
               <button type="submit" class="btn btn-success fw-bold px-4 shadow-sm" id="btn-submit-cp">
-                <i class="bi bi-check2-circle me-1"></i>Approve Payment &amp; Confirm Check-in
+                <i class="bi bi-check2-circle me-1"></i>Receive &amp; Confirm Payment
               </button>
             </div>
           </form>
         </div>
       `;
 
-      const {root,m}=modal(`Approve Check-in Payment · Room ${esc(x.room_number)}`, modalHtml);
+      const {root,m}=modal(`Receive Check-in Payment · Room ${esc(x.room_number)}`, modalHtml);
       const amtInput=root.querySelector('#cp-amt-input');
       const changeEl=root.querySelector('#cp-change');
       const appliedEl=root.querySelector('#cp-applied');
@@ -4752,11 +4752,11 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
           });
           m.hide();
           const discountMessage=Number(r.discount_amount)>0?` · Discount: ${php(r.discount_amount)}`:'';
-          notify(`Check-in payment approved! Receipt: ${r.receipt_number} · Paid: ${php(r.amount_paid)}${discountMessage} · Guest is now active.`);
+          notify(`Payment received! Receipt: ${r.receipt_number} · Paid: ${php(r.amount_paid)}${discountMessage} · Front Desk will activate the check-in.`);
           await showReceiptModal(r);
           await open(activeModule);
         }catch(err){
-          cpError('Approve payment failed',err);
+          cpError('Receive payment failed',err);
         }
       };
 
@@ -4841,12 +4841,24 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
         }
       }
 
-    } catch(e){cpError('Approve payment failed',e);}
+    } catch(e){cpError('Receive payment failed',e);}
   }
 
 async function confirmCheckinPayment(cpId) {
 
     try{await api('confirm_checkin_payment',{checkin_payment_id:Number(cpId)});notify('Payment confirmed. The Cashier has been notified.');await open(activeModule);}catch(e){notify(e.message,true)}
+
+  }
+
+async function activateCheckinPayment(cpId) {
+
+    try{await api('activate_checkin',{checkin_payment_id:Number(cpId)});notify('Check-in activated. The guest is now active and the room is occupied.');await open(activeModule);}catch(e){notify(e.message,true)}
+
+  }
+
+async function activateGroupCheckin(groupBookingId) {
+
+    try{await api('activate_group_checkin',{group_booking_id:Number(groupBookingId)});notify('Group check-in activated. All rooms are now occupied.');await open(activeModule);}catch(e){notify(e.message,true)}
 
   }
 
@@ -8596,7 +8608,7 @@ async function transfer(id) {
     }
   }
 
-  window.HotelBilling={api,open,getActiveModule:()=>activeModule,notify,refreshRequestBadge,checkin,bookAdditionalRoom,guestDetails,approveCheckinPayment,approveGroupCheckinPayment,confirmCheckinPayment,cancelPendingCheckin,renderWalkinCheckin,renderCheckoutDashboard,renderEarlyCheckoutRequests,selectRoomForWalkin:(roomId)=>{const sel=document.getElementById('wkd-room-id');if(sel){sel.value=String(roomId);sel.dispatchEvent(new Event('change'));sel.scrollIntoView({behavior:'smooth',block:'center'});sel.focus();}},folio,addCharge,pay,earlyCheckout,decideEarlyCheckout,finalizeEarlyCheckout,decideStayExtension,editEarlyPolicy,editDiscountPolicy,deleteDiscountPolicy,transfer,checkout,roomStatus,requestStatus,assignRequest,handleRequestAction,viewHistory,addRoom,editRoom,addRoomType,editRoomType,addMenuItem,editMenuItem,toggleMenuItem,reportDetails,savedGuestLinks,showCheckinComplete,showStayQr,showReceiptModal,showCheckoutReceipts,viewCheckoutReceipt,downloadCheckoutReceipt,printOfficialReceipt,downloadOfficialReceipt,refreshChatBadge};
+  window.HotelBilling={api,open,getActiveModule:()=>activeModule,notify,refreshRequestBadge,checkin,bookAdditionalRoom,guestDetails,approveCheckinPayment,approveGroupCheckinPayment,confirmCheckinPayment,activateCheckinPayment,activateGroupCheckin,cancelPendingCheckin,renderWalkinCheckin,renderCheckoutDashboard,renderEarlyCheckoutRequests,selectRoomForWalkin:(roomId)=>{const sel=document.getElementById('wkd-room-id');if(sel){sel.value=String(roomId);sel.dispatchEvent(new Event('change'));sel.scrollIntoView({behavior:'smooth',block:'center'});sel.focus();}},folio,addCharge,pay,earlyCheckout,decideEarlyCheckout,finalizeEarlyCheckout,decideStayExtension,editEarlyPolicy,editDiscountPolicy,deleteDiscountPolicy,transfer,checkout,roomStatus,requestStatus,assignRequest,handleRequestAction,viewHistory,addRoom,editRoom,addRoomType,editRoomType,addMenuItem,editMenuItem,toggleMenuItem,reportDetails,savedGuestLinks,showCheckinComplete,showStayQr,showReceiptModal,showCheckoutReceipts,viewCheckoutReceipt,downloadCheckoutReceipt,printOfficialReceipt,downloadOfficialReceipt,refreshChatBadge};
 
   document.addEventListener('hotel:authenticated',(event)=>{
 
