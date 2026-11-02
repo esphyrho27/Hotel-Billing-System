@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Nov 02, 2026 at 04:42 PM
+-- Generation Time: Nov 02, 2026 at 07:21 PM
 -- Server version: 10.11.16-MariaDB
 -- PHP Version: 8.5.12
 
@@ -604,7 +604,11 @@ INSERT INTO `audit_logs` (`id`, `user_id`, `action`, `entity_type`, `entity_id`,
 (531, 3, 'CHECKIN_PAYMENT_CONFIRMED', 'stay', 45, '{\"checkin_payment_id\":45,\"receipt_number\":\"OR261102DE10AC-01\",\"guest_name\":\"Alfmar Aliwanag\",\"room\":\"103\"}', '::1', '2026-11-02 15:06:29'),
 (532, 3, 'CHECKIN_PAYMENT_CONFIRMED', 'stay', 44, '{\"checkin_payment_id\":44,\"receipt_number\":\"OR2611027CD301\",\"guest_name\":\"Boi Kilig\",\"room\":\"102\"}', '::1', '2026-11-02 15:06:43'),
 (533, 3, 'CHECK_IN', 'stay', 47, '{\"room\":\"601\",\"nights\":3,\"customer_id\":30,\"customer_reused\":false,\"occupant_count\":1,\"guest_name\":\"Atong Ang\",\"checkin_payment_id\":47,\"required_amount\":25500,\"required_percent\":100,\"discount_amount\":0}', '::1', '2026-11-02 15:36:58'),
-(534, 3, 'CHECKIN_PAYMENT_CONFIRMED', 'stay', 46, '{\"checkin_payment_id\":46,\"receipt_number\":\"OR261102DE10AC-02\",\"guest_name\":\"Alfmar Aliwanag\",\"room\":\"203\"}', '::1', '2026-11-02 15:37:24');
+(534, 3, 'CHECKIN_PAYMENT_CONFIRMED', 'stay', 46, '{\"checkin_payment_id\":46,\"receipt_number\":\"OR261102DE10AC-02\",\"guest_name\":\"Alfmar Aliwanag\",\"room\":\"203\"}', '::1', '2026-11-02 15:37:24'),
+(535, 4, 'LOGIN', 'user', 4, '[]', '::1', '2026-11-02 16:18:37'),
+(536, 4, 'CHECKIN_PAYMENT_APPROVED', 'stay', 47, '{\"checkin_payment_id\":47,\"payment_id\":43,\"receipt_number\":\"OR2611035AED9A\",\"amount\":25500,\"applied\":25500,\"received\":25500,\"change\":0,\"method\":\"CASH\",\"discount_amount\":\"0.00\",\"discount_category\":null,\"guest_name\":\"Atong Ang\",\"room\":\"601\"}', '::1', '2026-11-02 16:43:17'),
+(537, 3, 'LOGIN', 'user', 3, '[]', '::1', '2026-11-02 16:43:29'),
+(538, 3, 'CHECKIN_ACTIVATED', 'stay', 47, '{\"checkin_payment_id\":47,\"receipt_number\":\"OR2611035AED9A\",\"guest_name\":\"Atong Ang\",\"room\":\"601\"}', '::1', '2026-11-02 16:59:35');
 
 -- --------------------------------------------------------
 
@@ -875,7 +879,7 @@ INSERT INTO `checkin_payments` (`id`, `stay_id`, `folio_id`, `subject`, `nights`
 (44, 44, 44, 'CHECK-IN PAYMENT', 1, 1350.00, 100, 1350.00, 'APPROVED', 40, 3, 4, '2026-11-02 23:05:26', 3, '2026-11-02 23:06:43', '2026-11-02 14:20:52', '2026-11-02 15:06:43', 1500.00, 150.00, 'EARLY_BOOKING', 'Applied during cashier check-in approval: Early-bird booking (10%)', 0.00),
 (45, 45, 45, 'CHECK-IN PAYMENT', 3, 4050.00, 100, 4050.00, 'APPROVED', 41, 3, 4, '2026-11-02 23:06:00', 3, '2026-11-02 23:06:29', '2026-11-02 14:58:57', '2026-11-02 15:06:29', 4500.00, 450.00, 'GROUP', 'Group check-in discount: Group booking', 0.00),
 (46, 46, 46, 'CHECK-IN PAYMENT', 3, 5940.00, 100, 5940.00, 'APPROVED', 42, 3, 4, '2026-11-02 23:06:00', 3, '2026-11-02 23:37:24', '2026-11-02 14:58:57', '2026-11-02 15:37:24', 6600.00, 660.00, 'GROUP', 'Group check-in discount: Group booking', 0.00),
-(47, 47, 47, 'CHECK-IN PAYMENT', 3, 25500.00, 100, 25500.00, 'FOR_PAYMENT', NULL, 3, NULL, NULL, NULL, NULL, '2026-11-02 15:36:58', '2026-11-02 15:36:58', 25500.00, 0.00, 'NONE', NULL, 0.00);
+(47, 47, 47, 'CHECK-IN PAYMENT', 3, 25500.00, 100, 25500.00, 'APPROVED', 43, 3, 4, '2026-11-03 00:43:17', 3, '2026-11-03 00:59:35', '2026-11-02 15:36:58', '2026-11-02 16:59:35', 25500.00, 0.00, 'NONE', NULL, 0.00);
 
 -- --------------------------------------------------------
 
@@ -967,6 +971,38 @@ INSERT INTO `customers` (`customer_id`, `first_name`, `middle_name`, `last_name`
 (28, 'Hannah', '', 'Tillano', 'tillano@gmail.com', '0904164598771', '', '', '', 'Filipino', '', 1),
 (29, 'Alfmar', '', 'Aliwanag', 'aliwanag@gmail.com', '0946167946', '', '', '', 'Filipino', '', 1),
 (30, 'Atong', '', 'Ang', 'ang@gmail.com', '', '', '', '', 'Filipino', '', 1);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `damage_reports`
+--
+
+CREATE TABLE `damage_reports` (
+  `id` bigint(20) NOT NULL,
+  `stay_id` bigint(20) NOT NULL,
+  `folio_id` bigint(20) NOT NULL,
+  `room_id` bigint(20) DEFAULT NULL,
+  `room_number` varchar(20) DEFAULT NULL,
+  `item_name` varchar(150) NOT NULL,
+  `kind` varchar(20) NOT NULL DEFAULT 'DAMAGE',
+  `description` varchar(500) NOT NULL,
+  `reference` varchar(255) DEFAULT NULL,
+  `quantity` int(11) NOT NULL DEFAULT 1,
+  `unit_price` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `estimated_amount` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `final_amount` decimal(10,2) DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'PENDING',
+  `rejection_reason` varchar(255) DEFAULT NULL,
+  `reported_by` bigint(20) DEFAULT NULL,
+  `approved_by` bigint(20) DEFAULT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `posted_by` bigint(20) DEFAULT NULL,
+  `posted_at` datetime DEFAULT NULL,
+  `posted_charge_id` bigint(20) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -1427,7 +1463,8 @@ INSERT INTO `payments` (`id`, `folio_id`, `receipt_number`, `method`, `amount`, 
 (39, 43, 'OR2611028D016D', 'CASH', 7142.86, 7142.86, 0.00, 'Check-in payment (100% of total) · Discount: Senior citizen', 4, 'b0ffd626c4bc407c4288813a65031259c1bb9bb04d8a8aef736f429462d90495', 0, '2026-11-02 13:34:04'),
 (40, 44, 'OR2611027CD301', 'CASH', 1350.00, 1350.00, 0.00, 'Check-in payment (100% of total) · Discount: Early-bird booking', 4, '56400bf0049443ea2352f1dfa9409e204910050db5ee53f8521d2825e411606d', 0, '2026-11-02 15:05:26'),
 (41, 45, 'OR261102DE10AC-01', 'CASH', 4050.00, 4050.00, 0.00, 'Group receipt OR261102DE10AC · Room 103 · Discount: Group booking', 4, '50d92d7ff260a344cc832364c0f62c164ec259346de12a1eb70df298bb37da2a', 0, '2026-11-02 15:06:00'),
-(42, 46, 'OR261102DE10AC-02', 'CASH', 5940.00, 5940.00, 0.00, 'Group receipt OR261102DE10AC · Room 203 · Discount: Group booking', 4, 'f8ea7a9d735ff14dc409b67aebfb3365f811404db67de0955b8f1f02980ae84b', 0, '2026-11-02 15:06:00');
+(42, 46, 'OR261102DE10AC-02', 'CASH', 5940.00, 5940.00, 0.00, 'Group receipt OR261102DE10AC · Room 203 · Discount: Group booking', 4, 'f8ea7a9d735ff14dc409b67aebfb3365f811404db67de0955b8f1f02980ae84b', 0, '2026-11-02 15:06:00'),
+(43, 47, 'OR2611035AED9A', 'CASH', 25500.00, 25500.00, 0.00, 'Check-in payment (100% of total)', 4, 'cc6efbf6d2e886427c22cc44d49294fcd656ed2422b95d085ddf48aff6b450f6', 0, '2026-11-02 16:43:17');
 
 -- --------------------------------------------------------
 
@@ -1628,7 +1665,7 @@ INSERT INTO `rooms` (`id`, `room_number`, `room_type_id`, `floor_number`, `capac
 (15, '501', 5, 5, 3, 'OCCUPIED'),
 (16, '603', 6, 6, 4, 'OCCUPIED'),
 (17, '602', 6, 6, 4, 'AVAILABLE'),
-(18, '601', 6, 6, 4, 'RESERVED'),
+(18, '601', 6, 6, 4, 'OCCUPIED'),
 (19, '701', 7, 7, NULL, 'OCCUPIED'),
 (20, '702', 7, 7, NULL, 'AVAILABLE'),
 (21, '703', 7, 7, NULL, 'AVAILABLE'),
@@ -1698,7 +1735,7 @@ INSERT INTO `room_types` (`id`, `name`, `nightly_rate`, `capacity`) VALUES
 CREATE TABLE `service_catalog` (
   `id` bigint(20) UNSIGNED NOT NULL,
   `name` varchar(120) NOT NULL,
-  `category` enum('FOOD_BEVERAGE','HOUSEKEEPING','SERVICE','LAUNDRY','MINIBAR','OTHER','GYM','POOL','SPA') NOT NULL,
+  `category` enum('FOOD_BEVERAGE','HOUSEKEEPING','SERVICE','LAUNDRY','MINIBAR','OTHER','GYM','POOL','SPA','DAMAGE') NOT NULL,
   `description` varchar(255) DEFAULT NULL,
   `price` decimal(12,2) NOT NULL DEFAULT 0.00,
   `active` tinyint(1) NOT NULL DEFAULT 1,
@@ -1755,7 +1792,26 @@ INSERT INTO `service_catalog` (`id`, `name`, `category`, `description`, `price`,
 (32, 'Yoga Class', 'GYM', 'Guided yoga class, per session', 400.00, 1, '2026-11-02 10:59:35', '2026-11-02 10:59:35', NULL, 'FOOD'),
 (33, 'Swedish Massage', 'SPA', '60-minute relaxing Swedish massage', 950.00, 1, '2026-11-02 10:59:35', '2026-11-02 10:59:35', NULL, 'FOOD'),
 (34, 'Deep Tissue Massage', 'SPA', '60-minute deep tissue massage', 1200.00, 1, '2026-11-02 10:59:35', '2026-11-02 10:59:35', NULL, 'FOOD'),
-(35, 'Foot Massage', 'SPA', '30-minute foot massage', 500.00, 1, '2026-11-02 10:59:35', '2026-11-02 10:59:35', NULL, 'FOOD');
+(35, 'Foot Massage', 'SPA', '30-minute foot massage', 500.00, 1, '2026-11-02 10:59:35', '2026-11-02 10:59:35', NULL, 'FOOD'),
+(36, 'Towel', 'DAMAGE', 'Missing or stained towel, per piece', 350.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD'),
+(37, 'Bathrobe', 'DAMAGE', 'Missing bathrobe', 800.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD'),
+(38, 'Bed sheet', 'DAMAGE', 'Stained or torn bed sheet', 900.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD'),
+(39, 'Pillowcase', 'DAMAGE', 'Stained or torn pillowcase', 250.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD'),
+(40, 'Pillow', 'DAMAGE', 'Stained or damaged pillow', 600.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD'),
+(41, 'Blanket / comforter', 'DAMAGE', 'Stained or damaged blanket or comforter', 1200.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD'),
+(42, 'Key card', 'DAMAGE', 'Lost room key card', 300.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD'),
+(43, 'TV remote', 'DAMAGE', 'Broken or missing TV remote', 800.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD'),
+(44, 'Aircon remote', 'DAMAGE', 'Broken or missing aircon remote', 700.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD'),
+(45, 'Electric kettle', 'DAMAGE', 'Broken or missing electric kettle', 1200.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD'),
+(46, 'Hair dryer', 'DAMAGE', 'Broken or missing hair dryer', 1500.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD'),
+(47, 'Lamp', 'DAMAGE', 'Broken lamp', 1500.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD'),
+(48, 'Curtain', 'DAMAGE', 'Stained or torn curtain', 1500.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD'),
+(49, 'Door handle / lock', 'DAMAGE', 'Damaged door handle or lock', 2000.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD'),
+(50, 'Mirror / glass', 'DAMAGE', 'Broken mirror or glass', 2500.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD'),
+(51, 'Wall damage', 'DAMAGE', 'Wall repair or repainting', 2500.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD'),
+(52, 'Mattress damage', 'DAMAGE', 'Stain or burn damage to mattress', 3500.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD'),
+(53, 'Television', 'DAMAGE', 'Broken or cracked television screen', 12000.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD'),
+(54, 'Smoking cleanup fee', 'DAMAGE', 'Extra cleaning after smoking in the room', 2000.00, 1, '2026-11-02 18:21:01', '2026-11-02 18:21:01', NULL, 'FOOD');
 
 -- --------------------------------------------------------
 
@@ -1995,7 +2051,7 @@ INSERT INTO `stays` (`id`, `stay_code`, `room_id`, `customer_id`, `guest_count`,
 (44, 'ST21F11A425A', 2, 26, 1, '2026-11-02 14:00:00', '2026-11-02 23:05:26', '2026-11-03', NULL, 'ACTIVE', 3, '2026-11-02 14:20:52', NULL),
 (45, 'ST6EFAEF4DCB', 1, 29, 1, '2026-11-02 14:00:00', '2026-11-02 23:06:00', '2026-11-05', NULL, 'ACTIVE', 3, '2026-11-02 14:58:57', 20),
 (46, 'ST717926E439', 4, 29, 1, '2026-11-02 14:00:00', '2026-11-02 23:06:00', '2026-11-05', NULL, 'ACTIVE', 3, '2026-11-02 14:58:57', 20),
-(47, 'STCC8E8750B8', 18, 30, 1, '2026-11-02 14:00:00', NULL, '2026-11-05', NULL, 'PENDING_PAYMENT', 3, '2026-11-02 15:36:58', NULL);
+(47, 'STCC8E8750B8', 18, 30, 1, '2026-11-02 14:00:00', '2026-11-03 00:59:35', '2026-11-05', NULL, 'ACTIVE', 3, '2026-11-02 15:36:58', NULL);
 
 --
 -- Triggers `stays`
@@ -2309,6 +2365,15 @@ ALTER TABLE `customers`
   ADD PRIMARY KEY (`customer_id`);
 
 --
+-- Indexes for table `damage_reports`
+--
+ALTER TABLE `damage_reports`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `stay_id` (`stay_id`),
+  ADD KEY `folio_id` (`folio_id`),
+  ADD KEY `status` (`status`);
+
+--
 -- Indexes for table `demo_clock_state`
 --
 ALTER TABLE `demo_clock_state`
@@ -2539,7 +2604,7 @@ ALTER TABLE `applied_discounts`
 -- AUTO_INCREMENT for table `audit_logs`
 --
 ALTER TABLE `audit_logs`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=535;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=539;
 
 --
 -- AUTO_INCREMENT for table `charges`
@@ -2570,6 +2635,12 @@ ALTER TABLE `checkout_records`
 --
 ALTER TABLE `customers`
   MODIFY `customer_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=31;
+
+--
+-- AUTO_INCREMENT for table `damage_reports`
+--
+ALTER TABLE `damage_reports`
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `early_checkout_policy_configs`
@@ -2617,7 +2688,7 @@ ALTER TABLE `menu_items`
 -- AUTO_INCREMENT for table `payments`
 --
 ALTER TABLE `payments`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=43;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=44;
 
 --
 -- AUTO_INCREMENT for table `portal_tokens`
