@@ -99,13 +99,15 @@ function portal_room_status_label(string $status): string {
     return $status === 'RESERVED' ? 'Reserved — payment pending' : $status;
 }
 
-// Guest-portal checkout-time warning (2026-11-02). Mirrors the staff-side
+// Guest-portal checkout reminder (2026-11-02). Mirrors the staff-side
 // late-fee rule exactly: scheduled checkout is noon on the planned date
 // (same date-at-noon rule as hotel_scheduled_checkout_at()), grace is free
 // to 1:00 PM, 1:00-6:00 PM is a 50% late fee, after 6:00 PM is a full night.
-// This banner never posts a charge and never claims a final total: amounts
-// are charge bands only, before the VAT/discount recomputation at staff
-// checkout. Overdue stays get no peso amount here at all.
+// The bell lives in the journey card and shows during an ACTIVE stay on
+// every day of the stay (not only near checkout). This modal never posts a
+// charge and never claims a final total: amounts are charge bands only,
+// before the VAT/discount recomputation at staff checkout. Overdue stays
+// get no peso amount here at all.
 function portal_checkout_warning(?string $plannedCheckout, float $nightlyRate, ?DateTimeImmutable $now = null): ?array {
     if ($plannedCheckout === null || trim($plannedCheckout) === '') {
         return null;
@@ -117,10 +119,6 @@ function portal_checkout_warning(?string $plannedCheckout, float $nightlyRate, ?
     $now = $now ?? new DateTimeImmutable('now');
     $scheduled = new DateTimeImmutable($plannedDate . ' 12:00:00');
     $today = $now->format('Y-m-d');
-    $dayBefore = date('Y-m-d', strtotime($plannedDate . ' -1 day'));
-    if ($today !== $dayBefore && $today !== $plannedDate) {
-        return null;
-    }
     $scheduledLabel = $scheduled->format('M j, Y') . ' · 12:00 PM';
     $rule = 'Checkout is at 12:00 PM. Staying past 1:00 PM adds a 50% late fee, and staying past 6:00 PM adds a full night. Need more time? Use Extend stay below before checkout.';
     $amounts = '';
@@ -130,8 +128,17 @@ function portal_checkout_warning(?string $plannedCheckout, float $nightlyRate, ?
             . ' and a full night is ₱' . number_format($nightlyRate, 2) . '.';
     }
     if ($today < $plannedDate) {
-        $band = 'day_before';
-        $status = 'Checkout is tomorrow at 12:00 PM.';
+        if ($today === date('Y-m-d', strtotime($plannedDate . ' -1 day'))) {
+            $band = 'day_before';
+            $status = 'Checkout is tomorrow at 12:00 PM.';
+        } else {
+            $band = 'upcoming';
+            $status = 'Checkout is due on ' . $scheduledLabel . '.';
+        }
+    } elseif ($today > $plannedDate) {
+        $band = 'overdue';
+        $status = 'You are past your checkout date. Late and overstay charges may apply — please message the front desk.';
+        $amounts = '';
     } elseif ($now < $scheduled) {
         $band = 'due_today';
         $status = 'Checkout is due today at 12:00 PM.';
@@ -152,7 +159,9 @@ function portal_checkout_warning(?string $plannedCheckout, float $nightlyRate, ?
         'status' => $status,
         'rule' => $rule,
         'amounts' => $amounts,
-        'note' => 'Charge bands are shown before final bill recomputation — VAT and discounts are recomputed at staff checkout, so this is not your final bill.',
+        'note' => $band === 'overdue'
+            ? 'Please message the front desk to confirm your checkout and any charges.'
+            : 'Charge bands are shown before final bill recomputation — VAT and discounts are recomputed at staff checkout, so this is not your final bill.',
     ];
 }
 
@@ -1379,7 +1388,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     .stay-badge{flex:none;padding:9px 14px;border:1px solid rgba(198,234,211,.38);border-radius:999px;background:rgba(22,115,75,.23);color:#e1f5e8;font-size:12px;font-weight:700;backdrop-filter:blur(8px)}
     .content{padding:26px clamp(18px,4vw,44px) 0}
     .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 18px}
-    .journey{display:flex;align-items:center;gap:0;margin:0 0 18px;padding:18px 20px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(145deg,#fff,#fafbfd);box-shadow:0 5px 18px rgba(23,43,69,.035)}
+    .journey{position:relative;display:flex;align-items:center;gap:0;margin:0 0 18px;padding:18px 68px 18px 20px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(145deg,#fff,#fafbfd);box-shadow:0 5px 18px rgba(23,43,69,.035)}
     .journey-point{display:flex;align-items:center;gap:12px;min-width:0}
     .journey-dot{flex:none;width:14px;height:14px;border:3px solid #e9b65f;border-radius:50%;background:#102a43}
     .journey-point.is-done .journey-dot{background:#16734b}
@@ -1389,11 +1398,11 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     .journey-line::before,.journey-line::after{content:"";flex:1;height:2px;background:linear-gradient(90deg,#e9b65f,#f1c878)}
     .journey-nights{flex:none;padding:5px 11px;border-radius:999px;background:#fdf6e7;color:#8a6a1f;font-size:11px;font-weight:800;white-space:nowrap}
     @media(max-width:640px){.journey{flex-wrap:wrap}.journey-point{flex:1 1 100%}.journey-line{flex:1 1 100%;margin:14px 0 0 26px}}
-    .portal-bell{flex:none;position:relative;width:44px;height:44px;display:grid;place-items:center;border:1px solid rgba(233,182,95,.55);border-radius:50%;background:rgba(16,42,67,.55);backdrop-filter:blur(8px);color:#e9b65f;font-size:20px;line-height:1;cursor:pointer}
-    .portal-bell[hidden]{display:none!important}
-    .portal-bell-dot{position:absolute;top:6px;right:7px;display:block;width:10px;height:10px;border-radius:50%;background:#e5484d;box-shadow:0 0 0 2px rgba(16,42,67,.9)}
-    .portal-bell-dot[hidden]{display:none!important}
-    @media print{.portal-bell{display:none!important}}
+    .journey-bell{position:absolute;top:12px;right:12px;flex:none;width:44px;height:44px;display:grid;place-items:center;border:1px solid #e9b65f;border-radius:50%;background:#102a43;color:#e9b65f;font-size:20px;line-height:1;cursor:pointer;box-shadow:0 4px 12px rgba(23,43,69,.18)}
+    .journey-bell[hidden]{display:none!important}
+    .journey-bell-dot{position:absolute;top:6px;right:7px;display:block;width:10px;height:10px;border-radius:50%;background:#e5484d;box-shadow:0 0 0 2px #102a43}
+    .journey-bell-dot[hidden]{display:none!important}
+    @media print{.journey-bell{display:none!important}}
     .checkout-reminder-status{margin:0;color:#17344e;font-size:15px;line-height:1.5}
     .checkout-reminder-rule{margin:8px 0 0;color:#4e5b65;font-size:13px;line-height:1.6}
     .checkout-reminder-amounts{margin:8px 0 0;color:#17344e;font-size:13px;font-weight:700;line-height:1.6}
@@ -1675,7 +1684,6 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
             <button type="button" class="music-btn" id="portal-music-toggle" aria-label="Play background music" aria-pressed="false" title="Play background music">♪</button>
             <audio id="portal-music-audio" loop preload="none"><source src="/assets/music.mp3" type="audio/mpeg"></audio>
           </div>
-          <button type="button" class="portal-bell" id="checkout-reminder-bell" data-open="checkout-reminder-dialog" data-checkout-reminder-bell aria-label="Checkout reminder" title="Checkout reminder"<?= $checkoutReminder === null ? ' hidden' : '' ?>>🔔<span class="portal-bell-dot" data-checkout-reminder-dot aria-hidden="true"<?= ($checkoutReminder === null || empty($checkoutReminder['is_checkout_day'])) ? ' hidden' : '' ?>></span></button>
         </div>
       </div>
       <div class="hero-copy">
@@ -1712,6 +1720,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
       ?>
       <?php if ($journeyCheckinAt !== '' && $journeyCheckoutRaw !== ''): ?>
       <section class="journey" aria-label="Stay dates">
+        <?php if ($isActive): ?><button type="button" class="journey-bell" id="checkout-reminder-bell" data-open="checkout-reminder-dialog" data-checkout-reminder-bell aria-label="Checkout reminder" title="Checkout reminder"<?= $checkoutReminder === null ? ' hidden' : '' ?>>🔔<span class="journey-bell-dot" data-checkout-reminder-dot aria-hidden="true"<?= ($checkoutReminder === null || empty($checkoutReminder['is_checkout_day'])) ? ' hidden' : '' ?>></span></button><?php endif; ?>
         <div class="journey-point"><span class="journey-dot" aria-hidden="true"></span><div><span class="journey-label">Check-in</span><strong class="journey-value"><?=portal_escape(date('M j, Y · g:i A', strtotime($journeyCheckinAt)))?></strong></div></div>
         <div class="journey-line" aria-hidden="true"><span class="journey-nights"><?=$journeyNights === 1 ? '1 night' : $journeyNights . ' nights'?></span></div>
         <div class="journey-point<?= $journeyCheckedOut ? ' is-done' : '' ?>"><span class="journey-dot" aria-hidden="true"></span><div><span class="journey-label"><?= $journeyCheckedOut ? 'Checked out' : 'Check-out' ?></span><strong class="journey-value"><?=portal_escape($journeyCheckoutLabel)?></strong></div></div>
@@ -2864,10 +2873,12 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         renderBillingList("discounts", billing.discounts);
         renderBillingList("payments", billing.payments);
       };
-      // Checkout reminder bell + modal (2026-11-02): driven by each
-      // portal_live payload, so the bell, its checkout-day dot, and the
-      // modal text move in place when an extension is approved — no
-      // reload, no stale date. Text is set with textContent only;
+      // Checkout reminder bell + modal (2026-11-02): the bell sits in
+      // the journey card and shows during an ACTIVE stay on every day;
+      // driven by each portal_live payload, so the bell, its
+      // checkout-day dot, and the modal text move in place when an
+      // extension is approved — no reload, no stale date. Text is set
+      // with textContent only;
       // nothing here posts a charge or checks the guest out.
       const updateCheckoutReminder = (warning) => {
         const bell = document.querySelector("[data-checkout-reminder-bell]");
