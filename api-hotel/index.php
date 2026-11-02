@@ -4463,7 +4463,34 @@ if ($action === 'requests') {
 
     $q = $pdo->prepare($_baseQ);
     $q->execute($_params);
-    out(['requests' => $q->fetchAll()]);
+    $_requests = $q->fetchAll();
+    // Amenity bookings are flagged for staff-facing labels only: match the
+    // request's base service name (description minus the " (quantity: N)"
+    // suffix and the " — note" suffix that amenity_book appends) against
+    // ACTIVE gym/pool/spa catalog rows. Only labels change downstream — no
+    // status, charge, or broadcast behavior is affected. A catalog service
+    // renamed after booking simply stops matching and its old rows fall
+    // back to the generic labels.
+    $_amenityNames = [];
+    try {
+        $_amenityRows = $pdo->query("SELECT name, category FROM service_catalog WHERE active = 1 AND category IN ('GYM', 'POOL', 'SPA')")->fetchAll();
+        foreach ($_amenityRows as $_amenityRow) {
+            $_amenityNames[mb_strtolower(trim((string)($_amenityRow['name'] ?? '')))] = (string)($_amenityRow['category'] ?? '');
+        }
+    } catch (Throwable $_amenityErr) {
+        $_amenityNames = [];
+    }
+    foreach ($_requests as &$_requestRow) {
+        $_baseName = trim((string)($_requestRow['description'] ?? ''));
+        $_notePos = mb_strpos($_baseName, ' — ');
+        if ($_notePos !== false) {
+            $_baseName = trim(mb_substr($_baseName, 0, $_notePos));
+        }
+        $_baseName = trim((string)preg_replace('/\s*\(quantity:\s*\d+\)\s*$/i', '', $_baseName));
+        $_requestRow['amenity_category'] = $_amenityNames[mb_strtolower($_baseName)] ?? null;
+    }
+    unset($_requestRow);
+    out(['requests' => $_requests]);
 }
 
 /**

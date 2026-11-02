@@ -346,22 +346,60 @@
   let serviceDashboardLastRender = 0;
   let serviceDashboardDialogOpen = false;
 
+  // Shared action vocabulary for request rows. Amenity bookings (flagged by
+  // the requests endpoint via amenity_category) use booking words; every
+  // other row keeps its current words, except the department queue's
+  // "Reject Order", which is factually wrong for non-food rows and becomes
+  // "Decline Request". Only visible label text changes — option values,
+  // button actions, and status values are untouched.
+  function requestActionLabel(request, action, context) {
+    const isAmenity = Boolean(request && request.amenity_category);
+    if (isAmenity) {
+      return {
+        acknowledge: 'Confirm Booking',
+        start: 'Begin Service',
+        hold: 'Put On Hold',
+        resume: 'Resume Service',
+        complete: 'Mark Complete',
+        reject: 'Decline Booking',
+      }[action] || action;
+    }
+    if (context === 'queue') {
+      return {
+        acknowledge: 'Acknowledge',
+        start: 'Start Work',
+        hold: 'Put On Hold',
+        resume: 'Resume Work',
+        complete: 'Complete / Fulfill',
+        reject: 'Decline Request',
+      }[action] || action;
+    }
+    return {
+      acknowledge: 'Acknowledge',
+      start: 'Start',
+      hold: 'Hold',
+      resume: 'Resume',
+      complete: 'Complete',
+      reject: 'Reject',
+    }[action] || action;
+  }
+
   function serviceDashboardActions(request) {
     const st = String(request.status || '').toUpperCase();
     const id = Number(request.id) || 0;
     if (!id) return '';
     const btn = (label, status, kind) => `<button type="button" class="btn btn-sm ${kind}" data-service-dashboard-action="${status}" data-service-dashboard-id="${id}">${label}</button>`;
     if (['NEW', 'PENDING', 'ASSIGNED'].includes(st)) {
-      return btn('Acknowledge', 'ACKNOWLEDGED', 'btn-outline-primary') + btn('Start', 'IN_PROGRESS', 'btn-outline-primary') + btn('Reject', 'REJECT', 'btn-outline-danger');
+      return btn(requestActionLabel(request, 'acknowledge', 'dashboard'), 'ACKNOWLEDGED', 'btn-outline-primary') + btn(requestActionLabel(request, 'start', 'dashboard'), 'IN_PROGRESS', 'btn-outline-primary') + btn(requestActionLabel(request, 'reject', 'dashboard'), 'REJECT', 'btn-outline-danger');
     }
     if (st === 'ACKNOWLEDGED') {
-      return btn('Start', 'IN_PROGRESS', 'btn-outline-primary') + btn('Hold', 'ON_HOLD', 'btn-outline-warning') + btn('Reject', 'REJECT', 'btn-outline-danger');
+      return btn(requestActionLabel(request, 'start', 'dashboard'), 'IN_PROGRESS', 'btn-outline-primary') + btn(requestActionLabel(request, 'hold', 'dashboard'), 'ON_HOLD', 'btn-outline-warning') + btn(requestActionLabel(request, 'reject', 'dashboard'), 'REJECT', 'btn-outline-danger');
     }
     if (st === 'IN_PROGRESS') {
-      return btn('Complete', 'COMPLETED', 'btn-success') + btn('Hold', 'ON_HOLD', 'btn-outline-warning');
+      return btn(requestActionLabel(request, 'complete', 'dashboard'), 'COMPLETED', 'btn-success') + btn(requestActionLabel(request, 'hold', 'dashboard'), 'ON_HOLD', 'btn-outline-warning');
     }
     if (st === 'ON_HOLD') {
-      return btn('Resume', 'IN_PROGRESS', 'btn-outline-primary') + btn('Complete', 'COMPLETED', 'btn-success');
+      return btn(requestActionLabel(request, 'resume', 'dashboard'), 'IN_PROGRESS', 'btn-outline-primary') + btn(requestActionLabel(request, 'complete', 'dashboard'), 'COMPLETED', 'btn-success');
     }
     return '';
   }
@@ -2226,35 +2264,35 @@
 
           if (canFulfillRequests && (st === 'NEW' || st === 'PENDING' || st === 'ASSIGNED')) {
 
-            opts.push(`<option value="ACKNOWLEDGE">Acknowledge</option>`);
+            opts.push(`<option value="ACKNOWLEDGE">${requestActionLabel(r, 'acknowledge', 'queue')}</option>`);
 
-            opts.push(`<option value="IN_PROGRESS">Start Work</option>`);
+            opts.push(`<option value="IN_PROGRESS">${requestActionLabel(r, 'start', 'queue')}</option>`);
 
-            opts.push(`<option value="ON_HOLD">Put On Hold</option>`);
+            opts.push(`<option value="ON_HOLD">${requestActionLabel(r, 'hold', 'queue')}</option>`);
 
-            opts.push(`<option value="REJECT">Reject Order</option>`);
+            opts.push(`<option value="REJECT">${requestActionLabel(r, 'reject', 'queue')}</option>`);
 
           } else if (canFulfillRequests && st === 'ACKNOWLEDGED') {
 
-            opts.push(`<option value="IN_PROGRESS">Start Work</option>`);
+            opts.push(`<option value="IN_PROGRESS">${requestActionLabel(r, 'start', 'queue')}</option>`);
 
-            opts.push(`<option value="ON_HOLD">Put On Hold</option>`);
+            opts.push(`<option value="ON_HOLD">${requestActionLabel(r, 'hold', 'queue')}</option>`);
 
-            opts.push(`<option value="COMPLETED">Complete / Fulfill</option>`);
+            opts.push(`<option value="COMPLETED">${requestActionLabel(r, 'complete', 'queue')}</option>`);
 
-            opts.push(`<option value="REJECT">Reject Order</option>`);
+            opts.push(`<option value="REJECT">${requestActionLabel(r, 'reject', 'queue')}</option>`);
 
           } else if (canFulfillRequests && st === 'IN_PROGRESS') {
 
-            opts.push(`<option value="COMPLETED">Complete / Fulfill</option>`);
+            opts.push(`<option value="COMPLETED">${requestActionLabel(r, 'complete', 'queue')}</option>`);
 
-            opts.push(`<option value="ON_HOLD">Put On Hold</option>`);
+            opts.push(`<option value="ON_HOLD">${requestActionLabel(r, 'hold', 'queue')}</option>`);
 
           } else if (canFulfillRequests && st === 'ON_HOLD') {
 
-            opts.push(`<option value="IN_PROGRESS">Resume Work</option>`);
+            opts.push(`<option value="IN_PROGRESS">${requestActionLabel(r, 'resume', 'queue')}</option>`);
 
-            opts.push(`<option value="COMPLETED">Complete / Fulfill</option>`);
+            opts.push(`<option value="COMPLETED">${requestActionLabel(r, 'complete', 'queue')}</option>`);
 
           }
 
