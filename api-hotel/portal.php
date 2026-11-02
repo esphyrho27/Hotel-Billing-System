@@ -117,8 +117,12 @@ function portal_checkout_warning(?string $plannedCheckout, float $nightlyRate, ?
     $now = $now ?? new DateTimeImmutable('now');
     $scheduled = new DateTimeImmutable($plannedDate . ' 12:00:00');
     $today = $now->format('Y-m-d');
+    $dayBefore = date('Y-m-d', strtotime($plannedDate . ' -1 day'));
+    if ($today !== $dayBefore && $today !== $plannedDate) {
+        return null;
+    }
     $scheduledLabel = $scheduled->format('M j, Y') . ' · 12:00 PM';
-    $rule = 'Checkout is at 12:00 PM. Staying past 1:00 PM adds a 50% late fee, and staying past 6:00 PM adds a full night. Need more time? Extend your stay before checkout.';
+    $rule = 'Checkout is at 12:00 PM. Staying past 1:00 PM adds a 50% late fee, and staying past 6:00 PM adds a full night. Need more time? Use Extend stay below before checkout.';
     $amounts = '';
     if ($nightlyRate > 0) {
         $amounts = 'At your current nightly rate of ₱' . number_format($nightlyRate, 2)
@@ -126,12 +130,8 @@ function portal_checkout_warning(?string $plannedCheckout, float $nightlyRate, ?
             . ' and a full night is ₱' . number_format($nightlyRate, 2) . '.';
     }
     if ($today < $plannedDate) {
-        $band = 'upcoming';
-        $status = 'Checkout is due on ' . $scheduledLabel . '.';
-    } elseif ($today > $plannedDate) {
-        $band = 'overdue';
-        $status = 'You are past your checkout date. Late and overstay charges may apply — please message the front desk.';
-        $amounts = '';
+        $band = 'day_before';
+        $status = 'Checkout is tomorrow at 12:00 PM.';
     } elseif ($now < $scheduled) {
         $band = 'due_today';
         $status = 'Checkout is due today at 12:00 PM.';
@@ -148,12 +148,11 @@ function portal_checkout_warning(?string $plannedCheckout, float $nightlyRate, ?
     return [
         'band' => $band,
         'scheduled_label' => $scheduledLabel,
+        'is_checkout_day' => $today === $plannedDate,
         'status' => $status,
         'rule' => $rule,
         'amounts' => $amounts,
-        'note' => $band === 'overdue'
-            ? 'Please message the front desk to confirm your checkout and any charges.'
-            : 'Charge bands are shown before final bill recomputation — VAT and discounts are recomputed at staff checkout, so this is not your final bill.',
+        'note' => 'Charge bands are shown before final bill recomputation — VAT and discounts are recomputed at staff checkout, so this is not your final bill.',
     ];
 }
 
@@ -1390,17 +1389,17 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     .journey-line::before,.journey-line::after{content:"";flex:1;height:2px;background:linear-gradient(90deg,#e9b65f,#f1c878)}
     .journey-nights{flex:none;padding:5px 11px;border-radius:999px;background:#fdf6e7;color:#8a6a1f;font-size:11px;font-weight:800;white-space:nowrap}
     @media(max-width:640px){.journey{flex-wrap:wrap}.journey-point{flex:1 1 100%}.journey-line{flex:1 1 100%;margin:14px 0 0 26px}}
-    .checkout-warning{margin:0 0 18px;padding:16px 18px;border:1px solid #e4d7b7;border-radius:15px;background:linear-gradient(145deg,#fff8e6,#fdf6e7);box-shadow:0 5px 18px rgba(23,43,69,.035)}
-    .checkout-warning-eyebrow{margin:0 0 6px;color:#8a6a1f;font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}
-    .checkout-warning-status{margin:0;color:#17344e;font-size:15px;line-height:1.5}
-    .checkout-warning-rule{margin:8px 0 0;color:#4e5b65;font-size:13px;line-height:1.6}
-    .checkout-warning-amounts{margin:8px 0 0;color:#17344e;font-size:13px;font-weight:700;line-height:1.6}
-    .checkout-warning-note{margin:8px 0 0;color:#6b7a88;font-size:11px;line-height:1.55}
-    .checkout-warning-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:13px}
-    .checkout-warning-btn{min-height:44px;padding:10px 16px;border:0;border-radius:11px;background:#17344e;color:#fff;font-size:13px;font-weight:750;cursor:pointer}
-    .checkout-warning-btn.secondary{border:1px solid #dce4eb;background:#fff;color:#17344e}
-    .checkout-warning-pending{margin:0;align-self:center;color:#6b7a88;font-size:12px}
-    @media(max-width:520px){.checkout-warning{padding:14px}.checkout-warning-btn{flex:1}}
+    .portal-bell{flex:none;position:relative;width:44px;height:44px;display:grid;place-items:center;border:1px solid rgba(233,182,95,.55);border-radius:50%;background:rgba(16,42,67,.55);backdrop-filter:blur(8px);color:#e9b65f;font-size:20px;line-height:1;cursor:pointer}
+    .portal-bell[hidden]{display:none!important}
+    .portal-bell-dot{position:absolute;top:6px;right:7px;display:block;width:10px;height:10px;border-radius:50%;background:#e5484d;box-shadow:0 0 0 2px rgba(16,42,67,.9)}
+    .portal-bell-dot[hidden]{display:none!important}
+    @media print{.portal-bell{display:none!important}}
+    .checkout-reminder-status{margin:0;color:#17344e;font-size:15px;line-height:1.5}
+    .checkout-reminder-rule{margin:8px 0 0;color:#4e5b65;font-size:13px;line-height:1.6}
+    .checkout-reminder-amounts{margin:8px 0 0;color:#17344e;font-size:13px;font-weight:700;line-height:1.6}
+    .checkout-reminder-note{margin:8px 0 0;color:#6b7a88;font-size:11px;line-height:1.55}
+    .checkout-reminder-footer{display:flex;flex-wrap:wrap;gap:10px}
+    .checkout-reminder-footer .button{flex:1 1 auto}
     .extend-row{margin:-6px 0 18px}
     .extend-btn{display:inline-flex;min-height:44px;align-items:center;justify-content:center;padding:10px 18px;border:1px solid #e9b65f;border-radius:12px;background:#e9b65f;color:#102a43;font-size:13px;font-weight:800;cursor:pointer}
     .extend-btn:disabled{border-color:#d4dee8;background:#eef2f6;color:#64748b;cursor:default}
@@ -1665,6 +1664,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     <p class="footer-note">Agora, Lapasan · Cagayan de Oro</p>
   </main>
 <?php else: ?>
+  <?php $checkoutReminder = ($isActive && !empty($stay['planned_checkout'])) ? portal_checkout_warning((string)$stay['planned_checkout'], (float)($currentNightlyRate ?? 0)) : null; ?>
   <main class="shell">
     <header class="hero">
       <div class="hero-top">
@@ -1675,6 +1675,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
             <button type="button" class="music-btn" id="portal-music-toggle" aria-label="Play background music" aria-pressed="false" title="Play background music">♪</button>
             <audio id="portal-music-audio" loop preload="none"><source src="/assets/music.mp3" type="audio/mpeg"></audio>
           </div>
+          <button type="button" class="portal-bell" id="checkout-reminder-bell" data-open="checkout-reminder-dialog" data-checkout-reminder-bell aria-label="Checkout reminder" title="Checkout reminder"<?= $checkoutReminder === null ? ' hidden' : '' ?>>🔔<span class="portal-bell-dot" data-checkout-reminder-dot aria-hidden="true"<?= ($checkoutReminder === null || empty($checkoutReminder['is_checkout_day'])) ? ' hidden' : '' ?>></span></button>
         </div>
       </div>
       <div class="hero-copy">
@@ -1716,26 +1717,8 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         <div class="journey-point<?= $journeyCheckedOut ? ' is-done' : '' ?>"><span class="journey-dot" aria-hidden="true"></span><div><span class="journey-label"><?= $journeyCheckedOut ? 'Checked out' : 'Check-out' ?></span><strong class="journey-value"><?=portal_escape($journeyCheckoutLabel)?></strong></div></div>
       </section>
       <?php endif; ?>
-      <?php $checkoutWarning = ($isActive && !empty($stay['planned_checkout'])) ? portal_checkout_warning((string)$stay['planned_checkout'], (float)($currentNightlyRate ?? 0)) : null; ?>
-      <?php if ($checkoutWarning !== null): ?>
-      <section class="checkout-warning" data-checkout-warning aria-label="Checkout time">
-        <p class="checkout-warning-eyebrow">Checkout time</p>
-        <p class="checkout-warning-status" data-checkout-warning-status><?=portal_escape($checkoutWarning['status'])?></p>
-        <p class="checkout-warning-rule" data-checkout-warning-rule><?=portal_escape($checkoutWarning['rule'])?></p>
-        <?php if ($checkoutWarning['amounts'] !== ''): ?><p class="checkout-warning-amounts" data-checkout-warning-amounts><?=portal_escape($checkoutWarning['amounts'])?></p><?php endif; ?>
-        <p class="checkout-warning-note" data-checkout-warning-note><?=portal_escape($checkoutWarning['note'])?></p>
-        <div class="checkout-warning-actions">
-          <?php if ($pendingExtension): ?>
-            <p class="checkout-warning-pending" data-checkout-warning-pending>Extension requested — waiting for front desk</p>
-          <?php else: ?>
-            <button class="checkout-warning-btn" type="button" data-open="extend-dialog" data-checkout-warning-extend>Extend stay</button>
-          <?php endif; ?>
-          <button class="checkout-warning-btn secondary" type="button" data-checkout-warning-chat>Message the front desk</button>
-        </div>
-      </section>
-      <?php endif; ?>
       <?php if ($isActive && $journeyCheckinAt !== '' && $journeyCheckoutRaw !== ''): ?>
-      <div class="extend-row">
+      <div class="extend-row" id="extend-row">
         <?php if ($pendingExtension): ?>
           <button class="extend-btn" type="button" disabled>Extension requested — waiting for front desk</button>
           <p class="extend-status">Requested new check-out: <?=portal_escape(date('M j, Y', strtotime($pendingExtension['requested_checkout'])))?> · <?=(int)$pendingExtension['extra_nights'] === 1 ? '1 night' : (int)$pendingExtension['extra_nights'] . ' nights'?> · ₱<?=number_format((float)$pendingExtension['proposed_charge'], 2)?> — waiting for front desk approval.</p>
@@ -2185,6 +2168,19 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
     <span class="live-update-copy"><strong id="live-update-toast-title">Stay update</strong><span id="live-update-toast-message"></span></span>
     <button type="button" id="live-update-toast-dismiss" aria-label="Dismiss notification">×</button>
   </aside>
+
+  <dialog class="dialog" id="checkout-reminder-dialog" aria-labelledby="checkout-reminder-title">
+    <div class="dialog-frame">
+      <header class="dialog-head"><div><p class="eyebrow">Checkout time</p><h2 id="checkout-reminder-title">Checkout reminder</h2><p data-checkout-reminder-scheduled><?= $checkoutReminder !== null ? 'Scheduled checkout: ' . portal_escape($checkoutReminder['scheduled_label']) : '' ?></p></div><button class="dialog-close" type="button" data-close aria-label="Close checkout reminder">×</button></header>
+      <div class="dialog-body">
+        <p class="checkout-reminder-status" data-checkout-reminder-status><?= $checkoutReminder !== null ? portal_escape($checkoutReminder['status']) : '' ?></p>
+        <p class="checkout-reminder-rule" data-checkout-reminder-rule><?= $checkoutReminder !== null ? portal_escape($checkoutReminder['rule']) : '' ?></p>
+        <?php if ($checkoutReminder !== null && $checkoutReminder['amounts'] !== ''): ?><p class="checkout-reminder-amounts" data-checkout-reminder-amounts><?=portal_escape($checkoutReminder['amounts'])?></p><?php endif; ?>
+        <p class="checkout-reminder-note" data-checkout-reminder-note><?= $checkoutReminder !== null ? portal_escape($checkoutReminder['note']) : '' ?></p>
+        <footer class="dialog-footer checkout-reminder-footer"><button class="button secondary" type="button" data-checkout-reminder-chat>Message the front desk</button><button class="button" type="button" data-checkout-reminder-extend-row>Go to Extend stay</button><button class="button secondary" type="button" data-close>Got it</button></footer>
+      </div>
+    </div>
+  </dialog>
 
   <dialog class="dialog live-stay-dialog" id="live-order-alert" aria-labelledby="live-order-alert-title">
     <div class="dialog-frame live-stay-frame">
@@ -2868,59 +2864,67 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
         renderBillingList("discounts", billing.discounts);
         renderBillingList("payments", billing.payments);
       };
-      // Checkout-time warning (2026-11-02): re-rendered from each
-      // portal_live payload, so the band and the scheduled date move in
-      // place when an extension is approved — no reload, no stale date.
-      // Text is set with textContent only; nothing here posts a charge
-      // or checks the guest out.
-      const updateCheckoutWarning = (warning, extensions) => {
-        const banner = document.querySelector("[data-checkout-warning]");
-        if (!(banner instanceof HTMLElement)) return;
-        if (!warning) { banner.hidden = true; return; }
-        banner.hidden = false;
+      // Checkout reminder bell + modal (2026-11-02): driven by each
+      // portal_live payload, so the bell, its checkout-day dot, and the
+      // modal text move in place when an extension is approved — no
+      // reload, no stale date. Text is set with textContent only;
+      // nothing here posts a charge or checks the guest out.
+      const updateCheckoutReminder = (warning) => {
+        const bell = document.querySelector("[data-checkout-reminder-bell]");
+        const dialog = document.getElementById("checkout-reminder-dialog");
+        if (!warning) {
+          if (bell instanceof HTMLElement) bell.hidden = true;
+          if (dialog instanceof HTMLDialogElement && dialog.open) dialog.close();
+          return;
+        }
+        if (bell instanceof HTMLElement) {
+          bell.hidden = false;
+          const dot = bell.querySelector("[data-checkout-reminder-dot]");
+          if (dot instanceof HTMLElement) dot.hidden = !warning.is_checkout_day;
+        }
+        if (!(dialog instanceof HTMLElement)) return;
         const setText = (selector, value) => {
-          const el = banner.querySelector(selector);
+          const el = dialog.querySelector(selector);
           if (el instanceof HTMLElement) el.textContent = String(value || "");
         };
-        setText("[data-checkout-warning-status]", warning.status);
-        setText("[data-checkout-warning-rule]", warning.rule);
-        setText("[data-checkout-warning-note]", warning.note);
-        let amountsEl = banner.querySelector("[data-checkout-warning-amounts]");
+        setText("[data-checkout-reminder-scheduled]", warning.scheduled_label ? `Scheduled checkout: ${warning.scheduled_label}` : "");
+        setText("[data-checkout-reminder-status]", warning.status);
+        setText("[data-checkout-reminder-rule]", warning.rule);
+        setText("[data-checkout-reminder-note]", warning.note);
+        let amountsEl = dialog.querySelector("[data-checkout-reminder-amounts]");
         if (warning.amounts) {
           if (!(amountsEl instanceof HTMLElement)) {
             amountsEl = document.createElement("p");
-            amountsEl.className = "checkout-warning-amounts";
-            amountsEl.setAttribute("data-checkout-warning-amounts", "");
-            const noteEl = banner.querySelector("[data-checkout-warning-note]");
-            if (noteEl instanceof HTMLElement) banner.insertBefore(amountsEl, noteEl); else banner.append(amountsEl);
+            amountsEl.className = "checkout-reminder-amounts";
+            amountsEl.setAttribute("data-checkout-reminder-amounts", "");
+            const noteEl = dialog.querySelector("[data-checkout-reminder-note]");
+            if (noteEl instanceof HTMLElement && noteEl.parentElement) noteEl.parentElement.insertBefore(amountsEl, noteEl); else dialog.append(amountsEl);
           }
           amountsEl.textContent = String(warning.amounts);
         } else if (amountsEl instanceof HTMLElement) {
           amountsEl.remove();
         }
-        const hasPendingExtension = Array.isArray(extensions) && extensions.some((ext) => String(ext.status || "").toUpperCase() === "REQUESTED");
-        const extendBtn = banner.querySelector("[data-checkout-warning-extend]");
-        let pendingEl = banner.querySelector("[data-checkout-warning-pending]");
-        if (hasPendingExtension) {
-          if (extendBtn instanceof HTMLElement) extendBtn.hidden = true;
-          if (!(pendingEl instanceof HTMLElement)) {
-            pendingEl = document.createElement("p");
-            pendingEl.className = "checkout-warning-pending";
-            pendingEl.setAttribute("data-checkout-warning-pending", "");
-            const actions = banner.querySelector(".checkout-warning-actions");
-            if (actions instanceof HTMLElement) actions.prepend(pendingEl);
-          }
-          pendingEl.textContent = "Extension requested — waiting for front desk";
-        } else {
-          if (pendingEl instanceof HTMLElement) pendingEl.remove();
-          if (extendBtn instanceof HTMLElement) extendBtn.hidden = false;
-        }
       };
-      const checkoutChatBtn = document.querySelector("[data-checkout-warning-chat]");
-      if (checkoutChatBtn instanceof HTMLElement) {
-        checkoutChatBtn.addEventListener("click", () => {
+      const reminderChatBtn = document.querySelector("[data-checkout-reminder-chat]");
+      if (reminderChatBtn instanceof HTMLElement) {
+        reminderChatBtn.addEventListener("click", () => {
+          const dialog = document.getElementById("checkout-reminder-dialog");
+          if (dialog instanceof HTMLDialogElement && dialog.open) dialog.close();
           const bubble = document.getElementById("chat-bubble-btn");
           if (bubble instanceof HTMLElement) bubble.click();
+        });
+      }
+      const reminderExtendRowBtn = document.querySelector("[data-checkout-reminder-extend-row]");
+      if (reminderExtendRowBtn instanceof HTMLElement) {
+        reminderExtendRowBtn.addEventListener("click", () => {
+          const dialog = document.getElementById("checkout-reminder-dialog");
+          if (dialog instanceof HTMLDialogElement && dialog.open) dialog.close();
+          const row = document.getElementById("extend-row");
+          if (row instanceof HTMLElement) {
+            row.scrollIntoView({ behavior: "smooth", block: "center" });
+            const btn = row.querySelector("button");
+            if (btn instanceof HTMLButtonElement && !btn.disabled) btn.focus();
+          }
         });
       }
       const formatCreatedAt = (value) => {
@@ -3577,7 +3581,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           }
           if (previousAvailableRoomCount !== -1 || transferRooms.length > 0) previousAvailableRoomCount = transferRooms.length;
           updateLiveTransferAvailability(transfer);
-          updateCheckoutWarning(payload.checkout_warning, payload.extensions);
+          updateCheckoutReminder(payload.checkout_warning);
           previousStayState = stayState;
 
           const checkinStatus = String(payload.checkin_payment?.status || "");
