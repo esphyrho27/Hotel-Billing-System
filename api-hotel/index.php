@@ -2767,9 +2767,27 @@ if ($action === 'checkin') {
     // Occupants: at least one is required; the rest may be added later in
     // Guest details (companions often arrive after the booker). Validated
     // before any write so a bad list never creates a partial stay.
+    // Solo walk-in: when a single-guest check-in carries no occupant names
+    // at all, the booker IS the occupant — record them automatically
+    // instead of forcing staff to type the same name twice. Booked-under
+    // stays (a reused customer record) are excluded: there the arriving
+    // occupant is someone else, so a missing list must still fail.
+    $rawOccupants = $in['occupants'] ?? null;
+    $hasOccupantNames = false;
+    if (is_array($rawOccupants)) {
+        foreach (array_values($rawOccupants) as $occ) {
+            if (is_array($occ) && (trim((string)($occ['first_name'] ?? '')) !== '' || trim((string)($occ['last_name'] ?? '')) !== '')) {
+                $hasOccupantNames = true;
+                break;
+            }
+        }
+    }
+    if ($guests === 1 && !$hasOccupantNames && !$customerReused) {
+        $rawOccupants = [['first_name' => $firstName, 'last_name' => $lastName, 'contact_number' => $contact]];
+    }
     try {
         htl_ensure_stay_occupants($pdo);
-        $occupantRows = htl_validate_occupants($in['occupants'] ?? null, $guests);
+        $occupantRows = htl_validate_occupants($rawOccupants, $guests);
     } catch (RuntimeException $e) {
         out(['error' => $e->getMessage()], 400);
     }

@@ -3652,6 +3652,36 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
       const occupantsHint = root.querySelector('#ck-occupants-hint');
       const occupantsBooker = root.querySelector('#ck-occupants-booker');
       const occupantsCountNote = root.querySelector('#ck-occupants-count-note');
+      const occupantsSection = root.querySelector('#ck-occupants-section');
+      // Solo walk-in: the section only adds information when there is
+      // someone besides the booker to name — more than one guest, or a
+      // booked-under stay where the occupant differs from the booker.
+      // For a plain solo check-in the section stays hidden and nothing
+      // is submitted, so no required-field popup can fire. The guest
+      // count is read from the DOM (not the guestsInput const, which is
+      // declared later) so preselection paths can call this safely.
+      const occupantsVisible = () => {
+        const g = root.querySelector('#ck-guests');
+        let count = parseInt(g?.value || 1, 10);
+        if (isNaN(count) || count < 1) count = 1;
+        return count > 1 || selectedCustomerId !== null;
+      };
+      // Toggle the section. Hidden rows stay in the DOM (so typed values
+      // survive a re-show) but lose their required attributes, since a
+      // hidden required field would still pop the browser's native
+      // "Please fill out this field" message on submit.
+      const updateOccupantsVisibility = () => {
+        if (!occupantsSection) return;
+        const show = occupantsVisible();
+        occupantsSection.classList.toggle('d-none', !show);
+        if (!show) {
+          occupantRowsBox.querySelectorAll('input[required]').forEach(el => el.removeAttribute('required'));
+        } else {
+          const firstRow = occupantRowsBox.querySelector('[data-occupant-row]');
+          firstRow?.querySelector('[data-occ-first]')?.setAttribute('required', '');
+          firstRow?.querySelector('[data-occ-last]')?.setAttribute('required', '');
+        }
+      };
       const applyPreselection = (g) => {
         selectedCustomerId = Number(g.customer_id) || null;
         firstNameInput.value = g.first_name || '';
@@ -3665,6 +3695,9 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
         resultsBox.innerHTML = '';
         occupantsBooker.textContent = [g.first_name, g.last_name].filter(Boolean).join(' ') || 'Guest';
         occupantsHint.classList.remove('d-none');
+        // Re-render (not just toggle): a solo modal has no rows yet, and
+        // booked-under mode must show one required row for the occupant.
+        renderOccupantRows();
       };
       const clearPreselection = () => {
         selectedCustomerId = null;
@@ -3674,6 +3707,7 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
         resultsBox.innerHTML = '';
         searchInput.value = '';
         occupantsHint.classList.add('d-none');
+        renderOccupantRows();
       };
       root.querySelector('#ck-change-guest').addEventListener('click', clearPreselection);
       let guestSearchTimer = null;
@@ -3701,7 +3735,6 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
           }
         }, 300);
       });
-      if (preselectedGuest && preselectedGuest.customer_id) applyPreselection(preselectedGuest);
 
       const roomSelect = root.querySelector('#ck-room-id');
       const nightsInput = root.querySelector('#ck-nights');
@@ -3775,6 +3808,14 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
       // whose names are not known yet) can be added afterwards in Guest
       // details, so blank rows below the first are ignored on submit.
       const renderOccupantRows = () => {
+        // Hidden for a plain solo check-in: keep any existing rows in
+        // the DOM (typed values survive a later re-show) but render
+        // nothing new and drop required attributes.
+        if (!occupantsVisible()) {
+          updateOccupantsVisibility();
+          return;
+        }
+        updateOccupantsVisibility();
         const prev = [];
         occupantRowsBox.querySelectorAll('[data-occupant-row]').forEach(row => {
           prev.push({
@@ -3810,6 +3851,9 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
         }));
       };
       guestsInput.addEventListener('input', renderOccupantRows);
+      // Preselection (if any) must apply before the first occupant render,
+      // so a booked-under modal opens with its required occupant row.
+      if (preselectedGuest && preselectedGuest.customer_id) applyPreselection(preselectedGuest);
       renderOccupantRows();
 
       root.querySelector('#new-checkin').onsubmit = async e => {
@@ -3823,17 +3867,21 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
             throw new Error(`Check-in opens at 2:00 PM (${timePolicy.timezone}). Current hotel time: ${timePolicy.hotel_now}.`);
           }
           const occupants = [];
-          occupantRowsBox.querySelectorAll('[data-occupant-row]').forEach(row => {
-            const first = (row.querySelector('[data-occ-first]')?.value || '').trim();
-            const last = (row.querySelector('[data-occ-last]')?.value || '').trim();
-            const contact = (row.querySelector('[data-occ-contact]')?.value || '').trim();
-            if (first === '' && last === '') return;
-            if (!first || !last) throw new Error('Enter a first and last name for each occupant.');
-            occupants.push({ first_name: first, last_name: last, contact_number: contact });
-          });
           const guestCount = Number(f.guests);
-          if (occupants.length === 0) throw new Error('Enter at least one occupant.');
-          if (occupants.length > guestCount) throw new Error('Enter no more than one occupant per guest.');
+          // Hidden section (plain solo check-in): submit no occupants —
+          // the server records the booker as the occupant automatically.
+          if (occupantsVisible()) {
+            occupantRowsBox.querySelectorAll('[data-occupant-row]').forEach(row => {
+              const first = (row.querySelector('[data-occ-first]')?.value || '').trim();
+              const last = (row.querySelector('[data-occ-last]')?.value || '').trim();
+              const contact = (row.querySelector('[data-occ-contact]')?.value || '').trim();
+              if (first === '' && last === '') return;
+              if (!first || !last) throw new Error('Enter a first and last name for each occupant.');
+              occupants.push({ first_name: first, last_name: last, contact_number: contact });
+            });
+            if (occupants.length === 0) throw new Error('Enter at least one occupant.');
+            if (occupants.length > guestCount) throw new Error('Enter no more than one occupant per guest.');
+          }
           const r = await api('checkin', {
             room_id: Number(f.room_id),
             guests: guestCount,
@@ -3842,7 +3890,7 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
             last_name: String(f.last_name || '').trim(),
             contact_number: String(f.contact_number || '').trim(),
             email: String(f.email || '').trim(),
-            occupants: occupants,
+            ...(occupantsVisible() ? { occupants } : {}),
             ...(selectedCustomerId ? { customer_id: selectedCustomerId } : {}),
             discount_amount: 0
           });
@@ -6940,8 +6988,28 @@ async function transfer(id) {
       // booker fields into a row (for when the booker is also staying).
       const wkdOccupantRowsBox = host.querySelector('#wkd-occupant-rows');
       const wkdOccupantsCountNote = host.querySelector('#wkd-occupants-count-note');
+      const wkdOccupantsSection = host.querySelector('#wkd-occupants-section');
+      // Solo walk-in: same rule as the modal, minus booked-under mode
+      // (the page form has none — Book additional room opens the modal).
+      // Hidden for 1 guest, shown for 2+. Read from the DOM so this is
+      // safe to call before the guestsInput const is initialized.
+      const wkdOccupantsVisible = () => {
+        const g = host.querySelector('#wkd-guests');
+        let count = parseInt(g?.value || 1, 10);
+        if (isNaN(count) || count < 1) count = 1;
+        return count > 1;
+      };
       const renderWkdOccupantRows = () => {
         if (!wkdOccupantRowsBox) return;
+        // Hidden for a plain solo check-in: keep any existing rows in
+        // the DOM (typed values survive a later re-show) but render
+        // nothing new and drop required attributes.
+        if (!wkdOccupantsVisible()) {
+          wkdOccupantsSection?.classList.add('d-none');
+          wkdOccupantRowsBox.querySelectorAll('input[required]').forEach(el => el.removeAttribute('required'));
+          return;
+        }
+        wkdOccupantsSection?.classList.remove('d-none');
         const prev = [];
         wkdOccupantRowsBox.querySelectorAll('[data-wkd-occ-row]').forEach(row => {
           prev.push({
@@ -7106,17 +7174,21 @@ async function transfer(id) {
           return notify('Guest first and last name are required.', true);
         }
 
-        let occupants;
-        try {
-          occupants = collectWkdOccupants();
-        } catch (occErr) {
-          return notify(occErr.message, true);
-        }
-        if (occupants.length === 0) {
-          return notify('Enter at least one occupant.', true);
-        }
-        if (occupants.length > guests) {
-          return notify('Enter no more than one occupant per guest.', true);
+        // Hidden section (plain solo check-in): submit no occupants —
+        // the server records the booker as the occupant automatically.
+        let occupants = [];
+        if (wkdOccupantsVisible()) {
+          try {
+            occupants = collectWkdOccupants();
+          } catch (occErr) {
+            return notify(occErr.message, true);
+          }
+          if (occupants.length === 0) {
+            return notify('Enter at least one occupant.', true);
+          }
+          if (occupants.length > guests) {
+            return notify('Enter no more than one occupant per guest.', true);
+          }
         }
 
 
@@ -7148,7 +7220,7 @@ async function transfer(id) {
             last_name: lastName,
 
             email: email,
-            occupants: occupants,
+            ...(wkdOccupantsVisible() ? { occupants } : {}),
             discount_amount: 0
 
           });
