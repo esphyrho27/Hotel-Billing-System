@@ -1201,7 +1201,7 @@
 
         const reportsShortcut = (canReports && moduleAllowed('reports')) ? `<button class="btn btn-outline-secondary btn-sm" onclick="HotelBilling.open('reports')"><i class="bi bi-bar-chart me-1"></i>Reports</button>` : '';
 
-        const walkinBtn = canCheckin
+        const walkinBtn = (canCheckin && !isFrontdesk)
 
           ? `<button class="btn btn-primary btn-sm" onclick="HotelBilling.checkin()"><i class="bi bi-person-plus me-1"></i>Walk-in Check-in</button>`
 
