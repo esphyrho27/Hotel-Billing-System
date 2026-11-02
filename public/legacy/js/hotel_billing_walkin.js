@@ -6,7 +6,7 @@
 
   const api = (...args) => window.HotelAuth.request(...args);
 
-  let activeModule = 'dashboard', rooms = [], stays = [], selectedRoom = null;
+  let activeModule = 'dashboard', rooms = [], stays = [], selectedRoom = null; let roomsCalTab = 'board';
   let checkoutHistoryFilters = { search: '', from: '', to: '', page: 1 };
 
   const php = n => '₱' + Number(n || 0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -1379,6 +1379,9 @@
     } else if (id==='rooms') {
 
       const d=await api('rooms',{},'GET'); rooms=d.rooms||[];
+      let calStays=[]; let calPending=[];
+      try { const sd=await api('active_stays',{},'GET'); calStays=sd.stays||[]; } catch(_) {}
+      try { const pd=await api('pending_checkins',{},'GET'); calPending=pd.stays||[]; } catch(_) {}
 
       const uRole = (window.HotelAuth.getUser()?.role || '').toLowerCase();
 
@@ -1415,7 +1418,120 @@
 
 
 
-      $('rooms-content').innerHTML=`${maintenanceBanner}<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2"><p class="text-muted mb-0">Room status board · rates come from room types</p>${topActions}</div><div class="row g-2 g-md-3">${rooms.map(r=>`<div class="col-12 col-sm-6 col-md-4 col-xl-3"><div class="card border-0 shadow-sm h-100 ${r.status==='MAINTENANCE'?'border-warning':''}"><div class="card-body p-3"><div class="d-flex justify-content-between align-items-start"><h5 class="fw-bold mb-1">${esc(r.room_number)}</h5>${pill(r.status)}</div><div class="text-muted small">${esc(r.type)} · Floor ${r.floor_number}</div><div class="fw-semibold mt-2">${php(r.nightly_rate)} <span class="text-muted small">/ night · VAT-inclusive</span></div><div class="text-muted small">Capacity ${r.capacity}</div>${canAddRoom?`<button class="btn btn-sm btn-outline-primary mt-2" onclick="HotelBilling.editRoom(${r.id})">Edit room</button>`:''}${r.status!=='OCCUPIED' && r.status!=='RESERVED' && canChangeRoomStatus?`<div class="mt-3"><select class="form-select form-select-sm" onchange="HotelBilling.roomStatus(${r.id},this.value)"><option value="">Change status…</option><option value="AVAILABLE">Available</option><option value="CLEANING">Cleaning</option><option value="MAINTENANCE">Maintenance / Unavailable</option></select></div>`:''}</div></div></div>`).join('')}</div>`;
+      const boardHtml=`${maintenanceBanner}<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2"><p class="text-muted mb-0">Room status board · rates come from room types</p>${topActions}</div><div class="row g-2 g-md-3">${rooms.map(r=>`<div class="col-12 col-sm-6 col-md-4 col-xl-3"><div class="card border-0 shadow-sm h-100 ${r.status==='MAINTENANCE'?'border-warning':''}"><div class="card-body p-3"><div class="d-flex justify-content-between align-items-start"><h5 class="fw-bold mb-1">${esc(r.room_number)}</h5>${pill(r.status)}</div><div class="text-muted small">${esc(r.type)} · Floor ${r.floor_number}</div><div class="fw-semibold mt-2">${php(r.nightly_rate)} <span class="text-muted small">/ night · VAT-inclusive</span></div><div class="text-muted small">Capacity ${r.capacity}</div>${canAddRoom?`<button class="btn btn-sm btn-outline-primary mt-2" onclick="HotelBilling.editRoom(${r.id})">Edit room</button>`:''}${r.status!=='OCCUPIED' && r.status!=='RESERVED' && canChangeRoomStatus?`<div class="mt-3"><select class="form-select form-select-sm" onchange="HotelBilling.roomStatus(${r.id},this.value)"><option value="">Change status…</option><option value="AVAILABLE">Available</option><option value="CLEANING">Cleaning</option><option value="MAINTENANCE">Maintenance / Unavailable</option></select></div>`:''}</div></div></div>`).join('')}</div>`;
+      const calFloors=[...new Set(rooms.map(r=>Number(r.floor_number)||0))].sort((a,b)=>a-b);
+      const calOptions=calFloors.map(f=>`<optgroup label="Floor ${f}">${rooms.filter(r=>Number(r.floor_number)===f).map(r=>`<option value="${r.id}">Room ${esc(r.room_number)} · ${esc(r.type)}</option>`).join('')}</optgroup>`).join('');
+      const calTabActive = roomsCalTab==='calendar';
+      $('rooms-content').innerHTML=`
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <button class="btn btn-sm ${calTabActive?'btn-outline-primary':'btn-primary'}" id="roomcal-tab-board"><i class="bi bi-grid me-1"></i>Board</button>
+          <button class="btn btn-sm ${calTabActive?'btn-primary':'btn-outline-primary'}" id="roomcal-tab-calendar"><i class="bi bi-calendar3 me-1"></i>Calendar</button>
+        </div>
+        <div id="roomcal-board" style="display:${calTabActive?'none':'block'}">${boardHtml}</div>
+        <div id="roomcal-calendar" style="display:${calTabActive?'block':'none'}">
+          <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+            <select class="form-select form-select-sm" id="roomcal-room" style="width:auto;min-width:230px" aria-label="Choose room">${calOptions}</select>
+            <button class="btn btn-sm btn-outline-secondary" id="roomcal-prev" aria-label="Previous month">&lt;</button>
+            <span id="roomcal-title" class="fw-bold" style="min-width:160px;text-align:center"></span>
+            <button class="btn btn-sm btn-outline-secondary" id="roomcal-next" aria-label="Next month">&gt;</button>
+            <button class="btn btn-sm btn-outline-secondary" id="roomcal-today">Today</button>
+          </div>
+          <div class="text-muted small mb-2">Tap a coloured date for details.</div>
+          <div id="roomcal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px"></div>
+          <div class="text-muted small mt-2">Blue = occupied &nbsp;·&nbsp; Amber = checkout day, 12:00 PM &nbsp;·&nbsp; Purple = reserved, payment pending &nbsp;·&nbsp; Yellow = cleaning today &nbsp;·&nbsp; Grey = maintenance today &nbsp;·&nbsp; White = available. Today&apos;s room status is live; future dates are projected from active stays, not bookings.</div>
+        </div>`;
+      const _calNow=new Date();
+      const calDateStr=(y,m,d)=>`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const calToday=calDateStr(_calNow.getFullYear(),_calNow.getMonth(),_calNow.getDate());
+      const calState={roomId: rooms.length?String(rooms[0].id):'', year:_calNow.getFullYear(), month:_calNow.getMonth()};
+      const calMonthNames=['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const calDayNames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      const calPretty=(ds)=>{ const p=String(ds).split('-'); const dt=new Date(Number(p[0]),Number(p[1])-1,Number(p[2])); return `${calDayNames[dt.getDay()]}, ${calMonthNames[Number(p[1])-1]} ${Number(p[2])}, ${p[0]}`; };
+      const calStayFor=(roomId)=>{
+        const a=(calStays||[]).find(s=>String(s.room_id)===String(roomId));
+        if(a) return {stay:a, kind:'ACTIVE'};
+        const p=(calPending||[]).find(s=>String(s.room_id)===String(roomId));
+        if(p) return {stay:p, kind:'PENDING'};
+        return null;
+      };
+      const calStatusFor=(room, ds)=>{
+        const found=calStayFor(room.id);
+        if(found){
+          const s=found.stay;
+          const checkin=String(s.checkin_at||s.actual_checkin_at||'').slice(0,10);
+          const checkout=String(s.planned_checkout||'').slice(0,10);
+          if(checkout && ds===checkout) return {cls:'roomcal-out', label:'Checkout day', stay:s, kind:found.kind};
+          if(checkin && ds>=checkin && (!checkout || ds<checkout)) return {cls: found.kind==='PENDING'?'roomcal-res':'roomcal-occ', label: found.kind==='PENDING'?'Reserved':'Occupied', stay:s, kind:found.kind};
+          if(checkout && ds>checkout) return {cls:'roomcal-out', label:'Checkout overdue', stay:s, kind:found.kind};
+        }
+        if(ds===calToday){
+          if(room.status==='CLEANING') return {cls:'roomcal-clean', label:'Cleaning'};
+          if(room.status==='MAINTENANCE') return {cls:'roomcal-maint', label:'Maintenance'};
+          if(room.status==='RESERVED') return {cls:'roomcal-res', label:'Reserved'};
+          if(room.status==='OCCUPIED') return {cls:'roomcal-occ', label:'Occupied'};
+        }
+        return {cls:'', label:'Available'};
+      };
+      const openCalModal=(room, ds)=>{
+        const st=calStatusFor(room, ds);
+        let body=`<p class="mb-1"><strong>Status:</strong> ${esc(st.label)}</p>`;
+        let actions='';
+        if(st.stay){
+          const s=st.stay;
+          const guest=esc(s.guest_name || (Array.isArray(s.occupant_names) && s.occupant_names.length ? s.occupant_names.join(', ') : 'Guest'));
+          body+=`<p class="mb-1"><strong>Guest:</strong> ${guest}</p><p class="mb-1"><strong>Folio:</strong> ${esc(s.folio_number||'—')}</p><p class="mb-1"><strong>Room type:</strong> ${esc(room.type||'')}</p>`;
+          if(st.label==='Checkout day' || st.label==='Checkout overdue'){
+            body+=`<p class="mb-1"><strong>Checkout due:</strong> ${st.label==='Checkout overdue' ? 'Overdue — was due ' : ''}${esc(String(s.planned_checkout||'').slice(0,10))} at 12:00 PM</p><p class="text-muted small mb-0">After checkout, the room goes to Cleaning.</p>`;
+          } else {
+            body+=`<p class="mb-1"><strong>Check-in:</strong> ${esc(String(s.checkin_at||'').slice(0,10)||'—')}</p><p class="mb-1"><strong>Checkout due:</strong> ${esc(String(s.planned_checkout||'').slice(0,10))} at 12:00 PM</p>`;
+            if(st.kind==='PENDING') body+=`<p class="text-warning small mb-0">Reserved — payment pending at the cashier. This room is not counted as occupied yet.</p>`;
+          }
+          actions=`<div class="d-flex flex-wrap gap-2 mt-3"><button class="btn btn-outline-primary btn-sm" id="roomcal-folio">Folio</button>${st.kind==='ACTIVE' ? '<button class="btn btn-outline-success btn-sm" id="roomcal-checkout">Checkout</button>' : '<button class="btn btn-outline-secondary btn-sm" id="roomcal-stays">Active Stays</button>'}</div>`;
+        } else if(st.label==='Available'){
+          body+=`<p class="mb-1"><strong>Room type:</strong> ${esc(room.type||'')}</p><p class="mb-1"><strong>Nightly rate:</strong> ${php(room.nightly_rate)}</p><p class="text-muted small mb-0">No guest on this date. Future dates are projected from active stays — this is not a booking.</p>`;
+          if(ds===calToday && uRole!=='cashier') actions=`<div class="mt-3"><button class="btn btn-primary btn-sm" id="roomcal-checkin">Walk-in Check-in</button></div>`;
+        } else {
+          body+=`<p class="mb-1"><strong>Room type:</strong> ${esc(room.type||'')}</p><p class="text-muted small mb-0">${st.label==='Cleaning' ? 'Cleaning has no set end date in the system — check the board again later.' : 'Maintenance has no set end date in the system — check the board again later.'}</p>`;
+        }
+        const x=modal(`Room ${esc(room.room_number)} — ${calPretty(ds)}`, body+actions);
+        const folioBtn=x.root.querySelector('#roomcal-folio'); if(folioBtn) folioBtn.addEventListener('click', ()=>{ x.m.hide(); folio(Number(st.stay.folio_id)); });
+        const coBtn=x.root.querySelector('#roomcal-checkout'); if(coBtn) coBtn.addEventListener('click', ()=>{ x.m.hide(); checkout(Number(st.stay.id)); });
+        const staysBtn=x.root.querySelector('#roomcal-stays'); if(staysBtn) staysBtn.addEventListener('click', ()=>{ x.m.hide(); open('active-stays'); });
+        const ciBtn=x.root.querySelector('#roomcal-checkin'); if(ciBtn) ciBtn.addEventListener('click', ()=>{ x.m.hide(); checkin(); });
+      };
+      const renderCal=()=>{
+        const room=rooms.find(r=>String(r.id)===String(calState.roomId))||rooms[0];
+        const grid=$('roomcal-grid'); if(!room || !grid){ if(grid) grid.innerHTML='<div class="text-muted">No rooms yet.</div>'; return; }
+        calState.roomId=String(room.id);
+        const titleEl=$('roomcal-title'); if(titleEl) titleEl.textContent=`${calMonthNames[calState.month]} ${calState.year}`;
+        const first=new Date(calState.year, calState.month, 1); const startDay=first.getDay(); const daysIn=new Date(calState.year, calState.month+1, 0).getDate();
+        let html=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(w=>`<div class="text-center text-muted small py-1">${w}</div>`).join('');
+        for(let i=0;i<startDay;i++) html+=`<div class="roomcal-day roomcal-blank"></div>`;
+        for(let d=1; d<=daysIn; d++){
+          const ds=calDateStr(calState.year, calState.month, d);
+          const st=calStatusFor(room, ds);
+          html+=`<div class="roomcal-day ${st.cls}${ds===calToday?' roomcal-today':''}${ds<calToday?' roomcal-past':''}" data-cal-date="${ds}"><div class="roomcal-num">${d}</div></div>`;
+        }
+        grid.innerHTML=html;
+        grid.querySelectorAll('[data-cal-date]').forEach(el=>{ el.addEventListener('click', ()=>{ openCalModal(room, el.getAttribute('data-cal-date')); }); });
+      };
+      const setCalTab=(tab)=>{
+        roomsCalTab=tab;
+        const boardEl=$('roomcal-board'), calEl=$('roomcal-calendar'), bBtn=$('roomcal-tab-board'), cBtn=$('roomcal-tab-calendar');
+        if(boardEl) boardEl.style.display = tab==='calendar' ? 'none' : 'block';
+        if(calEl) calEl.style.display = tab==='calendar' ? 'block' : 'none';
+        if(bBtn) bBtn.className = `btn btn-sm ${tab==='calendar' ? 'btn-outline-primary' : 'btn-primary'}`;
+        if(cBtn) cBtn.className = `btn btn-sm ${tab==='calendar' ? 'btn-primary' : 'btn-outline-primary'}`;
+        if(tab==='calendar') renderCal();
+      };
+      $('roomcal-tab-board').addEventListener('click', ()=>setCalTab('board'));
+      $('roomcal-tab-calendar').addEventListener('click', ()=>setCalTab('calendar'));
+      $('roomcal-room').addEventListener('change', e=>{ calState.roomId=e.target.value; renderCal(); });
+      $('roomcal-prev').addEventListener('click', ()=>{ calState.month--; if(calState.month<0){ calState.month=11; calState.year--; } renderCal(); });
+      $('roomcal-next').addEventListener('click', ()=>{ calState.month++; if(calState.month>11){ calState.month=0; calState.year++; } renderCal(); });
+      $('roomcal-today').addEventListener('click', ()=>{ calState.year=_calNow.getFullYear(); calState.month=_calNow.getMonth(); renderCal(); });
+      if(calTabActive) renderCal();
+
 
     } else if (id==='active-stays' || id==='transactions' || id==='billing') {
 

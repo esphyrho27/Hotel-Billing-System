@@ -1128,6 +1128,20 @@
             box-shadow: 0 1px 2px rgba(16,24,40,.04) !important;
         }
         #rooms-content .card.border-warning { border-color: #fde68a !important; }
+        /* Room calendar (Rooms & Availability > Calendar tab) - clean month view */
+        .roomcal-day { min-height:64px; border-radius:10px; padding:9px; cursor:pointer; background:#fff; border:1px solid var(--border-color); }
+        .roomcal-day .roomcal-num { font-size:14px; }
+        .roomcal-day.roomcal-occ { background:#dbeafe; }
+        .roomcal-day.roomcal-occ .roomcal-num { font-weight:700; color:#1e40af; }
+        .roomcal-day.roomcal-out { background:#fef3c7; }
+        .roomcal-day.roomcal-out .roomcal-num { font-weight:700; color:#92400e; }
+        .roomcal-day.roomcal-res { background:#ede9fe; }
+        .roomcal-day.roomcal-res .roomcal-num { font-weight:700; color:#5b21b6; }
+        .roomcal-day.roomcal-clean { background:#fefce8; }
+        .roomcal-day.roomcal-maint { background:#f3f4f6; }
+        .roomcal-day.roomcal-today { outline:2px solid #2563eb; outline-offset:-1px; }
+        .roomcal-day.roomcal-past { opacity:.55; }
+        .roomcal-day.roomcal-blank { background:transparent; border-color:transparent; cursor:default; }
         #login-container, #register-container { border-radius: 16px !important; }
         .cashier-pos { color: var(--text-main); }
         .cashier-pos-header {
@@ -1977,7 +1991,7 @@
 <script src="./js/qrcode.min.js"></script>
 <script src="./js/hotel_billing_dialogs.js?v=20261022_22"></script>
 <script src="./js/hotel_billing_master_files.js?v=20261102_16"></script>
-<script src="./js/hotel_billing_walkin.js?v=20261102_23"></script>
+<script src="./js/hotel_billing_walkin.js?v=20261102_24"></script>
 <script src="./js/hotel_billing_users.js?v=20261022_22"></script>
 <script src="./js/hotel_billing_approvals.js?v=20261022_22"></script>
 <script src="./js/hotel_billing_department.js?v=20261022_22"></script>
