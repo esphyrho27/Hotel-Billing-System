@@ -1258,7 +1258,7 @@
         .service-dashboard-section-heading h3 { margin: .15rem 0 0; color: #1d3836; font-size: 1.08rem; font-weight: 800; }
         .service-dashboard-live { color: #53766d; font-size: .72rem; font-weight: 750; white-space: nowrap; }
         .service-dashboard-live i { color: #4a9b70; font-size: .45rem; vertical-align: 2px; }
-        .service-dashboard-request { display: grid; grid-template-columns: 90px minmax(0, 1fr) auto; align-items: center; gap: .8rem; padding: .8rem .9rem; background: #fff; border: 1px solid #e4e9e4; border-radius: 11px; }
+        .service-dashboard-request { display: grid; grid-template-columns: 90px minmax(0, 1fr) auto auto; align-items: center; gap: .8rem; padding: .8rem .9rem; background: #fff; border: 1px solid #e4e9e4; border-radius: 11px; }
         .service-dashboard-request + .service-dashboard-request { margin-top: .45rem; }
         .service-dashboard-request-room { color: #34736d; font-size: .77rem; font-weight: 800; white-space: nowrap; }
         .service-dashboard-request-room i { margin-right: .25rem; }
@@ -1266,6 +1266,9 @@
         .service-dashboard-request-detail strong, .service-dashboard-request-detail span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .service-dashboard-request-detail strong { color: #253b37; font-size: .8rem; }
         .service-dashboard-request-detail span { margin-top: .12rem; color: #7b8882; font-size: .68rem; }
+        .service-dashboard-request-actions { display: flex; flex-wrap: wrap; gap: .35rem; justify-content: flex-end; }
+        .service-dashboard-request-actions .btn { white-space: nowrap; }
+        .service-dashboard-live-fallback { opacity: .55; }
         .service-dashboard-empty { display: flex; align-items: center; gap: .75rem; padding: 1rem; background: #fff; border: 1px dashed #cbd9ce; border-radius: 11px; }
         .service-dashboard-empty > i { color: #39815f; font-size: 1.4rem; }
         .service-dashboard-empty strong, .service-dashboard-empty span { display: block; }
@@ -1285,6 +1288,7 @@
             .service-dashboard-request { grid-template-columns: 1fr auto; gap: .35rem .7rem; }
             .service-dashboard-request-detail { grid-column: 1 / -1; grid-row: 2; }
             .service-dashboard-request-status { grid-column: 2; grid-row: 1; }
+            .service-dashboard-request-actions { grid-column: 1 / -1; grid-row: 3; justify-content: flex-start; }
         }
         @media (max-width: 420px) {
             .service-dashboard-brand { align-items: flex-start; gap: .7rem; }
@@ -1973,7 +1977,7 @@
 <script src="./js/qrcode.min.js"></script>
 <script src="./js/hotel_billing_dialogs.js?v=20261022_22"></script>
 <script src="./js/hotel_billing_master_files.js?v=20261102_15"></script>
-<script src="./js/hotel_billing_walkin.js?v=20261102_17"></script>
+<script src="./js/hotel_billing_walkin.js?v=20261102_18"></script>
 <script src="./js/hotel_billing_users.js?v=20261022_22"></script>
 <script src="./js/hotel_billing_approvals.js?v=20261022_22"></script>
 <script src="./js/hotel_billing_department.js?v=20261022_22"></script>

@@ -343,9 +343,97 @@
     }
   }
 
-  async function renderServiceDashboard() {
+  let serviceDashboardLastRender = 0;
+  let serviceDashboardDialogOpen = false;
+
+  function serviceDashboardActions(request) {
+    const st = String(request.status || '').toUpperCase();
+    const id = Number(request.id) || 0;
+    if (!id) return '';
+    const btn = (label, status, kind) => `<button type="button" class="btn btn-sm ${kind}" data-service-dashboard-action="${status}" data-service-dashboard-id="${id}">${label}</button>`;
+    if (['NEW', 'PENDING', 'ASSIGNED'].includes(st)) {
+      return btn('Acknowledge', 'ACKNOWLEDGED', 'btn-outline-primary') + btn('Start', 'IN_PROGRESS', 'btn-outline-primary') + btn('Reject', 'REJECT', 'btn-outline-danger');
+    }
+    if (st === 'ACKNOWLEDGED') {
+      return btn('Start', 'IN_PROGRESS', 'btn-outline-primary') + btn('Hold', 'ON_HOLD', 'btn-outline-warning') + btn('Reject', 'REJECT', 'btn-outline-danger');
+    }
+    if (st === 'IN_PROGRESS') {
+      return btn('Complete', 'COMPLETED', 'btn-success') + btn('Hold', 'ON_HOLD', 'btn-outline-warning');
+    }
+    if (st === 'ON_HOLD') {
+      return btn('Resume', 'IN_PROGRESS', 'btn-outline-primary') + btn('Complete', 'COMPLETED', 'btn-success');
+    }
+    return '';
+  }
+
+  async function serviceDashboardAskReason(title, text, label, placeholder, validationMessage) {
+    serviceDashboardDialogOpen = true;
+    try {
+      if (window.HotelDialogs?.input) {
+        return await window.HotelDialogs.input({ title, text, label, placeholder, required: true, validationMessage });
+      }
+      const value = window.prompt(text);
+      if (value === null) return '';
+      const trimmed = String(value).trim();
+      if (!trimmed) { notify(validationMessage, true); return ''; }
+      return trimmed;
+    } finally {
+      serviceDashboardDialogOpen = false;
+    }
+  }
+
+  async function serviceDashboardApplyStatus(id, status, button) {
+    let reason = '';
+    if (status === 'REJECT') {
+      reason = await serviceDashboardAskReason('Reject Request', 'Enter the reason for rejecting this request:', 'Rejection Reason', 'e.g. Item unavailable / Service hours ended', 'A rejection reason is required.');
+      if (!reason) return;
+      status = 'REJECTED';
+    } else if (status === 'ON_HOLD') {
+      reason = await serviceDashboardAskReason('Put Request On Hold', 'Enter the reason for placing this request on hold:', 'Reason for Hold', 'e.g. Waiting for guest confirmation / restocking supplies', 'A hold reason is required.');
+      if (!reason) return;
+    } else if (status === 'COMPLETED') {
+      serviceDashboardDialogOpen = true;
+      let confirmed = false;
+      try {
+        if (window.HotelDialogs?.confirm) {
+          confirmed = await window.HotelDialogs.confirm({ title: 'Complete & Fulfill Request?', text: `Mark request #${id} as completed? If chargeable, the amount will be posted once to the guest folio.`, confirmButtonText: 'Complete Request' });
+        } else {
+          confirmed = window.confirm(`Mark request #${id} as completed? If chargeable, the amount will be posted once to the guest folio.`);
+        }
+      } finally {
+        serviceDashboardDialogOpen = false;
+      }
+      if (!confirmed) return;
+    }
+    const row = button?.closest?.('.service-dashboard-request');
+    row?.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    try {
+      await api('request_status', { request_id: id, status, reason });
+      notify(status === 'COMPLETED' ? 'Request fulfilled; any chargeable amount was posted once.' : 'Request updated.');
+      await refreshRequestBadge();
+      await renderServiceDashboard(true);
+    } catch (e) {
+      notify(e.message, true);
+      row?.querySelectorAll('button').forEach(b => { b.disabled = false; });
+    }
+  }
+
+  function onServiceDashboardAction(event) {
+    const button = event.target?.closest?.('[data-service-dashboard-action]');
+    if (!button || button.disabled) return;
+    const status = button.getAttribute('data-service-dashboard-action');
+    const id = Number(button.getAttribute('data-service-dashboard-id')) || 0;
+    if (!id || !status) return;
+    serviceDashboardApplyStatus(id, status, button);
+  }
+
+  async function renderServiceDashboard(force = false) {
     const host = $('dashboard-content');
     if (!host) return;
+    if (!force) {
+      if (serviceDashboardDialogOpen || document.querySelector('.modal.show')) return;
+      if (Date.now() - serviceDashboardLastRender < 2000) return;
+    }
     const roleKey = (window.HotelAuth?.getUser()?.role || '').toLowerCase().replace(/[&\s_-]/g, '');
     const departmentNames = {
       service: 'Guest Services',
@@ -372,6 +460,7 @@
         .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
         .slice(0, 5);
 
+      const liveFallback = window.HotelRealtime?.isConnected?.() === false;
       const requestRows = latestRequests.map(request => {
         const createdAt = String(request.created_at || '');
         const parsedDate = new Date(createdAt.includes('T') ? createdAt : createdAt.replace(' ', 'T'));
@@ -386,6 +475,7 @@
               <span>${esc(request.request_code || 'Request')} · ${esc(request.guest_name || 'Guest')} · ${esc(submitted)}</span>
             </div>
             <div class="service-dashboard-request-status">${pill(request.status)}</div>
+            <div class="service-dashboard-request-actions">${serviceDashboardActions(request)}</div>
           </article>`;
       }).join('');
 
@@ -423,17 +513,19 @@
           <section class="service-dashboard-work" aria-labelledby="service-dashboard-work-title">
             <div class="service-dashboard-section-heading">
               <div><span class="service-dashboard-eyebrow-dark">YOUR TEAM</span><h3 id="service-dashboard-work-title">Active guest requests</h3></div>
-              <span class="service-dashboard-live"><i class="bi bi-circle-fill" aria-hidden="true"></i> ${requests.length} active</span>
+              <span class="service-dashboard-live${liveFallback ? ' service-dashboard-live-fallback' : ''}"${liveFallback ? ' title="Live connection unavailable — refreshing on fallback"' : ''}><i class="bi bi-circle-fill" aria-hidden="true"></i> ${requests.length} active</span>
             </div>
             ${requestRows || '<div class="service-dashboard-empty"><i class="bi bi-check2-circle" aria-hidden="true"></i><div><strong>All caught up</strong><span>There are no active guest service requests right now.</span></div></div>'}
-            <div class="service-dashboard-footer"><span>Request actions and full history are available in the service queue.</span><button type="button" class="btn btn-link p-0" id="service-dashboard-view-all">View all requests <i class="bi bi-arrow-right" aria-hidden="true"></i></button></div>
+            <div class="service-dashboard-footer"><span>Full history is available in the service queue.</span><button type="button" class="btn btn-link p-0" id="service-dashboard-view-all">View all requests <i class="bi bi-arrow-right" aria-hidden="true"></i></button></div>
           </section>
         </section>`;
 
       const openQueue = () => window.HotelBilling?.open('service-requests');
-      $('service-dashboard-refresh')?.addEventListener('click', renderServiceDashboard);
+      $('service-dashboard-refresh')?.addEventListener('click', () => renderServiceDashboard(true));
       $('service-dashboard-open-queue')?.addEventListener('click', openQueue);
       $('service-dashboard-view-all')?.addEventListener('click', openQueue);
+      host.querySelector('.service-dashboard')?.addEventListener('click', onServiceDashboardAction);
+      serviceDashboardLastRender = Date.now();
     } catch (error) {
       host.innerHTML = `
         <section class="service-dashboard-error" role="alert">
@@ -441,7 +533,7 @@
           <div><strong>Guest service queue unavailable</strong><p>${esc(error.message || 'The request list could not be loaded. Check your connection and try again.')}</p></div>
           <button type="button" class="btn btn-outline-danger btn-sm" id="service-dashboard-retry">Try again</button>
         </section>`;
-      $('service-dashboard-retry')?.addEventListener('click', renderServiceDashboard);
+      $('service-dashboard-retry')?.addEventListener('click', () => renderServiceDashboard(true));
     }
   }
 
