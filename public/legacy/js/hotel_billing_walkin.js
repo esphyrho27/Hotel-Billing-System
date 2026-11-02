@@ -1207,13 +1207,13 @@
 
           : '';
 
-        const roomBoardBtn = moduleAllowed('rooms')
+        const roomBoardBtn = (moduleAllowed('rooms') && !isFrontdesk)
 
           ? `<button class="btn btn-outline-secondary btn-sm" onclick="HotelBilling.open('rooms')"><i class="bi bi-door-open me-1"></i>Room Board</button>`
 
           : '';
 
-        const staysBtn = moduleAllowed('active-stays')
+        const staysBtn = (moduleAllowed('active-stays') && !isFrontdesk)
 
           ? `<button class="btn btn-outline-secondary btn-sm" onclick="HotelBilling.open('active-stays')"><i class="bi bi-people me-1"></i>Active Stays</button>`
 
@@ -1225,7 +1225,7 @@
 
           : '';
 
-        const earlyCheckoutBtn = (isFrontdesk || isAdmin || isManager)
+        const earlyCheckoutBtn = (isAdmin || isManager)
 
           ? `<button class="btn btn-outline-warning btn-sm text-dark fw-semibold" onclick="HotelBilling.earlyCheckout()"><i class="bi bi-clock-history me-1 text-warning"></i>Early Checkout</button>`
 
