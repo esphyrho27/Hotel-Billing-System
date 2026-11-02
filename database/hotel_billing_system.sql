@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Nov 02, 2026 at 04:50 AM
+-- Generation Time: Nov 02, 2026 at 08:47 AM
 -- Server version: 10.11.16-MariaDB
 -- PHP Version: 8.5.12
 
@@ -58,7 +58,8 @@ INSERT INTO `applied_discounts` (`id`, `folio_id`, `policy_id`, `name`, `categor
 (13, 37, 2, 'PWD (20%)', 'PWD', 'PERCENT', 20.00, 803.57, 'APPLIED', 'Applied during cashier check-in approval: PWD (20%)', 4, 4, NULL, '2026-10-31 12:51:24'),
 (14, 38, 8, 'Birthday promotion (9%)', 'BIRTHDAY', 'PERCENT', 9.00, 594.00, 'APPLIED', 'Group check-in discount: Birthday promotion', 4, 4, NULL, '2026-10-31 14:04:58'),
 (15, 39, 8, 'Birthday promotion (9%)', 'BIRTHDAY', 'PERCENT', 9.00, 756.00, 'APPLIED', 'Group check-in discount: Birthday promotion', 4, 4, NULL, '2026-10-31 14:04:58'),
-(16, 40, 8, 'Birthday promotion (9%)', 'BIRTHDAY', 'PERCENT', 9.00, 1350.00, 'APPLIED', 'Group check-in discount: Birthday promotion', 4, 4, NULL, '2026-10-31 14:04:58');
+(16, 40, 8, 'Birthday promotion (9%)', 'BIRTHDAY', 'PERCENT', 9.00, 1350.00, 'APPLIED', 'Group check-in discount: Birthday promotion', 4, 4, NULL, '2026-10-31 14:04:58'),
+(17, 41, 0, 'Senior citizen (20%)', 'SENIOR_CITIZEN', 'PERCENT', 20.00, 3035.71, 'APPLIED', 'Applied during cashier check-in approval: Senior citizen (20%)', 4, 4, NULL, '2026-11-02 03:56:33');
 
 -- --------------------------------------------------------
 
@@ -496,7 +497,28 @@ INSERT INTO `audit_logs` (`id`, `user_id`, `action`, `entity_type`, `entity_id`,
 (428, 1, 'LOGIN', 'user', 1, '[]', '::1', '2026-11-02 03:24:14'),
 (429, 1, 'DEMO_CLOCK_SET', 'demo_clock', 1, '{\"simulated_at\":\"2026-11-02 14:01:00\",\"timezone\":\"Asia\\/Manila\"}', '::1', '2026-11-02 03:24:46'),
 (430, 3, 'LOGIN', 'user', 3, '[]', '::1', '2026-11-02 03:25:07'),
-(431, 3, 'CHECK_IN', 'stay', 41, '{\"room\":\"603\",\"nights\":2,\"customer_id\":26,\"guest_name\":\"Boi Kilig\",\"checkin_payment_id\":41,\"required_amount\":17000,\"required_percent\":100,\"discount_amount\":0}', '::1', '2026-11-02 03:25:55');
+(431, 3, 'CHECK_IN', 'stay', 41, '{\"room\":\"603\",\"nights\":2,\"customer_id\":26,\"guest_name\":\"Boi Kilig\",\"checkin_payment_id\":41,\"required_amount\":17000,\"required_percent\":100,\"discount_amount\":0}', '::1', '2026-11-02 03:25:55'),
+(432, 4, 'LOGIN', 'user', 4, '[]', '::1', '2026-11-02 03:54:35'),
+(433, 4, 'APPLY_CHECKIN_DISCOUNT', 'folio', 41, '{\"discount_id\":17,\"checkin_payment_id\":41,\"category\":\"SENIOR_CITIZEN\",\"rate\":20,\"eligible_amount\":\"17000.00\",\"amount\":\"3035.71\",\"eligibility_confirmed\":true}', '::1', '2026-11-02 03:56:33'),
+(434, 4, 'CHECKIN_PAYMENT_APPROVED', 'stay', 41, '{\"checkin_payment_id\":41,\"payment_id\":32,\"receipt_number\":\"OR261102248D8B\",\"amount\":12142.86,\"applied\":12142.86,\"received\":12142.86,\"change\":0,\"method\":\"CASH\",\"discount_amount\":\"3035.71\",\"discount_category\":\"SENIOR_CITIZEN\",\"guest_name\":\"Boi Kilig\",\"room\":\"603\"}', '::1', '2026-11-02 03:56:33'),
+(435, 2, 'LOGIN', 'user', 2, '[]', '::1', '2026-11-02 06:17:35'),
+(436, 2, 'ROOM_STATUS', 'room', 13, '{\"status\":\"AVAILABLE\"}', '::1', '2026-11-02 06:27:09'),
+(437, 2, 'ROOM_STATUS', 'room', 10, '{\"status\":\"AVAILABLE\"}', '::1', '2026-11-02 06:27:15'),
+(438, 2, 'ROOM_STATUS', 'room', 2, '{\"status\":\"AVAILABLE\"}', '::1', '2026-11-02 06:27:21'),
+(439, 2, 'ROOM_STATUS', 'room', 1, '{\"status\":\"AVAILABLE\"}', '::1', '2026-11-02 06:27:24'),
+(440, 3, 'LOGIN', 'user', 3, '[]', '::1', '2026-11-02 06:29:19'),
+(441, 2, 'LOGIN', 'user', 2, '[]', '::1', '2026-11-02 06:35:56'),
+(442, 2, 'CREATE_ROOM_TYPE', 'room_type', 0, '{\"name\":\"Penthouse\",\"nightly_rate\":10000,\"capacity\":6}', '::1', '2026-11-02 06:39:39'),
+(443, 2, 'CREATE_ROOM', 'room', 0, '{\"room_number\":\"701\",\"room_type_id\":7,\"floor_number\":7}', '::1', '2026-11-02 07:03:02'),
+(444, 1, 'LOGIN', 'user', 1, '[]', '::1', '2026-11-02 07:15:56'),
+(445, 2, 'LOGIN', 'user', 2, '[]', '::1', '2026-11-02 07:21:07'),
+(446, 2, 'CREATE_ROOM', 'room', 20, '{\"room_number\":\"702\",\"room_type_id\":7,\"floor_number\":7}', '::1', '2026-11-02 07:23:41'),
+(447, 2, 'CREATE_ROOM', 'room', 21, '{\"room_number\":\"703\",\"room_type_id\":7,\"floor_number\":7}', '::1', '2026-11-02 07:24:02'),
+(448, 1, 'LOGIN', 'user', 1, '[]', '::1', '2026-11-02 07:30:15'),
+(449, 1, 'DEMO_CLOCK_RESET', 'demo_clock', 1, '{\"timezone\":\"Asia\\/Manila\"}', '::1', '2026-11-02 07:30:18'),
+(450, 2, 'LOGIN', 'user', 2, '[]', '::1', '2026-11-02 07:31:02'),
+(451, 3, 'LOGIN', 'user', 3, '[]', '::1', '2026-11-02 07:32:56'),
+(452, 2, 'LOGIN', 'user', 2, '[]', '::1', '2026-11-02 07:37:55');
 
 -- --------------------------------------------------------
 
@@ -518,6 +540,7 @@ CREATE TABLE `auth_login_attempts` (
 
 INSERT INTO `auth_login_attempts` (`attempt_key`, `attempts`, `window_started_at`, `locked_until`, `updated_at`) VALUES
 ('708daccc3e36386a96b46093380b450acf89c037287dfc29581683bec2cd2a2d', 1, '2026-10-29 13:50:08', NULL, '2026-10-29 05:50:08'),
+('915198d62ef1e8598605050aad033b4fe56307ce9fc6d55d837061700b65e776', 1, '2026-11-02 15:21:04', NULL, '2026-11-02 07:21:04'),
 ('de0c62c53df2c6557d0ba118af8747c1202f6748d3c5c91ef43f0ba694c6f418', 1, '2026-10-29 18:03:44', NULL, '2026-10-29 10:03:44');
 
 -- --------------------------------------------------------
@@ -563,10 +586,10 @@ CREATE TABLE `billing_policies` (
 
 INSERT INTO `billing_policies` (`id`, `policy_key`, `policy_value`, `updated_by`, `updated_at`) VALUES
 (1, 'VAT_RATE', '12', NULL, '2026-10-24 13:12:29'),
-(2, 'LATE_CHECKOUT_ENABLED', '1', NULL, '2026-11-02 14:00:00'),
-(3, 'LATE_CHECKOUT_GRACE_MINUTES', '60', NULL, '2026-11-02 14:00:00'),
-(4, 'LATE_CHECKOUT_CUTOFF_TIME', '18:00', NULL, '2026-11-02 14:00:00'),
-(5, 'LATE_CHECKOUT_FEE_PERCENT', '50.00', NULL, '2026-11-02 14:00:00');
+(2, 'LATE_CHECKOUT_ENABLED', '1', NULL, '2026-11-02 07:47:11'),
+(3, 'LATE_CHECKOUT_GRACE_MINUTES', '60', NULL, '2026-11-02 07:47:11'),
+(4, 'LATE_CHECKOUT_CUTOFF_TIME', '18:00', NULL, '2026-11-02 07:47:11'),
+(5, 'LATE_CHECKOUT_FEE_PERCENT', '50.00', NULL, '2026-11-02 07:47:11');
 
 -- --------------------------------------------------------
 
@@ -741,7 +764,7 @@ INSERT INTO `checkin_payments` (`id`, `stay_id`, `folio_id`, `subject`, `nights`
 (38, 38, 38, 'CHECK-IN PAYMENT', 3, 6006.00, 100, 6006.00, 'APPROVED', 28, 3, 4, '2026-10-31 22:04:58', 3, '2026-10-31 22:19:51', '2026-10-31 14:02:55', '2026-10-31 14:19:51', 6600.00, 594.00, 'BIRTHDAY', 'Group check-in discount: Birthday promotion', 0.00),
 (39, 39, 39, 'CHECK-IN PAYMENT', 3, 7644.00, 100, 7644.00, 'APPROVED', 29, 3, 4, '2026-10-31 22:04:58', 3, '2026-10-31 22:19:54', '2026-10-31 14:02:55', '2026-10-31 14:19:54', 8400.00, 756.00, 'BIRTHDAY', 'Group check-in discount: Birthday promotion', 0.00),
 (40, 40, 40, 'CHECK-IN PAYMENT', 3, 13650.00, 100, 13650.00, 'APPROVED', 30, 3, 4, '2026-10-31 22:04:58', 3, '2026-10-31 22:19:57', '2026-10-31 14:02:55', '2026-10-31 14:19:57', 15000.00, 1350.00, 'BIRTHDAY', 'Group check-in discount: Birthday promotion', 0.00),
-(41, 41, 41, 'CHECK-IN PAYMENT', 2, 17000.00, 100, 17000.00, 'FOR_PAYMENT', NULL, 3, NULL, NULL, NULL, NULL, '2026-11-02 03:25:55', '2026-11-02 03:25:55', 17000.00, 0.00, 'NONE', NULL, 0.00);
+(41, 41, 41, 'CHECK-IN PAYMENT', 2, 12142.86, 100, 12142.86, 'APPROVED', 32, 3, 4, '2026-11-02 11:56:33', NULL, NULL, '2026-11-02 03:25:55', '2026-11-02 03:56:33', 17000.00, 3035.71, 'SENIOR_CITIZEN', 'Applied during cashier check-in approval: Senior citizen (20%)', 0.00);
 
 -- --------------------------------------------------------
 
@@ -846,7 +869,7 @@ CREATE TABLE `demo_clock_state` (
 --
 
 INSERT INTO `demo_clock_state` (`id`, `simulated_at`, `updated_by`, `updated_at`) VALUES
-(1, '2026-11-02 14:01:00', 1, '2026-11-02 03:24:46');
+(1, NULL, 1, '2026-11-02 07:30:18');
 
 -- --------------------------------------------------------
 
@@ -1266,7 +1289,8 @@ INSERT INTO `payments` (`id`, `folio_id`, `receipt_number`, `method`, `amount`, 
 (28, 38, 'OR26103147F4FA-01', 'CASH', 6006.00, 6006.00, 0.00, 'Group receipt OR26103147F4FA · Room 203 · Discount: Birthday promotion', 4, '23d7b77b7beba1350cc57d9b933893b238569358399c1bc93c73fdcedbd96fd7', 0, '2026-10-31 14:04:58'),
 (29, 39, 'OR26103147F4FA-02', 'CASH', 7644.00, 7644.00, 0.00, 'Group receipt OR26103147F4FA · Room 301 · Discount: Birthday promotion', 4, 'a10fee6a4168bee8c36dc0d515cf364a33986ce7beecb07c814a1a557249dc5d', 0, '2026-10-31 14:04:58'),
 (30, 40, 'OR26103147F4FA-03', 'CASH', 13650.00, 13650.00, 0.00, 'Group receipt OR26103147F4FA · Room 501 · Discount: Birthday promotion', 4, 'd94de4f31675b59207e0894aead5dae98ce79b3b831e448ea6df674d298205f6', 0, '2026-10-31 14:04:58'),
-(31, 37, 'OR261102A2185D', 'CASH', 90.00, 90.00, 0.00, '', 4, '1e718bd7169731cb663121aeb25637c83fe6d3f269eece3d2a1c5dc133137926', 0, '2026-11-02 02:45:31');
+(31, 37, 'OR261102A2185D', 'CASH', 90.00, 90.00, 0.00, '', 4, '1e718bd7169731cb663121aeb25637c83fe6d3f269eece3d2a1c5dc133137926', 0, '2026-11-02 02:45:31'),
+(32, 41, 'OR261102248D8B', 'CASH', 12142.86, 12142.86, 0.00, 'Check-in payment (100% of total) · Discount: Senior citizen', 4, '6c441fabfb52986b701a569b8c53c00752e1e2ea1802174c1fb7777b4215edc7', 0, '2026-11-02 03:56:33');
 
 -- --------------------------------------------------------
 
@@ -1431,15 +1455,12 @@ CREATE TABLE `role_permissions` (
 --
 
 CREATE TABLE `rooms` (
-  `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `id` bigint(20) UNSIGNED NOT NULL,
   `room_number` varchar(20) NOT NULL,
   `room_type_id` bigint(20) UNSIGNED NOT NULL,
   `floor_number` int(11) NOT NULL DEFAULT 1,
   `capacity` int(11) DEFAULT NULL,
-  `status` enum('AVAILABLE','OCCUPIED','CLEANING','MAINTENANCE','RESERVED') NOT NULL DEFAULT 'AVAILABLE',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `room_number` (`room_number`),
-  KEY `room_type_id` (`room_type_id`)
+  `status` enum('AVAILABLE','OCCUPIED','CLEANING','MAINTENANCE','RESERVED') NOT NULL DEFAULT 'AVAILABLE'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -1447,8 +1468,8 @@ CREATE TABLE `rooms` (
 --
 
 INSERT INTO `rooms` (`id`, `room_number`, `room_type_id`, `floor_number`, `capacity`, `status`) VALUES
-(1, '103', 1, 1, 2, 'CLEANING'),
-(2, '102', 1, 1, 2, 'CLEANING'),
+(1, '103', 1, 1, 2, 'AVAILABLE'),
+(2, '102', 1, 1, 2, 'AVAILABLE'),
 (3, '101', 1, 1, 2, 'OCCUPIED'),
 (4, '203', 2, 2, 2, 'AVAILABLE'),
 (5, '202', 2, 2, 2, 'OCCUPIED'),
@@ -1456,15 +1477,18 @@ INSERT INTO `rooms` (`id`, `room_number`, `room_type_id`, `floor_number`, `capac
 (7, '303', 3, 3, 2, 'MAINTENANCE'),
 (8, '302', 3, 3, 2, 'OCCUPIED'),
 (9, '301', 3, 3, 2, 'OCCUPIED'),
-(10, '403', 4, 4, 4, 'CLEANING'),
+(10, '403', 4, 4, 4, 'AVAILABLE'),
 (11, '402', 4, 4, 4, 'AVAILABLE'),
 (12, '401', 4, 4, 4, 'OCCUPIED'),
-(13, '503', 5, 5, 3, 'CLEANING'),
+(13, '503', 5, 5, 3, 'AVAILABLE'),
 (14, '502', 5, 5, 3, 'AVAILABLE'),
 (15, '501', 5, 5, 3, 'OCCUPIED'),
-(16, '603', 6, 6, 4, 'RESERVED'),
+(16, '603', 6, 6, 4, 'OCCUPIED'),
 (17, '602', 6, 6, 4, 'AVAILABLE'),
-(18, '601', 6, 6, 4, 'AVAILABLE');
+(18, '601', 6, 6, 4, 'AVAILABLE'),
+(19, '701', 7, 7, NULL, 'AVAILABLE'),
+(20, '702', 7, 7, NULL, 'AVAILABLE'),
+(21, '703', 7, 7, NULL, 'AVAILABLE');
 
 -- --------------------------------------------------------
 
@@ -1501,12 +1525,10 @@ INSERT INTO `room_transfers` (`id`, `stay_id`, `from_room_id`, `to_room_id`, `ef
 --
 
 CREATE TABLE `room_types` (
-  `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `id` bigint(20) UNSIGNED NOT NULL,
   `name` varchar(80) NOT NULL,
   `nightly_rate` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `capacity` int(11) NOT NULL DEFAULT 2,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `name` (`name`)
+  `capacity` int(11) NOT NULL DEFAULT 2
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -1519,7 +1541,8 @@ INSERT INTO `room_types` (`id`, `name`, `nightly_rate`, `capacity`) VALUES
 (3, 'Superior', 2800.00, 2),
 (4, 'Family', 3500.00, 4),
 (5, 'Executive Suite', 5000.00, 3),
-(6, 'Presidential Suite', 8500.00, 4);
+(6, 'Presidential Suite', 8500.00, 4),
+(7, 'Penthouse', 10000.00, 6);
 
 -- --------------------------------------------------------
 
@@ -1792,7 +1815,7 @@ INSERT INTO `stays` (`id`, `stay_code`, `room_id`, `customer_id`, `guest_count`,
 (38, 'STC9CC80082B', 12, 25, 1, '2026-10-31 14:00:00', '2026-10-31 22:04:58', '2026-11-03', NULL, 'ACTIVE', 3, '2026-10-31 14:02:55', 19),
 (39, 'ST58D1943E95', 9, 25, 1, '2026-10-31 14:00:00', '2026-10-31 22:04:58', '2026-11-03', NULL, 'ACTIVE', 3, '2026-10-31 14:02:55', 19),
 (40, 'ST54FF6EC4E8', 15, 25, 1, '2026-10-31 14:00:00', '2026-10-31 22:04:58', '2026-11-03', NULL, 'ACTIVE', 3, '2026-10-31 14:02:55', 19),
-(41, 'ST7B0E050C14', 16, 26, 1, '2026-11-02 14:00:00', NULL, '2026-11-04', NULL, 'PENDING_PAYMENT', 3, '2026-11-02 03:25:55', NULL);
+(41, 'ST7B0E050C14', 16, 26, 1, '2026-11-02 14:00:00', '2026-11-02 14:01:00', '2026-11-04', NULL, 'ACTIVE', 3, '2026-11-02 03:25:55', NULL);
 
 --
 -- Triggers `stays`
@@ -2298,13 +2321,13 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `applied_discounts`
 --
 ALTER TABLE `applied_discounts`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
 
 --
 -- AUTO_INCREMENT for table `audit_logs`
 --
 ALTER TABLE `audit_logs`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=432;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=453;
 
 --
 -- AUTO_INCREMENT for table `charges`
@@ -2382,7 +2405,7 @@ ALTER TABLE `menu_items`
 -- AUTO_INCREMENT for table `payments`
 --
 ALTER TABLE `payments`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=32;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=33;
 
 --
 -- AUTO_INCREMENT for table `portal_tokens`
@@ -2403,10 +2426,22 @@ ALTER TABLE `restaurant_order_items`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
+-- AUTO_INCREMENT for table `rooms`
+--
+ALTER TABLE `rooms`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
+
+--
 -- AUTO_INCREMENT for table `room_transfers`
 --
 ALTER TABLE `room_transfers`
   MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+
+--
+-- AUTO_INCREMENT for table `room_types`
+--
+ALTER TABLE `room_types`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `service_requests`
