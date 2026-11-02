@@ -24,7 +24,7 @@
   ];
 
   const serviceRoleModules = ["dashboard", "service-requests", "dept-reports", "dept-inventory", "settings"];
-  const generalServiceRoleModules = ["dashboard", "service-requests", "settings"];
+  const generalServiceRoleModules = ["dashboard", "settings"];
   const restaurantRoleModules = ["dashboard", "service-requests", "catalog", "settings"];
   const barRoleModules = ["dashboard", "service-requests", "settings"];
   const departmentRoleModules = {

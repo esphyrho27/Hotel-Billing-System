@@ -457,6 +457,12 @@
   }
 
   function onServiceDashboardAction(event) {
+    const historyButton = event.target?.closest?.('[data-service-dashboard-history]');
+    if (historyButton) {
+      const historyId = Number(historyButton.getAttribute('data-service-dashboard-history')) || 0;
+      if (historyId) viewHistory(historyId);
+      return;
+    }
     const button = event.target?.closest?.('[data-service-dashboard-action]');
     if (!button || button.disabled) return;
     const status = button.getAttribute('data-service-dashboard-action');
@@ -494,29 +500,45 @@
       const needsAction = requests.filter(request => ['NEW', 'PENDING', 'ASSIGNED'].includes(String(request.status || '').toUpperCase()));
       const inProgress = requests.filter(request => ['ACKNOWLEDGED', 'IN_PROGRESS'].includes(String(request.status || '').toUpperCase()));
       const onHold = requests.filter(request => String(request.status || '').toUpperCase() === 'ON_HOLD');
-      const latestRequests = [...requests]
-        .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
-        .slice(0, 5);
+      // Service dashboard is now the service role's only request list, so it
+      // shows every active request, oldest first like the queue did — not
+      // just the newest five.
+      const allRequests = [...requests]
+        .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
 
       const liveFallback = window.HotelRealtime?.isConnected?.() === false;
-      const requestRows = latestRequests.map(request => {
+      const requestRows = allRequests.map(request => {
         const createdAt = String(request.created_at || '');
         const parsedDate = new Date(createdAt.includes('T') ? createdAt : createdAt.replace(' ', 'T'));
         const submitted = Number.isNaN(parsedDate.getTime())
           ? 'Recently submitted'
           : parsedDate.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        const chargeText = Number(request.chargeable) === 1 ? php(request.price) : 'No charge';
+        const noteLines = [];
+        if (Number(request.safety_flag || 0) === 1) noteLines.push(`<span class="text-danger">URGENT SAFETY${request.safety_note ? `: ${esc(request.safety_note)}` : ''}</span>`);
+        else if (request.safety_note) noteLines.push(`<span class="text-danger">${esc(request.safety_note)}</span>`);
+        if (request.on_hold_reason) noteLines.push(`<span>On hold: ${esc(request.on_hold_reason)}</span>`);
+        if (request.rejection_reason) noteLines.push(`<span>Rejection: ${esc(request.rejection_reason)}</span>`);
         return `
           <article class="service-dashboard-request">
             <div class="service-dashboard-request-room"><i class="bi bi-door-closed" aria-hidden="true"></i><span>Room ${esc(request.room_number || '—')}</span></div>
             <div class="service-dashboard-request-detail">
               <strong>${esc(request.description || 'Guest service request')}</strong>
               <span>${esc(request.request_code || 'Request')} · ${esc(request.guest_name || 'Guest')} · ${esc(submitted)}</span>
+              <span>Charge: ${chargeText}</span>
+              ${noteLines.join('')}
             </div>
             <div class="service-dashboard-request-status">${pill(request.status)}</div>
-            <div class="service-dashboard-request-actions">${serviceDashboardActions(request)}</div>
+            <div class="service-dashboard-request-actions">${serviceDashboardActions(request)}<button type="button" class="btn btn-sm btn-outline-secondary" data-service-dashboard-history="${Number(request.id) || 0}">History</button></div>
           </article>`;
       }).join('');
 
+      // Only roles that still have the queue module get a link to it. The
+      // service role's queue nav was removed, so its dashboard must not
+      // offer a button that would just bounce back to the dashboard.
+      const hasQueue = window.HotelModulesHelper
+        ? window.HotelModulesHelper.isAllowed(roleKey, 'service-requests')
+        : roleKey !== 'service';
       host.innerHTML = `
         <section class="service-dashboard" aria-labelledby="service-dashboard-title">
           <header class="service-dashboard-header">
@@ -532,9 +554,9 @@
               <button type="button" class="btn service-dashboard-refresh" id="service-dashboard-refresh" aria-label="Refresh guest service queue" title="Refresh queue">
                 <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
               </button>
-              <button type="button" class="btn service-dashboard-primary" id="service-dashboard-open-queue">
+              ${hasQueue ? `<button type="button" class="btn service-dashboard-primary" id="service-dashboard-open-queue">
                 Open service queue <i class="bi bi-arrow-right" aria-hidden="true"></i>
-              </button>
+              </button>` : ''}
             </div>
           </header>
           <div class="service-dashboard-metrics" aria-label="Guest service request counts">
@@ -554,7 +576,9 @@
               <span class="service-dashboard-live${liveFallback ? ' service-dashboard-live-fallback' : ''}"${liveFallback ? ' title="Live connection unavailable — refreshing on fallback"' : ''}><i class="bi bi-circle-fill" aria-hidden="true"></i> ${requests.length} active</span>
             </div>
             ${requestRows || '<div class="service-dashboard-empty"><i class="bi bi-check2-circle" aria-hidden="true"></i><div><strong>All caught up</strong><span>There are no active guest service requests right now.</span></div></div>'}
-            <div class="service-dashboard-footer"><span>Full history is available in the service queue.</span><button type="button" class="btn btn-link p-0" id="service-dashboard-view-all">View all requests <i class="bi bi-arrow-right" aria-hidden="true"></i></button></div>
+            ${hasQueue
+              ? `<div class="service-dashboard-footer"><span>Full history is available in the service queue.</span><button type="button" class="btn btn-link p-0" id="service-dashboard-view-all">View all requests <i class="bi bi-arrow-right" aria-hidden="true"></i></button></div>`
+              : `<div class="service-dashboard-footer"><span>Showing all ${requests.length} active guest request${requests.length === 1 ? '' : 's'}.</span></div>`}
           </section>
         </section>`;
 
