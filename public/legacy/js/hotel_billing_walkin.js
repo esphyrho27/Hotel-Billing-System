@@ -415,13 +415,19 @@
         return;
       }
       const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-      const rows = payments.map(p => `<tr>
+      const rows = payments.map(p => {
+        const receiptNo = String(p.receipt_number || '');
+        const actions = receiptNo
+          ? `<div class="d-flex gap-1"><button type="button" class="btn btn-sm btn-outline-dark" onclick="HotelBilling.viewCheckoutReceipt('${esc(receiptNo)}')"><i class="bi bi-printer me-1"></i>View receipt</button><button type="button" class="btn btn-sm btn-outline-primary" onclick="HotelBilling.downloadCheckoutReceipt('${esc(receiptNo)}')"><i class="bi bi-download me-1"></i>Download</button></div>`
+          : '<span class="text-muted">No receipt number</span>';
+        return `<tr>
         <td>${esc(p.created_at)}</td>
-        <td><strong>${esc(p.receipt_number)}</strong></td>
+        <td><strong>${esc(receiptNo) || '—'}</strong></td>
         <td>${esc(p.method)}</td>
         <td class="text-end">${php(p.amount)}</td>
-        <td><div class="d-flex gap-1"><button type="button" class="btn btn-sm btn-outline-dark" onclick="HotelBilling.viewCheckoutReceipt('${esc(p.receipt_number)}')"><i class="bi bi-printer me-1"></i>View receipt</button><button type="button" class="btn btn-sm btn-outline-primary" onclick="HotelBilling.downloadCheckoutReceipt('${esc(p.receipt_number)}')"><i class="bi bi-download me-1"></i>Download</button></div></td>
-      </tr>`).join('');
+        <td>${actions}</td>
+      </tr>`;
+      }).join('');
       const listModal = modal(`Payment receipts · ${esc(stayCode || '')} · Folio ${esc(d.folio?.folio_number || '')}`,
         `${table(['Date / Time', 'Receipt', 'Method', 'Amount', ''], rows, 'No payment receipts recorded for this stay.')}
          <div class="d-flex justify-content-between align-items-center mt-3"><span class="small text-muted">View opens the official receipt; Download saves it as a file.</span><strong>Total of receipts: ${php(totalPaid)}</strong></div>`);
@@ -4023,8 +4029,16 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
   async function showReceiptModal(receiptInput) {
     let data = receiptInput;
     if (typeof receiptInput === 'string' || typeof receiptInput === 'number') {
+      if (String(receiptInput).trim() === '') {
+        return notify('Unable to load receipt: a receipt number is required.', true);
+      }
       try {
-        const res = await api('receipt_details', { receipt_number: String(receiptInput), payment_id: Number(receiptInput) || 0 }, 'GET');
+        // POST, not GET: the PHP dispatcher reads receipt_details parameters
+        // from the JSON body only (json_input), so a GET call always arrived
+        // with an empty receipt number / payment ID and failed with
+        // "A valid receipt number or payment ID is required." POST carries
+        // the same CSRF header as every other walkin call, including folio.
+        const res = await api('receipt_details', { receipt_number: String(receiptInput), payment_id: Number(receiptInput) || 0 });
         data = res.receipt;
         if (res.folio_summary) {
           data.folio_summary = res.folio_summary;
