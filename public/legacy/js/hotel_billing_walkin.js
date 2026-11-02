@@ -93,6 +93,7 @@
     'INACTIVE': 'background-color:#f8fafc;color:#64748b;border:1px solid #e2e8f0;',
 
     'OCCUPIED': 'background-color:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;',
+    'RESERVED': 'background-color:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe;',
 
     'CLEANING': 'background-color:#fefce8;color:#a16207;border:1px solid #fde047;',
 
@@ -641,13 +642,17 @@
 
           ["Today's collections", php(d.today_collections), 'success', 'cash-coin'],
 
-          ['Occupied rooms', counts.OCCUPIED||0, 'primary', 'building']
+          ['Occupied rooms', counts.OCCUPIED||0, 'primary', 'building'],
+
+          ['Reserved rooms', counts.RESERVED||0, 'info', 'bookmark']
 
         ] : [
 
           ['Active stays', d.active_stays||0, 'dark', 'people'],
 
           ['Occupied rooms', counts.OCCUPIED||0, 'primary', 'building'],
+
+          ['Reserved rooms', counts.RESERVED||0, 'info', 'bookmark'],
 
           ['Available rooms', counts.AVAILABLE||0, 'success', 'door-open'],
 
@@ -667,7 +672,7 @@
 
       } else {
 
-        stats=[['Available rooms',counts.AVAILABLE||0,'success','door-open'],['Occupied rooms',counts.OCCUPIED||0,'primary','building'],['Cleaning',counts.CLEANING||0,'warning','stars'],['Maintenance',counts.MAINTENANCE||0,'secondary','tools'],['Active stays',d.active_stays||0,'dark','people'],['Open balance',php(d.open_balance),'danger','wallet2'],['Open requests',d.pending_requests||0,(d.pending_requests||0)?'danger':'success','bell'],["Today's collections",php(d.today_collections),'success','cash-coin']];
+        stats=[['Available rooms',counts.AVAILABLE||0,'success','door-open'],['Occupied rooms',counts.OCCUPIED||0,'primary','building'],['Reserved rooms',counts.RESERVED||0,'info','bookmark'],['Cleaning',counts.CLEANING||0,'warning','stars'],['Maintenance',counts.MAINTENANCE||0,'secondary','tools'],['Active stays',d.active_stays||0,'dark','people'],['Open balance',php(d.open_balance),'danger','wallet2'],['Open requests',d.pending_requests||0,(d.pending_requests||0)?'danger':'success','bell'],["Today's collections",php(d.today_collections),'success','cash-coin']];
 
         if (!canFinancial) stats = stats.filter(([label])=>!['Open balance',"Today's collections"].includes(label));
 
@@ -751,6 +756,7 @@
       if (isManager) {
         const roomSlices = [
           ['Occupied', Number(counts.OCCUPIED || 0), '#2563eb'],
+          ['Reserved', Number(counts.RESERVED || 0), '#7c3aed'],
           ['Available', Number(counts.AVAILABLE || 0), '#16a34a'],
           ['Cleaning', Number(counts.CLEANING || 0), '#eab308'],
           ['Maintenance', Number(counts.MAINTENANCE || 0), '#64748b'],
@@ -1255,7 +1261,7 @@
 
 
 
-      $('rooms-content').innerHTML=`${maintenanceBanner}<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2"><p class="text-muted mb-0">Room status board · rates come from room types</p>${topActions}</div><div class="row g-2 g-md-3">${rooms.map(r=>`<div class="col-12 col-sm-6 col-md-4 col-xl-3"><div class="card border-0 shadow-sm h-100 ${r.status==='MAINTENANCE'?'border-warning':''}"><div class="card-body p-3"><div class="d-flex justify-content-between align-items-start"><h5 class="fw-bold mb-1">${esc(r.room_number)}</h5>${pill(r.status)}</div><div class="text-muted small">${esc(r.type)} · Floor ${r.floor_number}</div><div class="fw-semibold mt-2">${php(r.nightly_rate)} <span class="text-muted small">/ night · VAT-inclusive</span></div><div class="text-muted small">Capacity ${r.capacity}</div>${canAddRoom?`<button class="btn btn-sm btn-outline-primary mt-2" onclick="HotelBilling.editRoom(${r.id})">Edit room</button>`:''}${r.status!=='OCCUPIED' && canChangeRoomStatus?`<div class="mt-3"><select class="form-select form-select-sm" onchange="HotelBilling.roomStatus(${r.id},this.value)"><option value="">Change status…</option><option value="AVAILABLE">Available</option><option value="CLEANING">Cleaning</option><option value="MAINTENANCE">Maintenance / Unavailable</option></select></div>`:''}</div></div></div>`).join('')}</div>`;
+      $('rooms-content').innerHTML=`${maintenanceBanner}<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2"><p class="text-muted mb-0">Room status board · rates come from room types</p>${topActions}</div><div class="row g-2 g-md-3">${rooms.map(r=>`<div class="col-12 col-sm-6 col-md-4 col-xl-3"><div class="card border-0 shadow-sm h-100 ${r.status==='MAINTENANCE'?'border-warning':''}"><div class="card-body p-3"><div class="d-flex justify-content-between align-items-start"><h5 class="fw-bold mb-1">${esc(r.room_number)}</h5>${pill(r.status)}</div><div class="text-muted small">${esc(r.type)} · Floor ${r.floor_number}</div><div class="fw-semibold mt-2">${php(r.nightly_rate)} <span class="text-muted small">/ night · VAT-inclusive</span></div><div class="text-muted small">Capacity ${r.capacity}</div>${canAddRoom?`<button class="btn btn-sm btn-outline-primary mt-2" onclick="HotelBilling.editRoom(${r.id})">Edit room</button>`:''}${r.status!=='OCCUPIED' && r.status!=='RESERVED' && canChangeRoomStatus?`<div class="mt-3"><select class="form-select form-select-sm" onchange="HotelBilling.roomStatus(${r.id},this.value)"><option value="">Change status…</option><option value="AVAILABLE">Available</option><option value="CLEANING">Cleaning</option><option value="MAINTENANCE">Maintenance / Unavailable</option></select></div>`:''}</div></div></div>`).join('')}</div>`;
 
     } else if (id==='active-stays' || id==='transactions' || id==='billing') {
 

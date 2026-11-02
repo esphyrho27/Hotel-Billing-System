@@ -197,7 +197,7 @@ if (in_array($action, ['chat_conversations', 'chat_messages', 'chat_send'], true
 // Room status is frontdesk view-only (owner directive 2026-11-01). Same
 // pattern as chat: this gate runs AFTER the permission check so a saved
 // role_permissions grant of rooms.status cannot re-enable manual edits for
-// frontdesk. Workflow-driven changes (check-in -> OCCUPIED, checkout ->
+// frontdesk. Workflow-driven changes (check-in -> RESERVED, cashier approval -> OCCUPIED, checkout ->
 // CLEANING, room transfer) use their own actions and are NOT blocked here.
 if ($action === 'room_status') {
     $roomStatusRole = strtolower(trim(str_replace([' ', '_', '-'], '', (string)($u['role'] ?? ''))));
@@ -426,7 +426,7 @@ if ($action === 'my_permissions') {
  */
 if ($action === 'dashboard') {
     $counts = [];
-    foreach (['AVAILABLE', 'OCCUPIED', 'CLEANING', 'MAINTENANCE'] as $st) {
+    foreach (['AVAILABLE', 'OCCUPIED', 'CLEANING', 'MAINTENANCE', 'RESERVED'] as $st) {
         $s = $pdo->prepare('SELECT COUNT(*) n FROM rooms WHERE status=?');
         $s->execute([$st]);
         $counts[$st] = (int)$s->fetch()['n'];
@@ -779,10 +779,10 @@ if ($action === 'room_save') {
             $check = $pdo->prepare('SELECT status FROM rooms WHERE id=?');
             $check->execute([$id]);
             $current = $check->fetch();
-            if (!$current || $current['status'] === 'OCCUPIED') {
+            if (!$current || in_array($current['status'], ['OCCUPIED', 'RESERVED'], true)) {
                 out(['error' => 'Room could not be updated; it may be occupied or no longer exists.'], 400);
             }
-            $q = $pdo->prepare("UPDATE rooms SET room_number=?, room_type_id=?, floor_number=? WHERE id=? AND status<>'OCCUPIED'");
+            $q = $pdo->prepare("UPDATE rooms SET room_number=?, room_type_id=?, floor_number=? WHERE id=? AND status NOT IN ('OCCUPIED','RESERVED')");
             $q->execute([$number, $type, $floor, $id]);
         } else {
             $q = $pdo->prepare('INSERT INTO rooms(room_number, room_type_id, floor_number) VALUES(?, ?, ?)');
@@ -2426,7 +2426,7 @@ if ($action === 'group_checkin') {
             $pdo->prepare("INSERT INTO checkin_payments (stay_id, folio_id, subject, nights, gross_amount, discount_amount, discount_type, discount_reason, total_amount, required_percent, required_amount, balance_amount, status, created_by) VALUES (?, ?, 'CHECK-IN PAYMENT', ?, ?, 0, 'NONE', NULL, ?, ?, ?, ?, 'FOR_PAYMENT', ?)")
                 ->execute([$stayId, $folioId, $nights, $grossTotal, $grossTotal, $requiredPercent, $requiredAmount, $balanceAmount, $u['id']]);
             $paymentId = (int)$pdo->lastInsertId();
-            $pdo->prepare("UPDATE rooms SET status='OCCUPIED' WHERE id=?")->execute([$roomId]);
+            $pdo->prepare("UPDATE rooms SET status='RESERVED' WHERE id=?")->execute([$roomId]);
             $token = bin2hex(random_bytes(32));
             $pdo->prepare('INSERT INTO portal_tokens (stay_id, token_hash, expires_at) VALUES (?, ?, ?)')
                 ->execute([$stayId, hash('sha256', $token), $checkout . ' 23:59:59']);
@@ -2454,7 +2454,7 @@ if ($action === 'group_checkin') {
         $pdo->commit();
 
         foreach ($results as $stay) {
-            ws_broadcast('ROOM_STATUS_CHANGED', ['room_id' => $stay['room_id'], 'room_number' => $stay['room_number'], 'status' => 'OCCUPIED'], null, null, null, true);
+            ws_broadcast('ROOM_STATUS_CHANGED', ['room_id' => $stay['room_id'], 'room_number' => $stay['room_number'], 'status' => 'RESERVED'], null, null, null, true);
             ws_broadcast('STAY_CHECKIN', [
                 'stay_id' => $stay['stay_id'], 'stay_code' => $stay['stay_code'],
                 'room_id' => $stay['room_id'], 'room_number' => $stay['room_number'],
@@ -2502,7 +2502,7 @@ if ($action === 'group_checkin') {
 }
 
 /**
- * Processes guest check-in: creates stay, opens folio, posts room charge, updates room to OCCUPIED,
+ * Processes guest check-in: creates stay, opens folio, posts room charge, updates room to RESERVED,
  * generates guest portal token, and triggers real-time alerts.
  */
 if ($action === 'checkin') {
@@ -2628,7 +2628,7 @@ if ($action === 'checkin') {
         $q->execute([$sid, $fid, $nights, $grossTotal, $discountGross, $discountCategory ?: 'NONE', $discountReason ?: null, $totalAmount, $requiredPercent, $requiredAmount, $balanceAmount, $u['id']]);
         $checkinPaymentId = (int)$pdo->lastInsertId();
 
-        $pdo->prepare("UPDATE rooms SET status='OCCUPIED' WHERE id=?")->execute([$room]);
+        $pdo->prepare("UPDATE rooms SET status='RESERVED' WHERE id=?")->execute([$room]);
 
         $token = bin2hex(random_bytes(32));
         $pdo->prepare('INSERT INTO portal_tokens(stay_id, token_hash, expires_at) VALUES(?, ?, ?)')
@@ -2637,7 +2637,7 @@ if ($action === 'checkin') {
         audit($pdo, $u['id'], 'CHECK_IN', 'stay', $sid, ['room' => $r['room_number'], 'nights' => $nights, 'customer_id' => $customerId, 'guest_name' => trim($firstName . ' ' . $lastName), 'checkin_payment_id' => $checkinPaymentId, 'required_amount' => $requiredAmount, 'required_percent' => $requiredPercent, 'discount_amount' => $discountGross]);
         $pdo->commit();
 
-        ws_broadcast('ROOM_STATUS_CHANGED', ['room_id' => $room, 'room_number' => $r['room_number'], 'status' => 'OCCUPIED'], null, null, null, true);
+        ws_broadcast('ROOM_STATUS_CHANGED', ['room_id' => $room, 'room_number' => $r['room_number'], 'status' => 'RESERVED'], null, null, null, true);
         ws_broadcast('STAY_CHECKIN', [
             'stay_id' => $sid,
             'stay_code' => $code,
@@ -3008,6 +3008,8 @@ if ($action === 'approve_checkin_payment') {
             ->execute([$u['id'], $paymentId, $totalBill, $required, $balanceAmount, $updatedDiscountAmount, $updatedDiscountType, $updatedDiscountReason, $cpId]);
         $pdo->prepare("UPDATE stays SET status='ACTIVE', actual_checkin_at=? WHERE id=?")
             ->execute([$checkinAt->format('Y-m-d H:i:s'), (int)$cp['stay_id']]);
+        $pdo->prepare("UPDATE rooms SET status='OCCUPIED' WHERE id=?")
+            ->execute([(int)$cp['room_id']]);
 
         audit($pdo, $u['id'], 'CHECKIN_PAYMENT_APPROVED', 'stay', (int)$cp['stay_id'], ['checkin_payment_id' => $cpId, 'payment_id' => $paymentId, 'receipt_number' => $receipt, 'amount' => $required, 'applied' => $applied, 'received' => $received, 'change' => $change, 'method' => $method, 'discount_amount' => money($grossDiscount), 'discount_category' => $selectedDiscount['category'] ?? null, 'guest_name' => $cp['guest_name'], 'room' => $cp['room_number']]);
         $pdo->commit();
@@ -3028,6 +3030,7 @@ if ($action === 'approve_checkin_payment') {
         ws_broadcast('CHECKIN_PAYMENT_APPROVED', $payload, null, 'frontdesk', $cp['stay_code']);
         ws_broadcast('FOLIO_UPDATED', ['folio_id' => $fid, 'stay_code' => $cp['stay_code'], 'type' => 'PAYMENT_RECORDED', 'amount' => $applied, 'remaining_balance' => $remaining], null, 'frontdesk', $cp['stay_code']);
         ws_broadcast('STAY_CHECKIN', ['stay_id' => (int)$cp['stay_id'], 'stay_code' => $cp['stay_code'], 'room_id' => (int)$cp['room_id'], 'room_number' => $cp['room_number'], 'folio_number' => $cp['folio_number'], 'guest_name' => $cp['guest_name']], null, 'frontdesk');
+        ws_broadcast('ROOM_STATUS_CHANGED', ['room_id' => (int)$cp['room_id'], 'room_number' => $cp['room_number'], 'status' => 'OCCUPIED'], null, null, null, true);
 
         out([
             'ok' => true,
@@ -3357,6 +3360,8 @@ if ($action === 'approve_group_checkin_payment') {
                 ]);
             $pdo->prepare("UPDATE stays SET status='ACTIVE', actual_checkin_at=? WHERE id=?")
                 ->execute([$checkinAt, (int)$room['stay_id']]);
+            $pdo->prepare("UPDATE rooms SET status='OCCUPIED' WHERE id=?")
+                ->execute([(int)$room['room_id']]);
 
             $vatAllocation = htl_payment_vat_allocation(
                 $roomState['tax'],
@@ -3444,6 +3449,7 @@ if ($action === 'approve_group_checkin_payment') {
                 'group_booking_id' => $groupBookingId,
                 'group_code' => $group['group_code']
             ], null, 'frontdesk');
+            ws_broadcast('ROOM_STATUS_CHANGED', ['room_id' => $allocation['room_id'], 'room_number' => $allocation['room_number'], 'status' => 'OCCUPIED'], null, null, null, true);
         }
 
         $totalDiscountCents = array_sum(array_column($roomStates, 'discount_cents'));

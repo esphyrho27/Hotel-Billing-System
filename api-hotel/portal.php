@@ -95,6 +95,10 @@ $portalMenuPhotoRules = [
     '/Redhorse|beer/i' => '/assets/menu/redhorse.png',
 ];
 
+function portal_room_status_label(string $status): string {
+    return $status === 'RESERVED' ? 'Reserved — payment pending' : $status;
+}
+
 function portal_menu_photo_match(string $itemName): ?string {
     global $portalMenuPhotoRules;
     foreach ($portalMenuPhotoRules as $pattern => $imagePath) {
@@ -1645,7 +1649,7 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
       <?php endif; ?>
 
       <section class="stats" aria-label="Stay summary">
-        <article class="stat"><div class="stat-label">Your room</div><div class="stat-value"><?=portal_escape($stay['room_number'])?></div><p class="stat-note" data-live-room-status>Assigned room<?= !empty($stay['room_status']) ? ' · Room status: ' . portal_escape((string)$stay['room_status']) : '' ?></p></article>
+        <article class="stat"><div class="stat-label">Your room</div><div class="stat-value"><?=portal_escape($stay['room_number'])?></div><p class="stat-note" data-live-room-status>Assigned room<?= !empty($stay['room_status']) ? ' · Room status: ' . portal_escape(portal_room_status_label((string)$stay['room_status'])) : '' ?></p></article>
         <article class="stat"><div class="stat-label">Stay reference</div><div class="stat-value"><?=portal_escape($stay['stay_code'])?></div><p class="stat-note">For front desk assistance</p></article>
         <article class="stat"><div class="stat-label">Open requests</div><div class="stat-value"><?=portal_escape($openRequests)?></div><p class="stat-note">Requests being handled</p></article>
       </section>
@@ -3401,7 +3405,8 @@ $openRequests = count(array_filter($requests, static fn(array $request): bool =>
           const currentRoomStatus = String(payload.stay?.room_status || "");
           if (currentRoomStatus) {
             const roomStatusEl = document.querySelector("[data-live-room-status]");
-            if (roomStatusEl) roomStatusEl.textContent = `Assigned room · Room status: ${currentRoomStatus}`;
+            const roomStatusLabel = currentRoomStatus === 'RESERVED' ? 'Reserved — payment pending' : currentRoomStatus;
+            if (roomStatusEl) roomStatusEl.textContent = `Assigned room · Room status: ${roomStatusLabel}`;
             if (hasBaseline && previousRoomStatus && previousRoomStatus !== currentRoomStatus && currentRoomStatus === "AVAILABLE") {
               const prevStayForRoom = previousStayState ? JSON.parse(previousStayState) : {};
               if (prevStayForRoom.status === payload.stay?.status && prevStayForRoom.room_number === payload.stay?.room_number) {
