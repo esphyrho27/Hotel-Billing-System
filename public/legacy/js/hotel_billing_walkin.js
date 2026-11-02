@@ -291,6 +291,7 @@
           <td><strong>${esc(record.actual_checkout_at || record.actual_checkout || '—')}</strong><div class="small text-muted">Scheduled: ${esc(record.scheduled_checkout_at || record.planned_checkout || '—')}</div></td>
           <td>${Number(record.nights_stayed)} night(s)</td>
           <td class="text-end"><strong>${php(record.final_amount)}</strong><div class="small text-muted">Paid ${php(record.payments_received)}</div></td>
+          <td>${Number(record.folio_id) ? `<button type="button" class="btn btn-sm btn-outline-dark" onclick="HotelBilling.showCheckoutReceipts(${Number(record.folio_id)}, '${esc(record.stay_code)}')"><i class="bi bi-printer me-1"></i>Receipts</button>` : '<span class="text-muted">—</span>'}</td>
         </tr>`;
       }).join('');
       const page = Number(data.page) || 1;
@@ -312,7 +313,7 @@
           </div>
         </form>
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2"><span class="small text-muted">Showing ${start}–${end} of ${Number(data.total) || 0} completed checkout(s)</span><span class="small text-muted">Final bill includes recorded charges, discounts and VAT.</span></div>
-        ${table(['Guest / Stay', 'Room', 'Scheduled / Actual Check-in', 'Checked out', 'Nights', 'Final / Paid'], rows, 'No checked-out guests match these filters.')}
+        ${table(['Guest / Stay', 'Room', 'Scheduled / Actual Check-in', 'Checked out', 'Nights', 'Final / Paid', 'Receipts'], rows, 'No checked-out guests match these filters.')}
         <div class="d-flex justify-content-end align-items-center gap-2 mt-3">
           <button type="button" class="btn btn-outline-secondary btn-sm" data-checkout-page="${page - 1}" ${page <= 1 ? 'disabled' : ''}>Previous</button>
           <span class="small text-muted">Page ${page} of ${pages}</span>
@@ -341,6 +342,56 @@
     } catch (error) {
       host.innerHTML = `<div class="alert alert-danger" role="alert">${esc(error.message || 'Checkout history could not be loaded.')}</div>`;
     }
+  }
+
+  // Checked-Out Guests: list the individual payment receipts for one folio.
+  // Uses the existing folio endpoint (billing.view, so frontdesk can use it)
+  // rather than payment_history, which is admin/manager/cashier only. Each
+  // row opens the existing official receipt viewer, which already prints.
+  // The list modal is hidden first, matching the checkout flow's
+  // hide-then-open pattern, so two Bootstrap modals never stack.
+  async function showCheckoutReceipts(folioId, stayCode) {
+    const id = Number(folioId);
+    if (!id) return;
+    try {
+      const d = await api('folio', { folio_id: id });
+      const payments = d.payments || [];
+      if (!payments.length) {
+        modal(`Payment receipts · ${esc(stayCode || '')}`, '<div class="text-muted">No payment receipts recorded for this stay.</div>');
+        return;
+      }
+      const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+      const rows = payments.map(p => `<tr>
+        <td>${esc(p.created_at)}</td>
+        <td><strong>${esc(p.receipt_number)}</strong></td>
+        <td>${esc(p.method)}</td>
+        <td class="text-end">${php(p.amount)}</td>
+        <td><button type="button" class="btn btn-sm btn-outline-dark" onclick="HotelBilling.viewCheckoutReceipt('${esc(p.receipt_number)}')"><i class="bi bi-printer me-1"></i>View receipt</button></td>
+      </tr>`).join('');
+      const listModal = modal(`Payment receipts · ${esc(stayCode || '')} · Folio ${esc(d.folio?.folio_number || '')}`,
+        `${table(['Date / Time', 'Receipt', 'Method', 'Amount', ''], rows, 'No payment receipts recorded for this stay.')}
+         <div class="d-flex justify-content-between align-items-center mt-3"><span class="small text-muted">Each receipt opens the official payment receipt, which can be printed.</span><strong>Total of receipts: ${php(totalPaid)}</strong></div>`);
+      window.HotelBilling.checkoutReceiptsModal = listModal;
+    } catch (error) {
+      notify('Unable to load payment receipts: ' + (error.message || 'Unknown error'), true);
+    }
+  }
+
+  async function viewCheckoutReceipt(receiptNumber) {
+    const listModal = window.HotelBilling.checkoutReceiptsModal;
+    if (listModal && listModal.root && listModal.root.classList.contains('show')) {
+      const closed = new Promise(resolve => listModal.root.addEventListener('hidden.bs.modal', resolve, { once: true }));
+      listModal.m.hide();
+      await closed;
+    }
+    window.HotelBilling.checkoutReceiptsModal = null;
+    // showReceiptModal fetches receipt_details (frontdesk included) and
+    // renders the official receipt only: its Check-Out button requires a
+    // stay_id, which receipt_details never returns, so no checkout action
+    // can leak into this checked-out view. The folio button it offers is
+    // safe too: the folio modal disables checkout and payment and hides
+    // Add charge for a PAID folio.
+    await showReceiptModal(receiptNumber);
   }
 
   let serviceDashboardLastRender = 0;
@@ -7937,7 +7988,7 @@ async function transfer(id) {
 
       const canCheckout = folioCan('stays.checkout', ['admin', 'frontdesk'].includes(curRole));
 
-      const canAddCharge = curRole !== 'frontdesk' && folioCan('charges.create', ['admin', 'manager', 'cashier'].includes(curRole));
+      const canAddCharge = folioCan('charges.create', ['admin', 'manager', 'cashier', 'frontdesk'].includes(curRole));
 
       const dateOnly=v=>String(v||'—').replace('T',' ').replace(/\s\d{2}:\d{2}:\d{2}.*/, '');
 
@@ -8299,7 +8350,7 @@ async function transfer(id) {
     }
   }
 
-  window.HotelBilling={api,open,getActiveModule:()=>activeModule,notify,refreshRequestBadge,checkin,bookAdditionalRoom,guestDetails,approveCheckinPayment,approveGroupCheckinPayment,confirmCheckinPayment,cancelPendingCheckin,renderWalkinCheckin,renderCheckoutDashboard,renderEarlyCheckoutRequests,selectRoomForWalkin:(roomId)=>{const sel=document.getElementById('wkd-room-id');if(sel){sel.value=String(roomId);sel.dispatchEvent(new Event('change'));sel.scrollIntoView({behavior:'smooth',block:'center'});sel.focus();}},folio,addCharge,pay,earlyCheckout,decideEarlyCheckout,finalizeEarlyCheckout,decideStayExtension,editEarlyPolicy,editDiscountPolicy,deleteDiscountPolicy,transfer,checkout,roomStatus,requestStatus,assignRequest,handleRequestAction,viewHistory,addRoom,editRoom,addRoomType,editRoomType,addMenuItem,editMenuItem,toggleMenuItem,reportDetails,savedGuestLinks,showCheckinComplete,showStayQr,showReceiptModal,refreshChatBadge};
+  window.HotelBilling={api,open,getActiveModule:()=>activeModule,notify,refreshRequestBadge,checkin,bookAdditionalRoom,guestDetails,approveCheckinPayment,approveGroupCheckinPayment,confirmCheckinPayment,cancelPendingCheckin,renderWalkinCheckin,renderCheckoutDashboard,renderEarlyCheckoutRequests,selectRoomForWalkin:(roomId)=>{const sel=document.getElementById('wkd-room-id');if(sel){sel.value=String(roomId);sel.dispatchEvent(new Event('change'));sel.scrollIntoView({behavior:'smooth',block:'center'});sel.focus();}},folio,addCharge,pay,earlyCheckout,decideEarlyCheckout,finalizeEarlyCheckout,decideStayExtension,editEarlyPolicy,editDiscountPolicy,deleteDiscountPolicy,transfer,checkout,roomStatus,requestStatus,assignRequest,handleRequestAction,viewHistory,addRoom,editRoom,addRoomType,editRoomType,addMenuItem,editMenuItem,toggleMenuItem,reportDetails,savedGuestLinks,showCheckinComplete,showStayQr,showReceiptModal,showCheckoutReceipts,viewCheckoutReceipt,refreshChatBadge};
 
   document.addEventListener('hotel:authenticated',(event)=>{
 

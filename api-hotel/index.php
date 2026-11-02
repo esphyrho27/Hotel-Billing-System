@@ -2406,7 +2406,7 @@ if ($action === 'checkout_history') {
     $offset = ($page - 1) * $pageSize;
 
     $rowsQuery = $pdo->prepare(
-        "SELECT s.id AS stay_id, s.stay_code, s.guest_count, s.checkin_at, s.actual_checkin_at,
+        "SELECT s.id AS stay_id, f.id AS folio_id, s.stay_code, s.guest_count, s.checkin_at, s.actual_checkin_at,
                 s.planned_checkout, s.actual_checkout, r.room_number,
                 f.folio_number, c.first_name, c.middle_name, c.last_name,
                 c.contact_number, c.email, cr.scheduled_checkout_at,
