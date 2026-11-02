@@ -1170,7 +1170,51 @@
         return;
       }
 
-      $('dashboard-content').innerHTML=statsRow(stats)+managerRoomChart+managerTransferApprovalCard+checkinPaymentsCard+approvalsCard+billingCard+fdNoticeCard+requestBanner+`<div class="d-flex flex-wrap gap-2 mb-3">${quickActions}</div><div class="alert alert-light border"><strong>Shesh Dev Hotel Billing &amp; Guest Management.</strong> Operations and role actions are strictly tailored to your role. All active dashboard buttons are fully functional.</div>`;
+      // Frontdesk dashboard: Next checkouts card, directly under the stat cards.
+      // Same gate as the frontdesk stat cards (frontdesk block + check-in
+      // permission). Renders its empty state when the list is empty.
+      const nextCheckoutsCard = (() => {
+        if (!d.frontdesk || !canCheckin) return '';
+        const fmtCheckoutAt = (v) => {
+          const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/);
+          if (!m) return esc(String(v || ''));
+          const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]));
+          let h = Number(m[4]); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+          return `${days[dt.getDay()]}, ${months[Number(m[2]) - 1]} ${Number(m[3])} \u00b7 ${h}:${m[5]} ${ap}`;
+        };
+        const badgeFor = (row) => {
+          if (row.is_early_departure || row.label === 'Early departure') return '<span class="badge text-bg-info">Early departure</span>';
+          if (row.label === 'Overdue') return '<span class="badge text-bg-danger">Overdue</span>';
+          if (row.label === 'Today') return '<span class="badge text-bg-warning text-dark">Today</span>';
+          return `<span class="badge text-bg-light border text-muted">${esc(row.label)}</span>`;
+        };
+        const ncRows = (d.frontdesk.next_checkouts || []);
+        const ncCanCheckout = ['admin', 'frontdesk'].includes(roleKey);
+        const ncBody = ncRows.length ? ncRows.map((row, i) => `
+          <div class="d-flex justify-content-between align-items-center gap-2 py-2${i === ncRows.length - 1 ? '' : ' border-bottom'}">
+            <div class="min-w-0">
+              <div class="fw-bold text-truncate">${esc(row.guest_name || 'Guest')}</div>
+              <div class="small text-muted">Room ${esc(row.room_number)} \u00b7 Folio ${esc(row.folio_number)}</div>
+            </div>
+            <div class="text-end flex-shrink-0">
+              <div class="small fw-semibold">${fmtCheckoutAt(row.checkout_at)}</div>
+              <div>${badgeFor(row)}</div>
+            </div>
+            ${ncCanCheckout ? `<button class="btn btn-sm btn-outline-success flex-shrink-0" onclick="HotelBilling.checkout(${Number(row.stay_id)})"><i class="bi bi-box-arrow-right me-1"></i>Checkout</button>` : ''}
+          </div>`).join('') : '<div class="text-muted py-2">No upcoming checkouts.</div>';
+        return `
+          <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3">
+              <h6 class="fw-bold mb-0"><i class="bi bi-box-arrow-right me-2 text-primary"></i>Next checkouts</h6>
+              <div class="small text-muted">Soonest first \u00b7 checkout at 12:00 PM unless noted</div>
+            </div>
+            <div class="card-body py-1 px-3">${ncBody}</div>
+          </div>`;
+      })();
+
+      $('dashboard-content').innerHTML=statsRow(stats)+nextCheckoutsCard+managerRoomChart+managerTransferApprovalCard+checkinPaymentsCard+approvalsCard+billingCard+fdNoticeCard+requestBanner+`<div class="d-flex flex-wrap gap-2 mb-3">${quickActions}</div><div class="alert alert-light border"><strong>Shesh Dev Hotel Billing &amp; Guest Management.</strong> Operations and role actions are strictly tailored to your role. All active dashboard buttons are fully functional.</div>`;
 
     } else if (id==='rooms') {
 

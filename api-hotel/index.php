@@ -502,6 +502,48 @@ if ($action === 'dashboard') {
             htl_ensure_checkin_payments($pdo);
             $response['frontdesk']['pending_payments'] = (int)$pdo->query("SELECT COUNT(*) n FROM checkin_payments WHERE status='FOR_PAYMENT'")->fetch()['n'];
             $response['frontdesk']['payments_to_confirm'] = (int)$pdo->query("SELECT COUNT(*) n FROM checkin_payments WHERE status='APPROVED' AND confirmed_at IS NULL")->fetch()['n'];
+
+            // Next checkouts: active stays with an open folio, soonest checkout
+            // first. Checkout time reuses the house rule (noon on the planned
+            // checkout date); a finalized manager-exception early departure
+            // overrides it with its approved departure time.
+            $nextCheckouts = [];
+            $ncRows = $pdo->query("SELECT s.id AS stay_id, s.planned_checkout, r.room_number, f.folio_number, TRIM(CONCAT_WS(' ', c.first_name, NULLIF(c.middle_name, ''), c.last_name)) AS guest_name FROM stays s JOIN rooms r ON r.id=s.room_id JOIN folios f ON f.stay_id=s.id LEFT JOIN customers c ON c.customer_id=s.customer_id WHERE s.status='ACTIVE' AND f.status='OPEN' ORDER BY s.planned_checkout ASC, r.room_number ASC LIMIT 10")->fetchAll();
+            $ncToday = new DateTimeImmutable('today', hotel_timezone());
+            $ncTomorrow = $ncToday->modify('+1 day');
+            foreach ($ncRows as $ncRow) {
+                $ncPlanned = new DateTimeImmutable(substr((string)$ncRow['planned_checkout'], 0, 10), hotel_timezone());
+                $ncCheckoutAt = hotel_scheduled_checkout_at((string)$ncRow['planned_checkout']);
+                if ($ncPlanned < $ncToday) {
+                    $ncLabel = 'Overdue';
+                } elseif ($ncPlanned == $ncToday) {
+                    $ncLabel = 'Today';
+                } elseif ($ncPlanned == $ncTomorrow) {
+                    $ncLabel = 'Tomorrow';
+                } else {
+                    $ncLabel = 'in ' . $ncToday->diff($ncPlanned)->format('%a') . ' days';
+                }
+                $ncEarly = false;
+                $ncEq = $pdo->prepare("SELECT requested_departure_at FROM early_checkout_requests WHERE stay_id=? AND status='FINALIZED' AND request_type='EARLY_CHECKOUT' AND policy='MANAGER_EXCEPTION' ORDER BY approved_at DESC, id DESC LIMIT 1");
+                $ncEq->execute([(int)$ncRow['stay_id']]);
+                $ncEarlyRow = $ncEq->fetch();
+                if ($ncEarlyRow && !empty($ncEarlyRow['requested_departure_at'])) {
+                    $ncCheckoutAt = new DateTimeImmutable((string)$ncEarlyRow['requested_departure_at'], hotel_timezone());
+                    $ncLabel = 'Early departure';
+                    $ncEarly = true;
+                }
+                $nextCheckouts[] = [
+                    'stay_id' => (int)$ncRow['stay_id'],
+                    'guest_name' => $ncRow['guest_name'],
+                    'room_number' => $ncRow['room_number'],
+                    'folio_number' => $ncRow['folio_number'],
+                    'planned_checkout' => substr((string)$ncRow['planned_checkout'], 0, 10),
+                    'checkout_at' => $ncCheckoutAt->format('Y-m-d H:i:s'),
+                    'label' => $ncLabel,
+                    'is_early_departure' => $ncEarly,
+                ];
+            }
+            $response['frontdesk']['next_checkouts'] = $nextCheckouts;
         } catch (Throwable $e) {
             // Optional block: core dashboard metrics remain available.
         }
