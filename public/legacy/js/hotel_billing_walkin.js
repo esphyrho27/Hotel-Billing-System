@@ -2554,7 +2554,7 @@
 
     } else if (id==='settings') {
 
-      const u=window.HotelAuth.getUser(); $('settings-content').innerHTML=`<div class="card border-0 shadow-sm mb-4"><div class="card-body"><h6 class="fw-bold">Account & system settings</h6><p>Signed in as <strong>${esc(u?.username)}</strong> (${esc(u?.role)}).</p><p>Hotel billing stores stay and folio references, not a guest directory. The guest portal token is private and should be shared directly with the guest.</p><hr><form id="pw-form" class="row g-3"><div class="col-md-4"><label class="form-label">Current password</label><input class="form-control" name="old_password" type="password" required></div><div class="col-md-4"><label class="form-label">New password (minimum 6 characters)</label><input class="form-control" name="new_password" type="password" minlength="6" required></div><div class="col-md-4 d-flex align-items-end"><button class="btn btn-primary">Change Password</button></div></form></div></div><div id="policy-admin"><div class="text-muted p-3">Loading policy lookups…</div></div>`; $('pw-form').onsubmit=async e=>{e.preventDefault();try{await api('change_password',Object.fromEntries(new FormData(e.target)));notify('Password updated.');e.target.reset()}catch(err){notify(err.message,true)}}; if(u?.role==='admin') await renderPolicyAdmin(); else $('policy-admin').textContent='Policy configuration is managed by an administrator.';
+      const u=window.HotelAuth.getUser(); $('settings-content').innerHTML=`<div class="card border-0 shadow-sm mb-4"><div class="card-body"><h6 class="fw-bold">Account & system settings</h6><p>Signed in as <strong>${esc(u?.username)}</strong> (${esc(u?.role)}).</p><p>Hotel billing stores stay and folio references, not a guest directory. The guest portal token is private and should be shared directly with the guest.</p><hr><form id="pw-form" class="row g-3"><div class="col-md-4"><label class="form-label">Current password</label><input class="form-control" name="old_password" type="password" required></div><div class="col-md-4"><label class="form-label">New password (minimum 6 characters)</label><input class="form-control" name="new_password" type="password" minlength="6" required></div><div class="col-md-4 d-flex align-items-end"><button class="btn btn-primary">Change Password</button></div></form></div></div><div id="policy-admin"><div class="text-muted p-3">Loading policy lookups…</div></div>`; $('pw-form').onsubmit=async e=>{e.preventDefault();try{await api('change_password',Object.fromEntries(new FormData(e.target)));notify('Password updated.');e.target.reset()}catch(err){notify(err.message,true)}}; if(['admin','manager'].includes((u?.role||'').toLowerCase())) await renderPolicyAdmin(); else $('policy-admin').textContent='Policy configuration is managed by an administrator or manager.';
 
     }
 
@@ -4757,6 +4757,8 @@ async function confirmCheckinPayment(cpId) {
   }
 
   async function renderPolicyAdmin(){const host=$('policy-admin');if(!host)return;try{const [ep,dp]=await Promise.all([api('early_checkout_policies',{},'GET'),api('discount_policy_admin_list',{},'GET')]);const policies=ep.policies||[], discounts=dp.discounts||[];
+    let lateSettings={enabled:true,grace_minutes:60,cutoff_time:'18:00',fee_percent:50};
+    try{const lp=await api('late_checkout_policy',{},'GET');if(lp.settings)lateSettings=lp.settings;}catch(_){}
 
     const er=policies.map(p=>`<tr><td><strong>${esc(p.name)}</strong><div class="small text-muted">${esc(p.policy_key)}</div><div class="small">${esc(p.description||'')}</div></td><td>${Number(p.minimum_hours)} h</td><td>${Number(p.minimum_nights)} night(s)</td><td>${php(p.fixed_fee)}</td><td>${Number(p.requires_manager)?'Yes':'No'}</td><td>${Number(p.active)?pill('ACTIVE'):pill('INACTIVE')}</td><td><button class="btn btn-sm btn-outline-primary" onclick="HotelBilling.editEarlyPolicy(${Number(p.id)})">Edit</button></td></tr>`).join('');
 
@@ -4854,7 +4856,8 @@ async function confirmCheckinPayment(cpId) {
 
     const hasManagerException=policies.some(p=>p.policy_key==='MANAGER_EXCEPTION');
     const hasHourlyFeePolicy=policies.some(p=>p.policy_key==='HOURLY_PLUS_FEE');
-    host.innerHTML=`<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-4"><div><h5 class="fw-bold mb-1">Early checkout policy lookup</h5><p class="text-muted small mb-0">Early departure is blocked by default. Only an active manager-approved exception can authorize it; billing policies do not permit early room release.</p></div><div class="d-flex gap-2">${hasManagerException?'':'<button class="btn btn-outline-primary btn-sm" id="add-manager-exception">＋ Configure manager exception</button>'}${hasHourlyFeePolicy?'':'<button class="btn btn-primary btn-sm" id="add-hourly-fee-policy">＋ Configure hourly + ₱500 fee</button>'}</div></div>
+    host.innerHTML=`<div class="card border-0 shadow-sm mt-4"><div class="card-body"><h5 class="fw-bold mb-1">Late checkout / overstay rule</h5><p class="text-muted small mb-3">Calculated at checkout only — never an auto-checkout and never a background charge. Scheduled checkout is 12:00 PM; the fee and extra nights below are posted only after front desk confirms them at checkout, and only a manager can waive them. Turning the rule off restores manual-only charging.</p><form id="late-checkout-form" class="row g-3"><div class="col-md-3 form-check ms-2 d-flex align-items-center"><input class="form-check-input me-2" type="checkbox" name="enabled" value="1" ${lateSettings.enabled?'checked':''}><label class="form-check-label">Rule enabled</label></div><div class="col-md-3"><label class="form-label">Grace period (minutes after 12:00 PM)</label><input class="form-control" type="number" name="grace_minutes" min="0" max="720" required value="${Number(lateSettings.grace_minutes)}"></div><div class="col-md-3"><label class="form-label">Evening cutoff (HH:MM, full night after this)</label><input class="form-control" name="cutoff_time" pattern="[0-9]{2}:[0-9]{2}" required value="${esc(lateSettings.cutoff_time)}"></div><div class="col-md-3"><label class="form-label">Late fee (% of nightly rate)</label><input class="form-control" type="number" name="fee_percent" min="0" max="100" step="0.01" required value="${Number(lateSettings.fee_percent)}"></div><div class="col-12 text-end"><button class="btn btn-primary">Save late checkout rule</button></div></form></div></div>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-4"><div><h5 class="fw-bold mb-1">Early checkout policy lookup</h5><p class="text-muted small mb-0">Early departure is blocked by default. Only an active manager-approved exception can authorize it; billing policies do not permit early room release.</p></div><div class="d-flex gap-2">${hasManagerException?'':'<button class="btn btn-outline-primary btn-sm" id="add-manager-exception">＋ Configure manager exception</button>'}${hasHourlyFeePolicy?'':'<button class="btn btn-primary btn-sm" id="add-hourly-fee-policy">＋ Configure hourly + ₱500 fee</button>'}</div></div>
 
     <div class="d-none d-md-block">${table(['Policy','Minimum hours','Minimum nights','Fixed fee','Manager approval','Status','Action'],er,'No early checkout policies.')}</div>
 
@@ -4869,6 +4872,7 @@ async function confirmCheckinPayment(cpId) {
     host.querySelector('#add-manager-exception')?.addEventListener('click',addManagerExceptionPolicy);
     host.querySelector('#add-hourly-fee-policy')?.addEventListener('click',addHourlyFeePolicy);
     host.querySelector('#add-discount-policy')?.addEventListener('click',()=>editDiscountPolicy(0));
+    host.querySelector('#late-checkout-form')?.addEventListener('submit',async e=>{e.preventDefault();const f=e.currentTarget;try{await api('late_checkout_policy_save',{enabled:f.elements.enabled.checked?1:0,grace_minutes:Number(f.elements.grace_minutes.value),cutoff_time:String(f.elements.cutoff_time.value).trim(),fee_percent:Number(f.elements.fee_percent.value)});notify('Late checkout rule saved.');await renderPolicyAdmin();}catch(err){notify(err.message,true);}});
 
   }catch(e){host.innerHTML=`<div class="alert alert-warning">Policy tables could not load: ${esc(e.message)}. Run the included SQL migration and sign in as admin or manager.</div>`;}}
 
@@ -6690,11 +6694,45 @@ async function transfer(id) {
 
   }
 
+  // Dialog shown when the server returns needs_confirmation for a checkout
+  // with an automatic late charge. Resolves to the successful checkout result,
+  // or null if the user cancels or the retry fails (the review dialog stays
+  // open behind this one, so staff can settle the new total and retry).
+  async function lateCheckoutConfirm(id, lc, newFinalAmount) {
+    const role = (window.HotelAuth?.getUser()?.role || '').toLowerCase();
+    const canWaive = ['admin', 'manager'].includes(role);
+    const lineRows = (lc.lines || []).map(l => {
+      const amount = l.indexOf('Late checkout fee') === 0 ? lc.late_fee_amount : lc.nightly_rate;
+      return `<tr><td>${esc(l)}</td><td class="text-end">${php(amount)}</td></tr>`;
+    }).join('');
+    return new Promise(resolve => {
+      const z = modal('Automatic late charge — confirm', `<p class="text-muted small mb-2">Scheduled checkout ${esc(lc.scheduled_checkout_at)} · Hotel time ${esc(lc.actual_checkout_at)} · Nightly rate ${php(lc.nightly_rate)}. Nothing has been posted yet.</p><table class="table table-sm"><tbody>${lineRows}<tr><th>Total automatic charge</th><th class="text-end">${php(lc.total_auto_amount)}</th></tr><tr><td>New total to pay if confirmed</td><td class="text-end">${php(newFinalAmount)}</td></tr></tbody></table>${(lc.notes || []).map(n => `<div class="small text-muted">${esc(n)}</div>`).join('')}<div class="mt-3"><label class="form-label">Waive reason (required to waive)</label><input class="form-control" id="late-waive-reason" placeholder="e.g. guest was moved by housekeeping delay"></div><div class="d-flex justify-content-end gap-2 mt-3"><button type="button" class="btn btn-outline-secondary" id="late-cancel">Cancel</button><button type="button" class="btn btn-outline-warning" id="late-waive" ${canWaive ? '' : 'disabled title="Only a manager or administrator can waive this charge"'}>Waive charge</button><button type="button" class="btn btn-success" id="late-confirm">Confirm and add charges</button></div>${canWaive ? '' : '<div class="small text-muted mt-2">Waiving requires a manager or administrator.</div>'}`);
+      z.root.querySelector('#late-cancel').onclick = () => { z.m.hide(); resolve(null); };
+      z.root.querySelector('#late-confirm').onclick = async e => {
+        const btn = e.currentTarget; btn.disabled = true;
+        try {
+          const result = await api('checkout', { stay_id: id, confirm: 1 });
+          z.m.hide(); resolve(result);
+        } catch (err) { notify(err.message, true); z.m.hide(); resolve(null); }
+      };
+      z.root.querySelector('#late-waive').onclick = async e => {
+        if (!canWaive) return;
+        const reason = String(z.root.querySelector('#late-waive-reason').value || '').trim();
+        if (!reason) { notify('Enter a reason for waiving the automatic late charge.', true); return; }
+        const btn = e.currentTarget; btn.disabled = true;
+        try {
+          const result = await api('checkout', { stay_id: id, waive: 1, waive_reason: reason });
+          z.m.hide(); resolve(result);
+        } catch (err) { notify(err.message, true); z.m.hide(); resolve(null); }
+      };
+    });
+  }
+
   async function checkout(id) {
 
     const checkoutRole = (window.HotelAuth?.getUser()?.role || '').toLowerCase();
-    if (!['admin', 'frontdesk'].includes(checkoutRole)) {
-      return notify('Only Front Desk can finalize guest checkout.', true);
+    if (!['admin', 'frontdesk', 'manager'].includes(checkoutRole)) {
+      return notify('Only Front Desk, a manager, or an administrator can finalize guest checkout.', true);
     }
 
     try {
@@ -6707,6 +6745,17 @@ async function transfer(id) {
 
       const balanceDue = d.settlement_status === 'ADDITIONAL_PAYMENT_DUE' ? Math.abs(Number(d.settlement_delta)) : 0;
 
+      // Automatic late-checkout / overstay amount shown by the preview. It is
+      // NOT posted yet: confirming checkout will ask first, and the new total
+      // below (old total + pending auto amount) must be settled before the
+      // folio can close, because a confirmed charge inside the checkout
+      // transaction rolls back if the balance check then fails.
+      const latePreview=d.late_checkout||null;
+      const autoTotal=latePreview?Number(latePreview.total_auto_amount||0):0;
+      const newFinalAmount=Number(d.final_amount||0)+autoTotal;
+      const newBalanceDue=Math.max(0,newFinalAmount-Number(d.payments_received||0));
+      const isSettledWithAuto=newBalanceDue<=0.009;
+
 
 
 
@@ -6716,10 +6765,15 @@ async function transfer(id) {
 
         statusAlert = `<div class="alert alert-danger mt-3 mb-0"><strong>Checkout blocked.</strong> Early checkout request #${Number(pending.id)} is ${pending.status==='REQUESTED'?'pending approval':'approved but not finalized'}. Open <strong>Early Checkout Approvals</strong> to resolve and finalize this request first. Checkout will remain unavailable until the request is finalized or rejected.</div>`;
 
-      } else if (!isSettled && balanceDue > 0.009) {
+      } else if (!isSettledWithAuto && newBalanceDue > 0.009) {
 
-        statusAlert = `<div class="alert alert-warning mt-3 mb-0 d-flex justify-content-between align-items-center flex-wrap gap-2"><div><strong><i class="bi bi-exclamation-triangle-fill me-1"></i>Payment Not Settled:</strong> Outstanding balance of <strong>${php(balanceDue)}</strong> must be settled before checkout.</div><button type="button" class="btn btn-sm btn-primary" id="checkout-settle-btn"><i class="bi bi-credit-card me-1"></i>Settle Balance / Pay Now</button></div>`;
+        statusAlert = `<div class="alert alert-warning mt-3 mb-0 d-flex justify-content-between align-items-center flex-wrap gap-2"><div><strong><i class="bi bi-exclamation-triangle-fill me-1"></i>Payment Not Settled:</strong> Outstanding balance of <strong>${php(newBalanceDue)}</strong> must be settled before checkout.${autoTotal>0?` This includes the pending automatic late charge of <strong>${php(autoTotal)}</strong> (not yet posted).`:''}</div><button type="button" class="btn btn-sm btn-primary" id="checkout-settle-btn"><i class="bi bi-credit-card me-1"></i>Settle Balance / Pay Now</button></div>`;
 
+      }
+
+      if (autoTotal > 0.009) {
+        const lateLines=(latePreview.lines||[]).map(l=>`<div>${esc(l)} — ${php(l.indexOf('Late checkout fee')===0?latePreview.late_fee_amount:latePreview.nightly_rate)}</div>`).join('');
+        statusAlert += `<div class="alert alert-info mt-3 mb-0"><strong>Automatic late charge pending (not yet posted):</strong> Scheduled checkout ${esc(latePreview.scheduled_checkout_at)}, hotel time ${esc(d.hotel_now)}, nightly rate ${php(latePreview.nightly_rate)}.${lateLines}<div class="mt-1">New total to pay if confirmed: <strong>${php(newFinalAmount)}</strong>. Confirming checkout will ask you to confirm these charges first; only a manager can waive them.</div>${(latePreview.notes||[]).map(n=>`<div class="small">${esc(n)}</div>`).join('')}</div>`;
       }
 
       const checkoutAllowed = Boolean(d.checkout_allowed);
@@ -6731,7 +6785,7 @@ async function transfer(id) {
         statusAlert += `<div class="alert alert-warning mt-3 mb-0"><strong>Checkout is not yet allowed.</strong> Standard checkout is at 12:00 PM on ${esc(d.stay.planned_checkout)} (${esc(d.hotel_timezone)}). Current hotel time: ${esc(d.hotel_now)}.${exceptionMessage}</div>`;
       }
 
-      const canConfirm = isSettled && !pending && checkoutAllowed;
+      const canConfirm = isSettledWithAuto && !pending && checkoutAllowed;
 
       const disabledReason = !checkoutAllowed ? 'Checkout is before the scheduled noon time or approved exception time' : 'Make sure payment is settled before checkout';
       const x=modal('Final checkout · Receipt review',`${checkoutReceiptHtml(d,false)}${statusAlert}<div class="d-flex justify-content-end gap-2 mt-3"><button type="button" class="btn btn-outline-secondary" id="cancel-checkout">Close</button><button type="button" class="btn btn-success" id="confirm-checkout" ${!canConfirm ? `disabled title="${disabledReason}"` : ''}><i class="bi bi-check2-circle me-1"></i>Confirm checkout</button></div>`);
@@ -6742,7 +6796,7 @@ async function transfer(id) {
 
         x.m.hide();
 
-        pay(d.stay.folio_id, balanceDue);
+        pay(d.stay.folio_id, newBalanceDue);
 
       });
 
@@ -6776,6 +6830,14 @@ async function transfer(id) {
         let result;
         try {
           result=await api('checkout',{stay_id:id});
+          if (result && result.needs_confirmation && result.late_checkout) {
+            result=await lateCheckoutConfirm(id, result.late_checkout, Number(d.final_amount||0)+Number(result.late_checkout.total_auto_amount||0));
+            if (!result) {
+              b.disabled=false;
+              b.innerHTML='<i class="bi bi-check2-circle me-1"></i>Confirm checkout';
+              return;
+            }
+          }
         } catch(err) {
           b.disabled=false;
           b.innerHTML='<i class="bi bi-check2-circle me-1"></i>Confirm checkout';
@@ -6794,7 +6856,14 @@ async function transfer(id) {
           console.error('[HotelBilling] Checkout completed, but the active dashboard could not refresh.', refreshError);
           notify('Checkout is complete, but this dashboard could not refresh. Reload to see the updated stay.', true);
         }
-        const finalData={...d,stay:{...d.stay,actual_checkout:result.actual_checkout||new Date().toLocaleString()},settlement_status:d.settlement_status};
+        // Re-read the preview so the final receipt includes any automatic
+        // late / overstay lines posted by this checkout, not the pre-checkout
+        // charge list.
+        let finalData={...d,stay:{...d.stay,actual_checkout:result.actual_checkout||new Date().toLocaleString()},settlement_status:d.settlement_status};
+        try {
+          const fresh=await api('final_bill_preview',{stay_id:id});
+          finalData={...fresh,stay:{...fresh.stay,actual_checkout:result.actual_checkout||fresh.stay.actual_checkout||new Date().toLocaleString()},settlement_status:fresh.settlement_status};
+        } catch (_) {}
         const y=modal('Checkout completed',`${checkoutReceiptHtml(finalData,true)}<div class="d-flex justify-content-end gap-2 mt-3"><button type="button" class="btn btn-outline-secondary" id="close-checkout-receipt">Close</button><button type="button" class="btn btn-primary" id="print-checkout-receipt">Print receipt</button></div>`);
 
         y.root.querySelector('#close-checkout-receipt').onclick=()=>{y.m.hide();open(activeModule)};

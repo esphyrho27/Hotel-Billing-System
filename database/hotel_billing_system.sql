@@ -562,7 +562,11 @@ CREATE TABLE `billing_policies` (
 --
 
 INSERT INTO `billing_policies` (`id`, `policy_key`, `policy_value`, `updated_by`, `updated_at`) VALUES
-(1, 'VAT_RATE', '12', NULL, '2026-10-24 13:12:29');
+(1, 'VAT_RATE', '12', NULL, '2026-10-24 13:12:29'),
+(2, 'LATE_CHECKOUT_ENABLED', '1', NULL, '2026-11-02 14:00:00'),
+(3, 'LATE_CHECKOUT_GRACE_MINUTES', '60', NULL, '2026-11-02 14:00:00'),
+(4, 'LATE_CHECKOUT_CUTOFF_TIME', '18:00', NULL, '2026-11-02 14:00:00'),
+(5, 'LATE_CHECKOUT_FEE_PERCENT', '50.00', NULL, '2026-11-02 14:00:00');
 
 -- --------------------------------------------------------
 

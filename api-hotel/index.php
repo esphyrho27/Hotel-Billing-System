@@ -3735,6 +3735,57 @@ if ($action === 'checkout') {
             throw new RuntimeException('Checkout is available at 12:00 PM on the scheduled checkout date (' . $scheduledCheckoutAt->format('Y-m-d H:i:s') . ') unless a finalized manager-approved early-checkout exception applies.');
         }
 
+        $q = $pdo->prepare("SELECT COUNT(*) n FROM service_requests WHERE stay_id=? AND status IN ('NEW','PENDING','ASSIGNED','ACKNOWLEDGED','ACCEPTED','IN_PROGRESS','ON_HOLD')");
+        $q->execute([$sid]);
+        if ((int)$q->fetch()['n'] > 0) {
+            throw new RuntimeException('Complete or cancel open service requests before checkout.');
+        }
+
+        // Automatic late-checkout / overstay rule. This runs after every
+        // checkout guard above and before the balance check, so a confirmed
+        // auto charge must be paid before the folio closes. The shared
+        // helper is the same code the preview uses. Nothing is posted
+        // silently: a first call with an amount due rolls back and returns
+        // needs_confirmation for the UI to prompt.
+        $lateCheckout = hotel_late_checkout_breakdown($pdo, $sid, (string)$s['planned_checkout'], (int)$s['folio_id'], (int)$s['room_id'], $actualDateTime, $earlyCheckoutException !== null);
+        $lateCheckoutOut = $lateCheckout;
+        $lateCheckoutOut['nightly_rate'] = money($lateCheckout['nightly_rate']);
+        $lateCheckoutOut['late_fee_amount'] = money($lateCheckout['late_fee_amount']);
+        $lateCheckoutOut['overstay_amount'] = money($lateCheckout['overstay_amount']);
+        $lateCheckoutOut['total_auto_amount'] = money($lateCheckout['total_auto_amount']);
+        $confirmLate = in_array(strtolower(trim((string)($in['confirm'] ?? ''))), ['1', 'true', 'yes'], true);
+        $waiveLate = in_array(strtolower(trim((string)($in['waive'] ?? ''))), ['1', 'true', 'yes'], true);
+        $latePostedThisCall = false;
+        if ($lateCheckout['total_auto_amount'] > 0.009) {
+            if (!$confirmLate && !$waiveLate) {
+                $pdo->rollBack();
+                out(['ok' => false, 'needs_confirmation' => true, 'late_checkout' => $lateCheckoutOut, 'message' => 'This checkout is past the scheduled time. Confirm the automatic late charge or have a manager waive it.']);
+            }
+            $latePostedThisCall = false;
+            if ($waiveLate) {
+                $waiveRole = strtolower(trim((string)($u['role'] ?? '')));
+                if (!in_array($waiveRole, ['admin', 'manager'], true)) {
+                    $pdo->rollBack();
+                    out(['error' => 'Only a manager or administrator can waive the automatic late charge.'], 403);
+                }
+                $waiveReason = trim((string)($in['waive_reason'] ?? ''));
+                if ($waiveReason === '') {
+                    throw new RuntimeException('Enter a reason for waiving the automatic late charge.');
+                }
+                audit($pdo, $u['id'], 'LATE_CHECKOUT_WAIVED', 'stay', $sid, ['amount_waived' => $lateCheckout['total_auto_amount'], 'late_fee_amount' => $lateCheckout['late_fee_amount'], 'overstay_nights' => $lateCheckout['overstay_nights'], 'overstay_amount' => $lateCheckout['overstay_amount'], 'reason' => substr($waiveReason, 0, 255)]);
+            } else {
+                $chargeInsert = $pdo->prepare('INSERT IGNORE INTO charges(folio_id, category, description, quantity, unit_price, amount, created_by, idempotency_key) VALUES(?, ?, ?, ?, ?, ?, ?, ?)');
+                if ($lateCheckout['late_fee_amount'] > 0.009) {
+                    $chargeInsert->execute([(int)$s['folio_id'], 'LATE_CHECKOUT', 'Late checkout fee — scheduled 12:00 PM, checked out ' . $actualDateTime->format('g:i A') . ' (' . rtrim(rtrim(number_format($lateCheckout['fee_percent'], 2, '.', ''), '0'), '.') . '% nightly rate)', 1, $lateCheckout['late_fee_amount'], $lateCheckout['late_fee_amount'], $u['id'], 'late-checkout:' . $sid . ':' . $s['planned_checkout']]);
+                }
+                foreach ($lateCheckout['overstay_dates'] as $overstayDate) {
+                    $chargeInsert->execute([(int)$s['folio_id'], 'ROOM', 'Overstay night — ' . $overstayDate, 1, $lateCheckout['nightly_rate'], $lateCheckout['nightly_rate'], $u['id'], 'overstay:' . $sid . ':' . $overstayDate]);
+                }
+                audit($pdo, $u['id'], 'LATE_CHECKOUT_POSTED', 'stay', $sid, ['late_fee_amount' => $lateCheckout['late_fee_amount'], 'overstay_nights' => $lateCheckout['overstay_nights'], 'overstay_amount' => $lateCheckout['overstay_amount'], 'total_auto_amount' => $lateCheckout['total_auto_amount'], 'nightly_rate' => $lateCheckout['nightly_rate']]);
+                $latePostedThisCall = true;
+            }
+        }
+
         $q = $pdo->prepare('SELECT COALESCE(SUM(amount),0) n FROM charges WHERE folio_id=?');
         $q->execute([$s['folio_id']]);
         $total = (float)$q->fetch()['n'];
@@ -3752,13 +3803,17 @@ if ($action === 'checkout') {
         $finalAmount = $tax['total_amount_cents'] / 100;
 
         if ($finalAmount - $paid > 0.009) {
+            // If this call just posted automatic charges, committing only
+            // those charges (the folio stays OPEN, the stay stays ACTIVE) is
+            // what makes the balance payable at all: the pay endpoint caps a
+            // payment at the current balance, so staff could never pre-pay a
+            // charge that had rolled back. A retry recomputes with the posted
+            // charges deducted, so it is never posted twice.
+            if ($latePostedThisCall) {
+                $pdo->commit();
+                out(['error' => 'Settle the discounted VAT-inclusive folio balance before checkout. The automatic late charges have already been posted to the folio and will not be posted again; settle them, then checkout again.'], 400);
+            }
             throw new RuntimeException('Settle the discounted VAT-inclusive folio balance before checkout.');
-        }
-
-        $q = $pdo->prepare("SELECT COUNT(*) n FROM service_requests WHERE stay_id=? AND status IN ('NEW','PENDING','ASSIGNED','ACKNOWLEDGED','ACCEPTED','IN_PROGRESS','ON_HOLD')");
-        $q->execute([$sid]);
-        if ((int)$q->fetch()['n'] > 0) {
-            throw new RuntimeException('Complete or cancel open service requests before checkout.');
         }
 
         $checkinDate = $checkinAt;
@@ -4120,7 +4175,7 @@ if ($action === 'final_bill_preview') {
         out(['error' => 'Choose a valid stay.'], 400);
     }
 
-    $q = $pdo->prepare("SELECT s.id, s.stay_code, s.checkin_at, s.actual_checkin_at, s.planned_checkout, s.actual_checkout, s.status AS stay_status, r.room_number, rt.nightly_rate, f.id AS folio_id, f.folio_number, f.status AS folio_status, c.customer_id, c.first_name, c.middle_name, c.last_name, c.contact_number, c.email, TRIM(CONCAT_WS(' ', c.first_name, NULLIF(c.middle_name, ''), c.last_name)) AS guest_name FROM stays s JOIN rooms r ON r.id=s.room_id JOIN room_types rt ON rt.id=r.room_type_id JOIN folios f ON f.stay_id=s.id LEFT JOIN customers c ON c.customer_id=s.customer_id WHERE s.id=?");
+    $q = $pdo->prepare("SELECT s.id, s.stay_code, s.checkin_at, s.actual_checkin_at, s.planned_checkout, s.actual_checkout, s.status AS stay_status, r.id AS room_id, r.room_number, rt.nightly_rate, f.id AS folio_id, f.folio_number, f.status AS folio_status, c.customer_id, c.first_name, c.middle_name, c.last_name, c.contact_number, c.email, TRIM(CONCAT_WS(' ', c.first_name, NULLIF(c.middle_name, ''), c.last_name)) AS guest_name FROM stays s JOIN rooms r ON r.id=s.room_id JOIN room_types rt ON rt.id=r.room_type_id JOIN folios f ON f.stay_id=s.id LEFT JOIN customers c ON c.customer_id=s.customer_id WHERE s.id=?");
     $q->execute([$sid]);
     $stay = $q->fetch();
     if (!$stay) {
@@ -4166,10 +4221,21 @@ if ($action === 'final_bill_preview') {
     $plannedNights = max(1, (int)$checkin->setTime(0, 0)->diff($planned)->format('%a'));
     $originalRoomAmount = array_sum(array_map(fn($c) => (string)$c['category'] === 'ROOM' ? (float)$c['amount'] : 0.0, $charges));
 
+    // Late-checkout preview only: this helper reads and never posts a charge,
+    // so opening the preview cannot change the folio.
+    $lateCheckout = hotel_late_checkout_breakdown($pdo, (int)$stay['id'], (string)$stay['planned_checkout'], $fid, (int)$stay['room_id'], $actual, $earlyCheckoutException !== null);
+    $lateCheckoutOut = $lateCheckout;
+    $lateCheckoutOut['nightly_rate'] = money($lateCheckout['nightly_rate']);
+    $lateCheckoutOut['late_fee_amount'] = money($lateCheckout['late_fee_amount']);
+    $lateCheckoutOut['overstay_amount'] = money($lateCheckout['overstay_amount']);
+    $lateCheckoutOut['total_auto_amount'] = money($lateCheckout['total_auto_amount']);
+
     out([
         'stay' => $stay,
         'charges' => $charges,
         'discounts' => $discountDetails,
+        'late_checkout' => $lateCheckoutOut,
+        'final_amount_with_late_checkout' => money(round($final + $lateCheckout['total_auto_amount'], 2)),
         'pending_early_checkout_request' => $pendingEarly,
         'early_checkout_exception' => $earlyCheckoutException ? [
             'requested_departure_at' => $earlyCheckoutException['requested_departure_at'],
@@ -5831,6 +5897,65 @@ if ($action === 'vat_settings_save') {
         throw $e;
     }
     out(['ok' => true, 'vat_rate' => (float)$rate, 'pricing_mode' => 'VAT_INCLUSIVE']);
+}
+
+/**
+ * Late-checkout / overstay house rule settings (billing_policies).
+ * Read and write are admin/manager only; turning the rule off restores
+ * today's manual-only behavior exactly.
+ */
+if ($action === 'late_checkout_policy') {
+    require_role(['admin', 'manager']);
+    $settings = hotel_late_checkout_settings($pdo);
+    out(['ok' => true, 'settings' => $settings]);
+}
+
+if ($action === 'late_checkout_policy_save') {
+    require_role(['admin', 'manager']);
+    $enabled = (int)($in['enabled'] ?? 1) === 1 ? 1 : 0;
+    $grace = (int)($in['grace_minutes'] ?? 60);
+    $cutoff = trim((string)($in['cutoff_time'] ?? '18:00'));
+    $percent = (float)($in['fee_percent'] ?? 50);
+    if ($grace < 0 || $grace > 720
+        || !preg_match('/\A([01]\d|2[0-3]):[0-5]\d\z/', $cutoff)
+        || $percent < 0 || $percent > 100) {
+        out(['error' => 'Enter a grace period of 0–720 minutes, a cutoff time as HH:MM, and a late fee of 0–100%.'], 400);
+    }
+    [$cutoffHour, $cutoffMinute] = array_map('intval', explode(':', $cutoff));
+    $cutoffMinutes = $cutoffHour * 60 + $cutoffMinute;
+    if ($cutoffMinutes <= 12 * 60 + $grace) {
+        out(['error' => 'The evening cutoff must be later than the end of the grace period (12:00 PM plus grace).'], 400);
+    }
+    $values = [
+        'LATE_CHECKOUT_ENABLED' => (string)$enabled,
+        'LATE_CHECKOUT_GRACE_MINUTES' => (string)$grace,
+        'LATE_CHECKOUT_CUTOFF_TIME' => $cutoff,
+        'LATE_CHECKOUT_FEE_PERCENT' => number_format($percent, 2, '.', ''),
+    ];
+    $pdo->beginTransaction();
+    try {
+        foreach ($values as $key => $value) {
+            $find = $pdo->prepare('SELECT id FROM billing_policies WHERE policy_key = ? LIMIT 1 FOR UPDATE');
+            $find->execute([$key]);
+            $policyId = $find->fetchColumn();
+            if ($policyId !== false) {
+                $save = $pdo->prepare('UPDATE billing_policies SET policy_value = ?, updated_by = ? WHERE id = ?');
+                $save->execute([$value, $u['id'], (int)$policyId]);
+            } else {
+                $nextId = (int)$pdo->query('SELECT COALESCE(MAX(id), 0) + 1 FROM billing_policies')->fetchColumn();
+                $save = $pdo->prepare('INSERT INTO billing_policies (id, policy_key, policy_value, updated_by) VALUES (?, ?, ?, ?)');
+                $save->execute([$nextId, $key, $value, $u['id']]);
+            }
+        }
+        audit($pdo, (int)$u['id'], 'LATE_CHECKOUT_POLICY_UPDATED', 'billing_policy', null, $values);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+    out(['ok' => true, 'settings' => hotel_late_checkout_settings($pdo)]);
 }
 
 /**

@@ -428,6 +428,8 @@ const HOTEL_ACTION_PERMISSIONS = [
     'early_checkout_policy_save' => 'settings.manage',
     'vat_settings' => 'settings.manage',
     'vat_settings_save' => 'settings.manage',
+    'late_checkout_policy' => 'settings.manage',
+    'late_checkout_policy_save' => 'settings.manage',
     'discount_policy_admin_list' => 'settings.manage',
     'discount_policy_save' => 'settings.manage',
     'discount_policy_delete' => 'settings.manage',
@@ -553,7 +555,11 @@ function hotel_user_can(array $user, string $permission, ?PDO $pdo = null): bool
         return true;
     }
     if ($permission === 'stays.checkout') {
-        return $role === 'frontdesk';
+        // Front desk is the normal checkout role. Managers can also check
+        // out, because only a manager or administrator can waive an
+        // automatic late charge — and a waiver is given inside a checkout
+        // call, so a manager who cannot check out could never waive one.
+        return $role === 'frontdesk' || $role === 'manager';
     }
     $permissions = hotel_get_role_permissions($role, $pdo);
 
