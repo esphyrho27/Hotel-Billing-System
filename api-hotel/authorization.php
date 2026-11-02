@@ -30,6 +30,9 @@ const HOTEL_ROLE_PERMISSIONS = [
         'early_checkout.approve',
         'stay_extension.view',
         'stay_extension.approve',
+        'damage.view',
+        'damage.report',
+        'damage.approve',
         'chat.view',
         'chat.reply',
         'reports.financial.view',
@@ -62,6 +65,8 @@ const HOTEL_ROLE_PERMISSIONS = [
         'early_checkout.view',
         'early_checkout.request',
         'stay_extension.view',
+        'damage.view',
+        'damage.report',
         'chat.view',
         'chat.reply',
         'account.password.change',
@@ -74,6 +79,8 @@ const HOTEL_ROLE_PERMISSIONS = [
         'charges.create',
         'discounts.view',
         'discounts.apply',
+        'damage.view',
+        'damage.report',
         'account.password.change',
     ],
     'restaurant' => [
@@ -246,6 +253,27 @@ const HOTEL_ALL_PERMISSIONS = [
         'label' => 'Post Charges to Folio',
         'description' => 'Post service items, dining, minibar, and incidental room charges',
         'module' => 'payments'
+    ],
+    [
+        'category' => 'Billing & Payments',
+        'key' => 'damage.view',
+        'label' => 'View Damage Reports',
+        'description' => 'View damage reports for active stays, including pending, approved, posted and rejected reports',
+        'module' => 'payments'
+    ],
+    [
+        'category' => 'Billing & Payments',
+        'key' => 'damage.report',
+        'label' => 'Report Damage',
+        'description' => 'File a damage or missing-item report for an active stay; filing posts no charge by itself',
+        'module' => 'payments'
+    ],
+    [
+        'category' => 'Billing & Payments',
+        'key' => 'damage.approve',
+        'label' => 'Approve Damage Reports',
+        'description' => 'Approve or reject damage reports and set the final amount; approval alone posts no charge',
+        'module' => 'early-checkouts'
     ],
     [
         'category' => 'Billing & Payments',
@@ -450,6 +478,12 @@ const HOTEL_ACTION_PERMISSIONS = [
     'room_transfer_requests' => 'service_requests.view',
     'stay_extension_approve' => 'stay_extension.approve',
     'stay_extension_reject' => 'stay_extension.approve',
+    'damage_reports' => 'damage.view',
+    'damage_price_list' => 'damage.view',
+    'damage_report_create' => 'damage.report',
+    'damage_report_approve' => 'damage.approve',
+    'damage_report_reject' => 'damage.approve',
+    'damage_report_post' => 'charges.create',
     'chat_conversations' => 'chat.view',
     'chat_messages' => 'chat.view',
     'chat_send' => 'chat.reply',

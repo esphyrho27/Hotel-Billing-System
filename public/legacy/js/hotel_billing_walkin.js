@@ -5270,6 +5270,35 @@ async function activateGroupCheckin(groupBookingId) {
       const trPendingStatuses=['NEW','PENDING','ASSIGNED','ACKNOWLEDGED','ON_HOLD'];
       const isTransferPending=(r)=> r.is_pending !== undefined ? !!r.is_pending : trPendingStatuses.includes(r.status);
       const trPending=trows.filter(isTransferPending).length;
+
+      // Damage reports live on this same manager approvals page (2026-11-03).
+      // Approval sets the final amount; posting is a separate step, so an
+      // approved report still needs its Post button before checkout.
+      let drows=[], dmgOk=true;
+      try{ const dd=await api('damage_reports',{},'GET'); drows=dd.reports||[]; }catch(e){ dmgOk=false; }
+      const dmgPending=drows.filter(r=>r.status==='PENDING').length;
+      const canDecideDamage = ecPerms.length ? (ecPerms.includes('*') || ecPerms.includes('damage.approve')) : ['admin','manager'].includes(curRole);
+      const canPostDamage = ecPerms.length ? (ecPerms.includes('*') || ecPerms.includes('charges.create')) : ['admin','manager','cashier'].includes(curRole);
+      const renderDamageAction = (r) => {
+        const folioBtn = r.folio_id ? `<button class="btn btn-sm btn-outline-primary" onclick="HotelBilling.folio(${Number(r.folio_id)})"><i class="bi bi-receipt me-1"></i>Folio</button>` : '';
+        if (r.status === 'PENDING') {
+          return canDecideDamage
+            ? `<div class="d-flex gap-1 flex-wrap"><button class="btn btn-sm btn-success" onclick="HotelBilling.decideDamage(${Number(r.id)},'APPROVE')">Approve</button><button class="btn btn-sm btn-outline-danger" onclick="HotelBilling.decideDamage(${Number(r.id)},'REJECT')">Reject</button>${folioBtn}</div>`
+            : '<span class="badge text-bg-warning text-dark"><i class="bi bi-clock me-1"></i>Pending Manager Review</span>';
+        }
+        if (r.status === 'APPROVED') {
+          return canPostDamage
+            ? `<div class="d-flex gap-1 flex-wrap"><button class="btn btn-sm btn-warning" onclick="HotelBilling.postDamage(${Number(r.id)})">Post to folio</button>${folioBtn}</div>`
+            : '<span class="badge text-bg-success">Approved — awaiting posting</span>';
+        }
+        if (r.status === 'POSTED') {
+          return `<div class="d-flex gap-1 align-items-center"><span class="badge text-bg-success"><i class="bi bi-check2-all me-1"></i>Posted</span>${folioBtn}</div>`;
+        }
+        if (r.status === 'REJECTED') {
+          return '<span class="badge text-bg-danger"><i class="bi bi-x-circle me-1"></i>Rejected</span>';
+        }
+        return '—';
+      };
       const canDecideTransfer = curRole === 'manager';
       const transferAdjustmentText=(r)=>{
         const adj=Number(r.estimated_adjustment||0);
@@ -5386,13 +5415,13 @@ async function activateGroupCheckin(groupBookingId) {
 
 
 
-      const combinedPending = pending + (extOk ? extPending : 0) + (trOk ? trPending : 0);
+      const combinedPending = pending + (extOk ? extPending : 0) + (trOk ? trPending : 0) + (dmgOk ? dmgPending : 0);
 
       const topBar = isFrontdesk
 
         ? `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><div><h5 class="fw-bold mb-1">Early Checkout Requests</h5><p class="text-muted mb-0">Record and submit early departure requests for review and manager authorization.</p></div><div class="d-flex align-items-center gap-2"><span class="badge text-bg-warning">${pending} pending</span><button class="btn btn-primary btn-sm" onclick="HotelBilling.earlyCheckout()"><i class="bi bi-plus-lg me-1"></i>Submit Request</button><button class="btn btn-outline-secondary btn-sm" onclick="HotelBilling.open('early-checkout-requests')"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button></div></div>`
 
-        : `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><div><h5 class="fw-bold mb-1">Approvals</h5><p class="text-muted mb-0">Approve or reject early checkout, stay extension, and room transfer requests. Early checkout approvals can post a clearly labelled charge to the guest folio; extension approvals move the checkout date and post the extra nights to the folio. This does not check out the guest; collect payment against the folio, then use the normal Checkout action. Transfer approvals move the guest immediately and post the rate adjustment to the folio.</p></div><div class="d-flex align-items-center gap-2"><span class="badge text-bg-warning">${combinedPending} pending</span><button class="btn btn-outline-secondary btn-sm" onclick="HotelBilling.open('early-checkouts')"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button></div></div>`;
+        : `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><div><h5 class="fw-bold mb-1">Approvals</h5><p class="text-muted mb-0">Approve or reject early checkout, stay extension, room transfer, and damage requests. Early checkout approvals can post a clearly labelled charge to the guest folio; extension approvals move the checkout date and post the extra nights to the folio. This does not check out the guest; collect payment against the folio, then use the normal Checkout action. Transfer approvals move the guest immediately and post the rate adjustment to the folio.</p></div><div class="d-flex align-items-center gap-2"><span class="badge text-bg-warning">${combinedPending} pending</span><button class="btn btn-outline-secondary btn-sm" onclick="HotelBilling.open('early-checkouts')"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button></div></div>`;
 
 
 
@@ -5508,6 +5537,33 @@ async function activateGroupCheckin(groupBookingId) {
       <div class="d-none d-md-block">${table(['Guest / Stay · Folio','Room change','Rates','Adjustment','Requested by','Status','Action'],trBody,'No room transfer requests found.')}</div>
       <div class="d-md-none">${trCards}</div>` : `<div class="alert alert-warning mt-4">Could not load room transfer requests. Check that the latest api-hotel files were copied to the live server, then refresh this page.</div>`) : '';
 
+      const dmgBody = drows.map(r => `<tr><td>${guestCell(r)}</td><td><strong>${esc(r.item_name)}</strong><span class="badge text-bg-secondary ms-1" style="font-size:10px;">${esc(r.kind || 'DAMAGE')}</span><div class="small text-muted">${esc(r.description)}${r.reference ? `<br>Ref: ${esc(r.reference)}` : ''}${r.status === 'REJECTED' && r.rejection_reason ? `<br>Rejected: ${esc(r.rejection_reason)}` : ''}</div></td><td>${Number(r.quantity)} × ${php(r.unit_price)}<div class="small text-muted">Estimated ${php(r.estimated_amount)}</div></td><td>${r.final_amount != null ? php(r.final_amount) : '—'}</td><td>${esc(r.reported_by_username || 'Staff')}</td><td>${pill(r.status)}</td><td>${renderDamageAction(r)}</td></tr>`).join('');
+      const dmgCards = drows.map(r => `
+        <div class="card border-0 shadow-sm p-3 mb-2">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="fw-bold fs-6">#${Number(r.id)} · ${esc(guestName(r))}</span>
+              <div class="small text-muted">Room ${esc(r.room_number)} · Folio ${esc(r.folio_number)}</div>
+            </div>
+            ${pill(r.status)}
+          </div>
+          <div class="p-2 bg-light rounded small mb-2">
+            <div class="fw-semibold text-dark">${esc(r.item_name)} · ${Number(r.quantity)} × ${php(r.unit_price)}</div>
+            <div class="text-muted mt-1">${esc(r.description)}${r.reference ? `<br>Ref: ${esc(r.reference)}` : ''}${r.status === 'REJECTED' && r.rejection_reason ? `<br>Rejected: ${esc(r.rejection_reason)}` : ''}</div>
+          </div>
+          <div class="row g-2 mb-2 small text-muted">
+            <div class="col-6">Reported by: <strong class="text-dark">${esc(r.reported_by_username || 'Staff')}</strong></div>
+            <div class="col-6 text-end">Estimated: <strong class="text-primary fs-6">${php(r.estimated_amount)}</strong>${r.final_amount != null ? `<div>Final: <strong>${php(r.final_amount)}</strong></div>` : ''}</div>
+          </div>
+          <div class="pt-2 border-top">
+            ${renderDamageAction(r)}
+          </div>
+        </div>
+      `).join('') || '<div class="card border-0 shadow-sm p-3 text-center text-muted">No damage reports found.</div>';
+      const damageSection = !isFrontdesk ? (dmgOk ? `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 mt-4"><div><h5 class="fw-bold mb-1">Damage Reports</h5><p class="text-muted mb-0">Approve or reject damage and missing-item reports. Approval sets the final amount only; post the approved report to the folio so the guest settles it before checkout. Pending and approved-but-not-posted reports block checkout.</p></div><div class="d-flex align-items-center gap-2"><span class="badge text-bg-warning">${dmgPending} pending</span></div></div>
+      <div class="d-none d-md-block">${table(['Guest / Stay · Folio','Item','Quantity × price','Final amount','Reported by','Status','Action'],dmgBody,'No damage reports found.')}</div>
+      <div class="d-md-none">${dmgCards}</div>` : `<div class="alert alert-warning mt-4">Could not load damage reports. Check that the latest api-hotel files were copied to the live server, then refresh this page.</div>`) : '';
+
       host.innerHTML = isFrontdesk
         ? `${topBar}
 
@@ -5518,7 +5574,7 @@ async function activateGroupCheckin(groupBookingId) {
 
       <div class="d-none d-md-block">${table(['Guest / Stay · Folio','Type','Details','Requested by','Proposed charge','Status','Action'],combinedBody,'No approval requests found.')}</div>
 
-      <div class="d-md-none">${combinedCards}</div>${transferSection}`;
+      <div class="d-md-none">${combinedCards}</div>${transferSection}${damageSection}`;
 
     }catch(e){host.innerHTML=`<div class="alert alert-danger">${esc(e.message||'Unable to load early-checkout requests.')}</div>`;}
 
@@ -6117,7 +6173,7 @@ async function activateGroupCheckin(groupBookingId) {
 
             <select class="form-select" name="category" required>
 
-              ${[['HOUSEKEEPING','Housekeeping'],['SERVICE','General Services'],['LAUNDRY','Laundry'],['MINIBAR','Minibar'],['GYM','Gym'],['POOL','Pool'],['SPA','Spa & Massage'],['OTHER','Other']].map(([v,l])=>`<option value="${v}" ${(existing?.category===v || (!existing && v==='SERVICE'))?'selected':''}>${l}</option>`).join('')}
+              ${[['HOUSEKEEPING','Housekeeping'],['SERVICE','General Services'],['LAUNDRY','Laundry'],['MINIBAR','Minibar'],['GYM','Gym'],['POOL','Pool'],['SPA','Spa & Massage'],['DAMAGE','Damage / missing item'],['OTHER','Other']].map(([v,l])=>`<option value="${v}" ${(existing?.category===v || (!existing && v==='SERVICE'))?'selected':''}>${l}</option>`).join('')}
 
             </select>
 
@@ -8348,6 +8404,7 @@ async function transfer(id) {
       const canCheckout = folioCan('stays.checkout', ['admin', 'frontdesk'].includes(curRole));
 
       const canAddCharge = curRole !== 'frontdesk' && folioCan('charges.create', ['admin', 'manager', 'cashier'].includes(curRole));
+      const canReportDamage = folioCan('damage.report', ['admin', 'manager', 'frontdesk', 'cashier'].includes(curRole));
 
       const dateOnly=v=>String(v||'—').replace('T',' ').replace(/\s\d{2}:\d{2}:\d{2}.*/, '');
 
@@ -8515,6 +8572,8 @@ async function transfer(id) {
 
         <section class="folio-section"><div class="folio-section-title">Stay & checkout details</div><div class="folio-card p-3"><div class="folio-dates"><div><div class="folio-meta-label">Check-in</div><div class="folio-meta-value">${dateOnly(f.checkin_at)}</div></div><div><div class="folio-meta-label">Scheduled checkout</div><div class="folio-meta-value">${dateOnly(f.planned_checkout)}</div></div></div></div></section>${(d.transfers && d.transfers.length) ? `<section class="folio-section"><div class="folio-section-title">Room transfers</div><div class="folio-card p-3">${d.transfers.map(t => `<div>${dateOnly(t.effective_date)}: Moved from Room ${esc(t.from_room_number)} to Room ${esc(t.to_room_number)} (rate ${money(Number(t.old_rate))} → ${money(Number(t.new_rate))})</div>`).join('')}</div></section>` : ''}
 
+${(d.damage_reports && d.damage_reports.length) ? `<section class="folio-section"><div class="folio-section-title">Damage reports</div><div class="folio-card p-3">${d.damage_reports.map(r => `<div class="folio-line"><div><strong>${esc(r.item_name)}</strong><span class="badge text-bg-secondary ms-1" style="font-size:10px;">${esc(r.kind || 'DAMAGE')}</span><span class="badge text-bg-light border ms-1" style="font-size:10px;">${esc(r.status)}</span><div class="folio-line-note">${Number(r.quantity)} × ${money(r.unit_price)} · Estimated ${money(r.estimated_amount)}${r.final_amount != null ? ` · Final ${money(r.final_amount)}` : ''}${r.status === 'POSTED' ? ' · Posted to folio' : ''}</div><div class="folio-line-note">${esc(r.description)}${r.reference ? ` · Ref: ${esc(r.reference)}` : ''}${r.status === 'REJECTED' && r.rejection_reason ? ` · Rejected: ${esc(r.rejection_reason)}` : ''}</div></div><div class="text-end">${r.status === 'APPROVED' && canAddCharge ? `<button class="btn btn-sm btn-warning" onclick="HotelBilling.postDamage(${Number(r.id)}, ${Number(id)})">Post to folio</button>` : `<strong>${r.status === 'POSTED' ? money(r.final_amount) : money(r.estimated_amount)}</strong>`}</div></div>`).join('')}<div class="folio-line-note mt-2">Pending and approved-but-not-posted reports block checkout until they are resolved and posted.</div></div></section>` : ''}
+
         <div class="folio-grid">
 
           <div>
@@ -8577,6 +8636,8 @@ async function transfer(id) {
 
                   ${open && canAddCharge ? '<button class="btn btn-outline-primary" id="add-charge"><i class="bi bi-plus-circle me-1"></i>Add charge</button>' : ''}
 
+                  ${open && canReportDamage ? '<button class="btn btn-outline-warning" id="report-damage"><i class="bi bi-exclamation-triangle me-1"></i>Report damage</button>' : ''}
+
                   ${canTakePayment ? `<button class="btn btn-primary" id="take-payment" ${!open || isSettled ? 'disabled' : ''}><i class="bi bi-credit-card me-1"></i>${isSettled ? 'Balance Settled' : 'Settle Balance / Pay'}</button>` : ''}
 
                   ${canCheckout ? `<button class="btn ${isSettled ? 'btn-success' : 'btn-outline-secondary'}" id="folio-checkout-btn" ${!open ? 'disabled' : ''}><i class="bi bi-box-arrow-right me-1"></i>${isSettled ? 'Check-Out Guest' : 'Check-Out (Settle Balance First)'}</button>` : ''}
@@ -8608,6 +8669,8 @@ async function transfer(id) {
 
 
       x.root.querySelector('#add-charge')?.addEventListener('click',()=>{x.m.hide();addCharge(id)});
+
+      x.root.querySelector('#report-damage')?.addEventListener('click',()=>{x.m.hide();reportDamage(id)});
 
       x.root.querySelector('#take-payment')?.addEventListener('click',()=>{x.m.hide();pay(id,Number(d.balance))});
 
@@ -8651,6 +8714,92 @@ async function transfer(id) {
 
     }catch(e){notify(e.message,true)}
 
+  }
+
+  async function reportDamage(folioId){
+    try{
+      const priceList = await api('damage_price_list', {}, 'GET');
+      const items = priceList.items || [];
+      const x = modal('Report damage', `<form id="damage-report-form" class="row g-3">
+        <div class="col-12"><p class="text-muted mb-0">Filing a report charges nothing by itself. A manager or admin must approve it and set the final amount, then it is posted to the folio. Pending and approved-but-not-posted reports block checkout.</p></div>
+        <div class="col-md-6"><label class="form-label">Type</label><select class="form-select" name="kind"><option value="DAMAGE">Damage</option><option value="MISSING_ITEM">Missing item</option></select></div>
+        <div class="col-md-6"><label class="form-label">Item from price list</label><select class="form-select" id="damage-price-item"><option value="">Manual item (type below)</option>${items.map(i => `<option value="${Number(i.id)}" data-name="${esc(i.name)}" data-price="${Number(i.price)}">${esc(i.name)} — ${php(i.price)}</option>`).join('')}</select></div>
+        <div class="col-md-8"><label class="form-label">Item</label><input class="form-control" name="item_name" maxlength="150" required placeholder="e.g. Towel, TV remote, Lamp"></div>
+        <div class="col-md-4"><label class="form-label">Quantity</label><input class="form-control" name="quantity" type="number" min="1" max="100" step="1" value="1" required></div>
+        <div class="col-md-4"><label class="form-label">Unit price (PHP)</label><input class="form-control" name="unit_price" type="number" min="0.01" step="0.01" required placeholder="0.00"></div>
+        <div class="col-md-8"><label class="form-label">Reference (optional)</label><input class="form-control" name="reference" maxlength="255" placeholder="e.g. Housekeeping check 2026-11-03, who found it"></div>
+        <div class="col-12"><label class="form-label">Description — what was damaged, and how (at least 12 characters)</label><textarea class="form-control" name="description" rows="3" maxlength="500" required placeholder="e.g. Broken TV remote, Room 102, found by housekeeping on morning check"></textarea></div>
+        <div class="col-12 text-end"><button class="btn btn-light me-2" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-warning">File damage report</button></div>
+      </form>`);
+      const form = x.root.querySelector('#damage-report-form');
+      const priceSel = x.root.querySelector('#damage-price-item');
+      const itemInput = form.elements['item_name'];
+      const priceInput = form.elements['unit_price'];
+      priceSel.addEventListener('change', () => {
+        const opt = priceSel.selectedOptions[0];
+        if (priceSel.value) {
+          itemInput.value = opt.dataset.name || '';
+          priceInput.value = opt.dataset.price || '';
+          itemInput.readOnly = true;
+          priceInput.readOnly = true;
+        } else {
+          itemInput.value = '';
+          priceInput.value = '';
+          itemInput.readOnly = false;
+          priceInput.readOnly = false;
+        }
+      });
+      form.onsubmit = async e => {
+        e.preventDefault();
+        const f = Object.fromEntries(new FormData(form));
+        if (String(f.description || '').trim().length < 12) { notify('Describe what was damaged and how (at least 12 characters).', true); return; }
+        try {
+          const r = await api('damage_report_create', { folio_id: folioId, kind: f.kind, catalog_item_id: priceSel.value ? Number(priceSel.value) : 0, item_name: f.item_name, quantity: Number(f.quantity), unit_price: Number(f.unit_price), description: f.description, reference: f.reference });
+          x.m.hide();
+          notify(r.message || 'Damage report filed.');
+          await folio(folioId);
+        } catch (err) { notify(err.message, true); }
+      };
+    } catch (e) { notify(e.message, true); }
+  }
+
+  async function decideDamage(id, decision){
+    try{
+      if (decision === 'APPROVE') {
+        let estimated = '';
+        try { const d = await api('damage_reports', {}, 'GET'); const rep = (d.reports || []).find(r => Number(r.id) === Number(id)); if (rep) estimated = rep.estimated_amount; } catch (e) {}
+        const x = modal('Approve damage report', `<form id="damage-approve-form" class="row g-3">
+          <div class="col-12"><p class="text-muted mb-0">Approval sets the final amount only — it posts nothing. Post the approved report to the folio afterwards so the guest can settle it before checkout.</p></div>
+          <div class="col-md-6"><label class="form-label">Final amount (PHP)</label><input class="form-control" name="final_amount" type="number" min="0.01" step="0.01" value="${esc(estimated)}" required></div>
+          <div class="col-12 text-end"><button class="btn btn-light me-2" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-success">Approve</button></div>
+        </form>`);
+        x.root.querySelector('#damage-approve-form').onsubmit = async e => {
+          e.preventDefault();
+          const f = Object.fromEntries(new FormData(e.target));
+          try { const r = await api('damage_report_approve', { report_id: id, final_amount: Number(f.final_amount) }); x.m.hide(); notify(r.message || 'Damage report approved.'); await renderEarlyCheckoutRequests(); }
+          catch (err) { notify(err.message, true); }
+        };
+        return;
+      }
+      const note = await window.HotelDialogs.input({ title: `Reject damage report #${id}`, text: 'A rejection reason is required. Rejection charges nothing.', label: 'Reason', type: 'textarea', placeholder: 'Enter the reason for rejection' });
+      if (note === null) return;
+      if (!String(note).trim()) { notify('A rejection reason is required.', true); return; }
+      const confirmed = await window.HotelDialogs.confirm({ title: `Reject damage report #${id}?`, text: 'Reject this report? Nothing will be charged.', confirmButtonText: 'Reject' });
+      if (!confirmed) return;
+      const r = await api('damage_report_reject', { report_id: id, reason: note });
+      notify(r.message || 'Damage report rejected.');
+      await renderEarlyCheckoutRequests();
+    } catch (e) { notify(e.message, true); }
+  }
+
+  async function postDamage(id, folioId){
+    try{
+      const confirmed = await window.HotelDialogs.confirm({ title: 'Post damage charge?', text: 'This posts exactly one charge to the folio. The guest settles it like any other balance before checkout. A posted report cannot be posted again.', confirmButtonText: 'Post to folio' });
+      if (!confirmed) return;
+      const r = await api('damage_report_post', { report_id: id });
+      notify(r.message || 'Damage charge posted to the folio.');
+      if (folioId) { await folio(folioId); } else { await renderEarlyCheckoutRequests(); }
+    } catch (e) { notify(e.message, true); }
   }
 
   async function refreshDemoClockBanner() {
@@ -8709,7 +8858,7 @@ async function transfer(id) {
     }
   }
 
-  window.HotelBilling={api,open,getActiveModule:()=>activeModule,notify,refreshRequestBadge,checkin,bookAdditionalRoom,guestDetails,approveCheckinPayment,approveGroupCheckinPayment,confirmCheckinPayment,activateCheckinPayment,activateGroupCheckin,cancelPendingCheckin,renderWalkinCheckin,renderCheckoutDashboard,renderEarlyCheckoutRequests,selectRoomForWalkin:(roomId)=>{const sel=document.getElementById('wkd-room-id');if(sel){sel.value=String(roomId);sel.dispatchEvent(new Event('change'));sel.scrollIntoView({behavior:'smooth',block:'center'});sel.focus();}},folio,addCharge,pay,earlyCheckout,decideEarlyCheckout,finalizeEarlyCheckout,decideStayExtension,decideRoomTransfer,changeTransferDestination,editEarlyPolicy,editDiscountPolicy,deleteDiscountPolicy,transfer,checkout,roomStatus,requestStatus,assignRequest,handleRequestAction,viewHistory,addRoom,editRoom,addRoomType,editRoomType,addMenuItem,editMenuItem,toggleMenuItem,reportDetails,savedGuestLinks,showCheckinComplete,showStayQr,showReceiptModal,showCheckoutReceipts,viewCheckoutReceipt,downloadCheckoutReceipt,printOfficialReceipt,downloadOfficialReceipt,refreshChatBadge};
+  window.HotelBilling={api,open,getActiveModule:()=>activeModule,notify,refreshRequestBadge,checkin,bookAdditionalRoom,guestDetails,approveCheckinPayment,approveGroupCheckinPayment,confirmCheckinPayment,activateCheckinPayment,activateGroupCheckin,cancelPendingCheckin,renderWalkinCheckin,renderCheckoutDashboard,renderEarlyCheckoutRequests,selectRoomForWalkin:(roomId)=>{const sel=document.getElementById('wkd-room-id');if(sel){sel.value=String(roomId);sel.dispatchEvent(new Event('change'));sel.scrollIntoView({behavior:'smooth',block:'center'});sel.focus();}},folio,addCharge,pay,earlyCheckout,decideEarlyCheckout,finalizeEarlyCheckout,decideStayExtension,decideRoomTransfer,reportDamage,decideDamage,postDamage,changeTransferDestination,editEarlyPolicy,editDiscountPolicy,deleteDiscountPolicy,transfer,checkout,roomStatus,requestStatus,assignRequest,handleRequestAction,viewHistory,addRoom,editRoom,addRoomType,editRoomType,addMenuItem,editMenuItem,toggleMenuItem,reportDetails,savedGuestLinks,showCheckinComplete,showStayQr,showReceiptModal,showCheckoutReceipts,viewCheckoutReceipt,downloadCheckoutReceipt,printOfficialReceipt,downloadOfficialReceipt,refreshChatBadge};
 
   document.addEventListener('hotel:authenticated',(event)=>{
 

@@ -99,7 +99,54 @@ function htl_checkout_blockers(PDO $pdo, int $stayId): array {
         $blockers[] = ['kind' => 'order', 'count' => $orderCount, 'message' => $orderCount . ' open restaurant order(s)' . $detail . '. Serve, complete or cancel them before checkout.'];
     }
 
+    // Damage reports: a report that is still waiting for manager approval,
+    // or approved but not yet posted to the folio, blocks checkout. If it
+    // did not block, checkout would close the folio and the damage charge
+    // could never be posted. REJECTED and POSTED reports never block.
+    // Guarded: a database that has not run the damage migration yet must
+    // still be able to check out; the damage actions themselves refuse
+    // with a clear migration message instead.
+    try {
+        $dq = $pdo->prepare("SELECT COUNT(*) n FROM damage_reports WHERE stay_id=? AND status IN ('PENDING','APPROVED')");
+        $dq->execute([$stayId]);
+        $damageCount = (int)$dq->fetch()['n'];
+        if ($damageCount > 0) {
+            $di = $pdo->prepare("SELECT item_name, status FROM damage_reports WHERE stay_id=? AND status IN ('PENDING','APPROVED') ORDER BY id LIMIT 5");
+            $di->execute([$stayId]);
+            $drows = $di->fetchAll(PDO::FETCH_ASSOC);
+            $items = array_values(array_filter(array_column($drows, 'item_name')));
+            $detail = $items ? ' (' . implode(', ', $items) . ($damageCount > count($items) ? ', and ' . ($damageCount - count($items)) . ' more' : '') . ')' : '';
+            $hasPending = false;
+            foreach ($drows as $r) { if (($r['status'] ?? '') === 'PENDING') { $hasPending = true; break; } }
+            $msg = $damageCount . ' damage report(s)' . $detail . ' not yet posted to the folio. ';
+            $msg .= $hasPending
+                ? 'Approve or reject them in Damage Approvals, then post approved reports to the folio before checkout.'
+                : 'Post the approved report(s) to the folio before checkout.';
+            $blockers[] = ['kind' => 'damage', 'count' => $damageCount, 'message' => $msg];
+        }
+    } catch (Throwable $e) {
+        // Table missing (migration not run): no damage blocker.
+    }
+
     return $blockers;
+}
+
+/**
+ * Ensures the damage_reports table exists. Unlike the restaurant schema,
+ * this table is NOT created lazily: damage is a money charge, so a missing
+ * migration must fail with a clear message instead of silently creating
+ * a table the staff did not intend. The checkout blocker above is the
+ * only caller that swallows this error (so checkout still works before
+ * the migration), and it does so deliberately.
+ */
+function htl_ensure_damage_reports(PDO $pdo): void {
+    static $done = false;
+    if ($done) return;
+    $tableExists = $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='damage_reports'")->fetchColumn();
+    if (!(int)$tableExists) {
+        throw new RuntimeException('Database schema is incomplete. Run database/migrations/20261103_damage_reports.sql before using damage reports.');
+    }
+    $done = true;
 }
 
 function htl_checkout_block_reason(array $blockers): string {
@@ -308,7 +355,7 @@ if ($action === 'session') {
 
 $readActions = [
     'dashboard', 'rooms', 'room_types', 'service_catalog', 'active_stays', 'checkout_history', 'hotel_time_policy', 'demo_clock_status',
-    'requests', 'request_history', 'early_checkout_policies', 'early_checkout_requests', 'stay_extension_requests', 'room_transfer_requests',
+    'requests', 'request_history', 'early_checkout_policies', 'early_checkout_requests', 'stay_extension_requests', 'room_transfer_requests', 'damage_reports', 'damage_price_list',
     'chat_conversations', 'chat_messages',
     'discount_policy_admin_list', 'pending_discounts', 'discount_policies',
     'vat_settings', 'reports', 'payment_history', 'receipt_details', 'report_transactions', 'audit_logs', 'users',
@@ -761,6 +808,15 @@ if ($action === 'dashboard') {
         // above). They then count toward the inbox total.
         if ($roleKey === 'manager') {
             $approvals['room_transfers'] = (int)$pdo->query("SELECT COUNT(DISTINCT sr.id) n FROM service_requests sr JOIN stays s ON s.id=sr.stay_id JOIN folios f ON f.stay_id=s.id AND f.status='OPEN' WHERE s.status='ACTIVE' AND sr.request_kind='ROOM_TRANSFER' AND sr.status IN ('NEW','PENDING','ASSIGNED','ACKNOWLEDGED','ON_HOLD')")->fetch()['n'];
+        }
+        if (hotel_user_can($u, 'damage.approve', $pdo)) {
+            // Guarded separately so a database that has not imported the
+            // damage migration yet does not wipe the whole inbox.
+            try {
+                $approvals['damage_reports'] = (int)$pdo->query("SELECT COUNT(*) n FROM damage_reports WHERE status='PENDING'")->fetch()['n'];
+            } catch (Throwable $e) {
+                // Table missing: the damage inbox is simply unavailable.
+            }
         }
     } catch (Throwable $e) {
         $approvals = [];
@@ -1961,10 +2017,10 @@ if ($action === 'service_catalog_save') {
     if (!in_array($item_type, ['FOOD', 'DRINK', 'OTHER'], true)) $item_type = 'OTHER';
     $description = trim((string)($in['description'] ?? ''));
     $price = round((float)($in['price'] ?? 0), 2);
-    $allowed = ['HOUSEKEEPING', 'SERVICE', 'LAUNDRY', 'MINIBAR', 'OTHER', 'GYM', 'POOL', 'SPA'];
+    $allowed = ['HOUSEKEEPING', 'SERVICE', 'LAUNDRY', 'MINIBAR', 'OTHER', 'GYM', 'POOL', 'SPA', 'DAMAGE'];
 
     if ($name === '' || strlen($name) > 120 || !in_array($category, $allowed, true) || $price < 0) {
-        out(['error' => 'Choose a hotel service/amenity category (Housekeeping, Service, Laundry, Minibar, Gym, Pool, Spa & Massage, or Other) and enter a non-negative price. Restaurant food and drink products must be managed in the Restaurant Menu.'], 400);
+        out(['error' => 'Choose a hotel service/amenity category (Housekeeping, Service, Laundry, Minibar, Gym, Pool, Spa & Massage, Damage, or Other) and enter a non-negative price. Restaurant food and drink products must be managed in the Restaurant Menu.'], 400);
     }
 
     try {
@@ -4386,6 +4442,14 @@ if ($action === 'folio') {
     $q = $pdo->prepare("SELECT t.*, fr.room_number AS from_room_number, tr.room_number AS to_room_number FROM room_transfers t JOIN rooms fr ON fr.id=t.from_room_id JOIN rooms tr ON tr.id=t.to_room_id WHERE t.stay_id=? ORDER BY t.effective_date, t.id");
     $q->execute([$f['stay_id']]);
     $transfers = $q->fetchAll();
+    $damageReports = [];
+    try {
+        $dq = $pdo->prepare("SELECT dr.*, ru.username AS reported_by_username, au.username AS approved_by_username, pu.username AS posted_by_username FROM damage_reports dr LEFT JOIN users ru ON ru.id=dr.reported_by LEFT JOIN users au ON au.id=dr.approved_by LEFT JOIN users pu ON pu.id=dr.posted_by WHERE dr.folio_id=? ORDER BY CASE dr.status WHEN 'PENDING' THEN 0 WHEN 'APPROVED' THEN 1 WHEN 'POSTED' THEN 2 ELSE 3 END, dr.created_at DESC, dr.id DESC");
+        $dq->execute([$id]);
+        $damageReports = $dq->fetchAll();
+    } catch (Throwable $e) {
+        $damageReports = [];
+    }
     $discountTotal = array_sum(array_map(fn($d) => in_array($d['status'], ['APPLIED', 'APPROVED'], true) ? (float)$d['amount'] : 0, $discounts));
 
     $tax = htl_folio_vat_breakdown($pdo, $id);
@@ -4400,6 +4464,7 @@ if ($action === 'folio') {
         'payments' => $payments,
         'discounts' => $discounts,
         'transfers' => $transfers,
+        'damage_reports' => $damageReports,
         'total' => money($total),
         'discount_total' => money($discountTotal),
         'net_total' => money($vatableSales),
@@ -4441,6 +4506,11 @@ if ($action === 'add_charge') {
         }
     }
 
+    // The manual Category dropdown offers BAR, but the server allowlist
+    // below has FOOD, not BAR, so a manual BAR charge previously failed
+    // with 'Invalid charge details'. A bar charge is a food/beverage
+    // charge for folio purposes, so normalize it instead of rejecting it.
+    if ($cat === 'BAR') $cat = 'FOOD';
     if ($itemId > 0) {
         $cq = $pdo->prepare("SELECT name, category, price FROM service_catalog WHERE id=? AND active=1 AND category <> 'FOOD_BEVERAGE'");
         $cq->execute([$itemId]);
@@ -4456,6 +4526,10 @@ if ($action === 'add_charge') {
             'SERVICE' => 'SERVICE',
             'LAUNDRY' => 'LAUNDRY',
             'MINIBAR' => 'MINIBAR',
+            'GYM' => 'SERVICE',
+            'POOL' => 'SERVICE',
+            'SPA' => 'SERVICE',
+            'DAMAGE' => 'DAMAGE',
             'OTHER' => 'OTHER'
         ][$item['category']] ?? 'OTHER';
     }
@@ -4491,6 +4565,211 @@ if ($action === 'add_charge') {
     ], null, 'frontdesk', $sCode);
 
     out(['ok' => true]);
+}
+
+// ============================================================================
+// DAMAGE REPORTS (2026-11-03): report first, charge second.
+// A report is filed while the stay is active (folio modal, staff only),
+// a manager or admin approves it and sets the final amount, and only then
+// can a cashier / manager / admin post exactly one DAMAGE or MISSING_ITEM
+// charge to the folio. The charge is VAT-inclusive, like every other
+// non-ROOM charge, and the guest settles it like any other balance
+// before checkout. Pending and approved-but-not-posted reports block
+// checkout via htl_checkout_blockers(). No photo upload exists anywhere
+// in this system yet, so v1 relies on the description + reference fields.
+// Damage found after checkout is out of scope: the folio is closed and
+// cannot take a charge, so reports are refused for non-active stays.
+// ============================================================================
+
+/**
+ * Returns active DAMAGE catalog items (the seeded common damage price
+ * list) for the report form. Rates are public staff info, not guest data.
+ */
+if ($action === 'damage_price_list') {
+    $q = $pdo->query("SELECT id, name, description, price FROM service_catalog WHERE category='DAMAGE' AND active=1 ORDER BY name");
+    out(['items' => $q->fetchAll()]);
+}
+
+/**
+ * Lists damage reports, pending first, with guest, room, folio and actor
+ * names. Manager/admin approvals page consumes this; staff see the same
+ * rows for one folio through the folio endpoint.
+ */
+if ($action === 'damage_reports') {
+    htl_ensure_damage_reports($pdo);
+    $q = $pdo->query("SELECT dr.*, s.stay_code, r.room_number, f.folio_number, TRIM(CONCAT_WS(' ', c.first_name, NULLIF(c.middle_name, ''), c.last_name)) AS guest_name, ru.username AS reported_by_username, au.username AS approved_by_username, pu.username AS posted_by_username FROM damage_reports dr JOIN stays s ON s.id=dr.stay_id LEFT JOIN rooms r ON r.id=dr.room_id JOIN folios f ON f.id=dr.folio_id LEFT JOIN customers c ON c.customer_id=s.customer_id LEFT JOIN users ru ON ru.id=dr.reported_by LEFT JOIN users au ON au.id=dr.approved_by LEFT JOIN users pu ON pu.id=dr.posted_by ORDER BY CASE dr.status WHEN 'PENDING' THEN 0 WHEN 'APPROVED' THEN 1 WHEN 'POSTED' THEN 2 ELSE 3 END, dr.created_at DESC, dr.id DESC");
+    out(['reports' => $q->fetchAll()]);
+}
+
+/**
+ * Files a damage report. No charge is posted here — that is deliberate.
+ */
+if ($action === 'damage_report_create') {
+    require_role(['admin', 'manager', 'frontdesk', 'cashier']);
+    htl_ensure_damage_reports($pdo);
+    $fid = (int)($in['folio_id'] ?? 0);
+    $kind = strtoupper(trim((string)($in['kind'] ?? 'DAMAGE')));
+    $itemId = (int)($in['catalog_item_id'] ?? 0);
+    $itemName = trim((string)($in['item_name'] ?? ''));
+    $description = trim((string)($in['description'] ?? ''));
+    $reference = trim((string)($in['reference'] ?? ''));
+    $qty = (int)($in['quantity'] ?? 1);
+    $unitPrice = round((float)($in['unit_price'] ?? 0), 2);
+    if (!in_array($kind, ['DAMAGE', 'MISSING_ITEM'], true)) $kind = 'DAMAGE';
+    if ($itemId > 0) {
+        $cq = $pdo->prepare("SELECT name, price FROM service_catalog WHERE id=? AND category='DAMAGE' AND active=1");
+        $cq->execute([$itemId]);
+        $item = $cq->fetch();
+        if (!$item) out(['error' => 'Selected damage item is unavailable. Refresh the price list and try again.'], 400);
+        $itemName = $item['name'];
+        $unitPrice = (float)$item['price'];
+    }
+    if ($fid <= 0 || $itemName === '' || strlen($itemName) > 150 || strlen($description) < 12 || strlen($description) > 500 || strlen($reference) > 255 || $qty < 1 || $qty > 100 || $unitPrice <= 0 || $unitPrice > 10000000) {
+        out(['error' => 'Enter an item, a quantity from 1 to 100, a price above zero, and a description of at least 12 characters (what was damaged, and how).'], 400);
+    }
+    $q = $pdo->prepare("SELECT f.id, f.stay_id, s.room_id, r.room_number FROM folios f JOIN stays s ON s.id=f.stay_id JOIN rooms r ON r.id=s.room_id WHERE f.id=? AND f.status='OPEN' AND s.status='ACTIVE'");
+    $q->execute([$fid]);
+    $fol = $q->fetch();
+    if (!$fol) {
+        out(['error' => 'Damage can only be reported for an active stay with an open folio. Damage found after checkout needs a separate follow-up outside the folio.'], 400);
+    }
+    $estimated = round($qty * $unitPrice, 2);
+    $pdo->prepare('INSERT INTO damage_reports(stay_id, folio_id, room_id, room_number, item_name, kind, description, reference, quantity, unit_price, estimated_amount, status, reported_by) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        ->execute([(int)$fol['stay_id'], $fid, (int)$fol['room_id'], $fol['room_number'], $itemName, $kind, $description, $reference ?: null, $qty, $unitPrice, $estimated, 'PENDING', $u['id']]);
+    $rid = (int)$pdo->lastInsertId();
+    audit($pdo, $u['id'], 'DAMAGE_REPORT_CREATED', 'damage_report', $rid, ['stay_id' => (int)$fol['stay_id'], 'folio_id' => $fid, 'item_name' => $itemName, 'kind' => $kind, 'estimated_amount' => $estimated]);
+    ws_broadcast('DAMAGE_REPORT_CREATED', ['report_id' => $rid, 'folio_id' => $fid, 'item_name' => $itemName, 'estimated_amount' => $estimated], null, 'manager', null);
+    out(['ok' => true, 'id' => $rid, 'message' => 'Damage report filed. It will not be charged until a manager or admin approves it.']);
+}
+
+/**
+ * Approves a pending report and sets the final amount. Approval alone
+ * posts nothing; posting is a separate step so the approver and the
+ * poster are not necessarily the same person.
+ */
+if ($action === 'damage_report_approve') {
+    require_role(['admin', 'manager']);
+    htl_ensure_damage_reports($pdo);
+    $rid = (int)($in['report_id'] ?? 0);
+    $final = round((float)($in['final_amount'] ?? 0), 2);
+    if ($rid <= 0 || $final <= 0 || $final > 10000000) {
+        out(['error' => 'Enter a final amount above zero.'], 400);
+    }
+    $q = $pdo->prepare("SELECT * FROM damage_reports WHERE id=? FOR UPDATE");
+    $pdo->beginTransaction();
+    try {
+        $q->execute([$rid]);
+        $rep = $q->fetch();
+        if (!$rep) throw new DomainException('Damage report not found.');
+        if ($rep['status'] !== 'PENDING') throw new DomainException('Only a pending damage report can be approved.');
+        $pdo->prepare("UPDATE damage_reports SET status='APPROVED', final_amount=?, approved_by=?, approved_at=NOW(), rejection_reason=NULL WHERE id=?")
+            ->execute([$final, $u['id'], $rid]);
+        audit($pdo, $u['id'], 'DAMAGE_REPORT_APPROVED', 'damage_report', $rid, ['final_amount' => $final, 'folio_id' => (int)$rep['folio_id']]);
+        $pdo->commit();
+    } catch (DomainException $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        out(['error' => $e->getMessage()], 400);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        out(['error' => 'The damage report could not be approved.'], 500);
+    }
+    out(['ok' => true, 'message' => 'Damage report approved. Post it to the folio so the guest can settle it before checkout.']);
+}
+
+/**
+ * Rejects a pending report with a required reason. Nothing is charged.
+ */
+if ($action === 'damage_report_reject') {
+    require_role(['admin', 'manager']);
+    htl_ensure_damage_reports($pdo);
+    $rid = (int)($in['report_id'] ?? 0);
+    $reason = trim((string)($in['reason'] ?? ''));
+    if ($rid <= 0 || $reason === '' || strlen($reason) > 255) {
+        out(['error' => 'A rejection reason is required.'], 400);
+    }
+    $pdo->beginTransaction();
+    try {
+        $q = $pdo->prepare("SELECT * FROM damage_reports WHERE id=? FOR UPDATE");
+        $q->execute([$rid]);
+        $rep = $q->fetch();
+        if (!$rep) throw new DomainException('Damage report not found.');
+        if ($rep['status'] !== 'PENDING') throw new DomainException('Only a pending damage report can be rejected.');
+        $pdo->prepare("UPDATE damage_reports SET status='REJECTED', rejection_reason=?, approved_by=?, approved_at=NOW() WHERE id=?")
+            ->execute([$reason, $u['id'], $rid]);
+        audit($pdo, $u['id'], 'DAMAGE_REPORT_REJECTED', 'damage_report', $rid, ['reason' => $reason]);
+        $pdo->commit();
+    } catch (DomainException $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        out(['error' => $e->getMessage()], 400);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        out(['error' => 'The damage report could not be rejected.'], 500);
+    }
+    out(['ok' => true, 'message' => 'Damage report rejected. Nothing was charged.']);
+}
+
+/**
+ * Posts exactly one charge for an approved report. Idempotent: a second
+ * post of the same report returns the existing charge instead of a
+ * duplicate, and the report's status flip is guarded by the same
+ * transaction as the charge insert.
+ */
+if ($action === 'damage_report_post') {
+    require_role(['admin', 'manager', 'cashier']);
+    htl_ensure_damage_reports($pdo);
+    $rid = (int)($in['report_id'] ?? 0);
+    if ($rid <= 0) out(['error' => 'Damage report not found.'], 400);
+    $pdo->beginTransaction();
+    try {
+        $q = $pdo->prepare("SELECT * FROM damage_reports WHERE id=? FOR UPDATE");
+        $q->execute([$rid]);
+        $rep = $q->fetch();
+        if (!$rep) throw new DomainException('Damage report not found.');
+        if ($rep['status'] === 'POSTED') {
+            $pdo->commit();
+            out(['ok' => true, 'duplicate' => true, 'message' => 'This damage charge was already posted to the folio.']);
+        }
+        if ($rep['status'] !== 'APPROVED') throw new DomainException('Only an approved damage report can be posted to the folio.');
+        $fq = $pdo->prepare("SELECT f.id FROM folios f JOIN stays s ON s.id=f.stay_id WHERE f.id=? AND f.status='OPEN' AND s.status='ACTIVE'");
+        $fq->execute([(int)$rep['folio_id']]);
+        if (!$fq->fetch()) throw new DomainException('The folio is no longer open for an active stay, so this damage charge cannot be posted.');
+        $idem = 'damage-report-' . $rid;
+        $iq = $pdo->prepare('SELECT id FROM charges WHERE idempotency_key=? LIMIT 1');
+        $iq->execute([$idem]);
+        $existingCharge = $iq->fetch();
+        if ($existingCharge) {
+            $pdo->prepare("UPDATE damage_reports SET status='POSTED', posted_charge_id=?, posted_by=?, posted_at=NOW() WHERE id=?")
+                ->execute([(int)$existingCharge['id'], $u['id'], $rid]);
+            $pdo->commit();
+            out(['ok' => true, 'duplicate' => true, 'message' => 'This damage charge was already posted to the folio.']);
+        }
+        $amount = round((float)$rep['final_amount'], 2);
+        if ($amount <= 0) throw new DomainException('This report has no approved amount to post.');
+        // Charge descriptions are capped at 255 characters, and DAMAGE /
+        // MISSING_ITEM charges require at least 12 characters, so the
+        // report description (already >= 12) is kept, prefixed by the item.
+        $chargeDesc = mb_substr($rep['item_name'] . ' — ' . $rep['description'], 0, 255);
+        $pdo->prepare('INSERT INTO charges(folio_id, category, description, quantity, unit_price, amount, created_by, idempotency_key) VALUES(?, ?, ?, ?, ?, ?, ?, ?)')
+            ->execute([(int)$rep['folio_id'], $rep['kind'], $chargeDesc, (int)$rep['quantity'], round($amount / max(1, (int)$rep['quantity']), 2), $amount, $u['id'], $idem]);
+        $chargeId = (int)$pdo->lastInsertId();
+        // The charge amount column carries the approved total exactly;
+        // unit_price is the approved total divided by quantity.
+        $pdo->prepare("UPDATE damage_reports SET status='POSTED', posted_charge_id=?, posted_by=?, posted_at=NOW() WHERE id=?")
+            ->execute([$chargeId, $u['id'], $rid]);
+        audit($pdo, $u['id'], 'DAMAGE_POSTED', 'folio', (int)$rep['folio_id'], ['report_id' => $rid, 'category' => $rep['kind'], 'amount' => $amount]);
+        $pdo->commit();
+    } catch (DomainException $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        out(['error' => $e->getMessage()], 400);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        out(['error' => 'The damage charge could not be posted.'], 500);
+    }
+    $stayQ = $pdo->prepare('SELECT s.stay_code FROM folios f JOIN stays s ON s.id=f.stay_id WHERE f.id=?');
+    $stayQ->execute([(int)$rep['folio_id']]);
+    $sCode = $stayQ->fetchColumn() ?: null;
+    ws_broadcast('FOLIO_UPDATED', ['folio_id' => (int)$rep['folio_id'], 'stay_code' => $sCode, 'type' => 'CHARGE_ADDED', 'category' => $rep['kind'], 'amount' => round((float)$rep['final_amount'], 2)], null, 'frontdesk', $sCode);
+    out(['ok' => true, 'message' => 'Damage charge posted to the folio. The guest settles it like any other balance before checkout.']);
 }
 
 /**
