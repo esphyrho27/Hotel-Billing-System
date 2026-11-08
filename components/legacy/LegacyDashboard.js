@@ -47,7 +47,7 @@ export default function LegacyDashboard() {
           (window.location.hostname &&
           !/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname))
             ? window.location.origin
-            : (process.env.NEXT_PUBLIC_PORTAL_BASE_URL || "http://192.168.254.177:3000");
+            : (process.env.NEXT_PUBLIC_PORTAL_BASE_URL || "http://192.168.100.47:3000");
 
         const response = await fetch("/legacy/dashboard.html", {
           cache: "no-store",

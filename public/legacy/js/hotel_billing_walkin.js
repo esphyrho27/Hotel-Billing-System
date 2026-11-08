@@ -2955,7 +2955,7 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
 
   function modal(title, html) { const root=document.createElement('div'); root.className='modal fade'; root.tabIndex=-1; root.innerHTML=`<div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content"><div class="modal-header d-flex justify-content-between align-items-center"><h5 class="modal-title mb-0">${title}</h5><button class="btn-close ms-auto" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body">${html}</div></div></div>`; document.body.appendChild(root); const m=new bootstrap.Modal(root); root.addEventListener('hidden.bs.modal',()=>root.remove()); m.show(); return {root,m}; }
 
-  const knownLanIp = '192.168.254.177'; // configured via .env HOTEL_SERVER_IP
+  const knownLanIp = '192.168.100.47'; // configured via .env HOTEL_SERVER_IP
 
 
 
