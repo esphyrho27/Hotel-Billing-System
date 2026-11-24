@@ -51,6 +51,8 @@ const HOTEL_ROLE_PERMISSIONS = [
     // so a saved role_permissions grant cannot re-enable manual status edits.
     'frontdesk' => [
         'dashboard.view',
+        'reports.financial.view',
+        'audit_logs.view',
         'stays.checkin',
         'stays.view',
         'stays.checkout',
@@ -73,6 +75,8 @@ const HOTEL_ROLE_PERMISSIONS = [
     ],
     'cashier' => [
         'dashboard.view',
+        'reports.financial.view',
+        'audit_logs.view',
         'stays.view',
         'billing.view',
         'payments.process',
@@ -518,6 +522,12 @@ const HOTEL_ACTION_PERMISSIONS = [
     'restaurant_order_status' => 'dashboard.view',
     'restaurant_order_pay' => 'dashboard.view',
     'restaurant_order_create' => 'dashboard.view',
+    'charge_categories_list' => 'billing.view',
+    'charge_category_save' => 'settings.manage',
+    'charge_subcategory_save' => 'settings.manage',
+    'restaurant_order_cancel' => 'dashboard.view',
+    'restaurant_order_item_quantity' => 'dashboard.view',
+    'audit_log_details' => 'audit_logs.view',
     'customer_place_order' => 'dashboard.view',
     'customer_cancel_order' => 'dashboard.view',
 ];
@@ -625,7 +635,7 @@ function hotel_get_allowed_modules_for_role(string $role, ?PDO $pdo = null): arr
     if ($r === 'admin') {
         return [
             'dashboard', 'walkin-checkin', 'active-stays', 'checkout-history', 'checkout', 'rooms', 'catalog', 'payments',
-            'discount-approvals', 'early-checkouts', 'early-checkout-requests', 'service-requests',
+            'discount-approvals',  'service-requests',
             'reports', 'audit-logs', 'users', 'settings'
         ];
     }
@@ -636,7 +646,7 @@ function hotel_get_allowed_modules_for_role(string $role, ?PDO $pdo = null): arr
             'active-stays',
             'checkout-history',
             'checkout',
-            'early-checkout-requests',
+            
             'rooms',
             'service-requests', 'guest-chats'
         ];
@@ -655,7 +665,7 @@ function hotel_get_allowed_modules_for_role(string $role, ?PDO $pdo = null): arr
             'catalog',
             'payments',
             'discount-approvals',
-            'early-checkouts',
+            
             'service-requests',
             'reports',
             'audit-logs',
@@ -707,9 +717,7 @@ function hotel_get_allowed_modules_for_role(string $role, ?PDO $pdo = null): arr
     if ($has('discounts.approve')) {
         $modules[] = 'discount-approvals';
     }
-    if ($has('early_checkout.approve') || $has('early_checkout.view') || $has('stay_extension.approve') || $has('stay_extension.view')) {
-        $modules[] = 'early-checkouts';
-    }
+    // Early checkout removed
     if ($has('service_requests.view') || $has('service_requests.fulfill') || $has('service_requests.assign')) {
         $modules[] = 'service-requests';
     }

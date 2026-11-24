@@ -90,8 +90,9 @@ function hotel_ensure_actual_checkin_column(PDO $pdo): void {
 }
 
 function hotel_checkin_is_open(?DateTimeImmutable $now = null): bool {
-    $now ??= hotel_local_now();
-    return $now >= $now->setTime(14, 0, 0);
+    // Guests can check in / register at any time (24/7).
+    // Standard room entry time remains 2:00 PM.
+    return true;
 }
 
 function hotel_scheduled_checkout_at(string $date): DateTimeImmutable {

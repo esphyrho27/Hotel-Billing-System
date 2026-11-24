@@ -603,9 +603,47 @@ function htl_ensure_restaurant_schema(PDO $pdo): void {
     }
 }
 
-function audit(PDO $db, ?int $uid, string $action, string $type, ?int $id, array $details = []): void {
-    $s = $db->prepare('INSERT INTO audit_logs(user_id,action,entity_type,entity_id,details,ip_address) VALUES(?,?,?,?,?,?)');
-    $s->execute([$uid, $action, $type, $id, json_encode($details), $_SERVER['REMOTE_ADDR'] ?? null]);
+function audit(PDO $db, ?int $uid, string $action, string $type, ?int $id, array $details = [], $oldValue = null, $newValue = null, ?string $module = null): void {
+    try {
+        $userName = null;
+        $userRole = null;
+        if (!empty($_SESSION['user']['id']) && (int)$_SESSION['user']['id'] === (int)$uid) {
+            $userName = $_SESSION['user']['username'] ?? null;
+            $userRole = $_SESSION['user']['role'] ?? null;
+        } elseif ($uid !== null && $uid > 0) {
+            static $userCache = [];
+            if (!isset($userCache[$uid])) {
+                $uq = $db->prepare('SELECT username, role FROM users WHERE id=?');
+                $uq->execute([$uid]);
+                $userCache[$uid] = $uq->fetch(PDO::FETCH_ASSOC) ?: null;
+            }
+            if ($userCache[$uid]) {
+                $userName = $userCache[$uid]['username'];
+                $userRole = $userCache[$uid]['role'];
+            }
+        } else {
+            $userName = 'System';
+            $userRole = 'system';
+        }
+
+        $moduleName = $module ?: $type;
+        $detailsJson = json_encode($details, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $oldValStr = is_array($oldValue) || is_object($oldValue) ? json_encode($oldValue, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : ($oldValue !== null ? (string)$oldValue : null);
+        $newValStr = is_array($newValue) || is_object($newValue) ? json_encode($newValue, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : ($newValue !== null ? (string)$newValue : null);
+        $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
+
+        // Prevent duplicate audit entries within a 2-second window for the exact same action, user, module and entity
+        $checkDup = $db->prepare("SELECT id FROM audit_logs WHERE action=? AND module=? AND entity_id<=>? AND user_id<=>? AND details=? AND created_at >= DATE_SUB(NOW(), INTERVAL 2 SECOND) LIMIT 1");
+        $checkDup->execute([$action, $moduleName, $id, $uid, $detailsJson]);
+        if ($checkDup->fetchColumn()) {
+            return;
+        }
+
+        $s = $db->prepare('INSERT INTO audit_logs(user_id, user_name, user_role, action, module, entity_type, entity_id, details, old_value, new_value, ip_address, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())');
+        $s->execute([$uid, $userName, $userRole, $action, $moduleName, $type, $id, $detailsJson, $oldValStr, $newValStr, $ip]);
+    } catch (Throwable $e) {
+        error_log('Audit log insertion failed: ' . $e->getMessage());
+    }
 }
 
 /**

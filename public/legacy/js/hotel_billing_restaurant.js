@@ -787,7 +787,7 @@ container.innerHTML = `
         <button class="btn btn-primary btn-sm fw-semibold" onclick="HotelRestaurantDashboard.updateOrderStatus(${order.id}, 'Confirmed')">
           <i class="bi bi-check2 me-1"></i>Confirm
         </button>
-        <button class="btn btn-outline-danger btn-sm" onclick="HotelRestaurantDashboard.updateOrderStatus(${order.id}, 'Cancelled')" title="Cancel Order">
+        <button class="btn btn-outline-danger btn-sm" onclick="HotelRestaurantDashboard.cancelOrder(${order.id})" title="Cancel Order">
           <i class="bi bi-x"></i>
         </button>
       `;
@@ -797,7 +797,7 @@ container.innerHTML = `
         <button class="btn btn-info btn-sm text-dark fw-semibold" onclick="HotelRestaurantDashboard.updateOrderStatus(${order.id}, 'Preparing')">
           <i class="bi bi-fire me-1"></i>Start Prep
         </button>
-        <button class="btn btn-outline-danger btn-sm" onclick="HotelRestaurantDashboard.updateOrderStatus(${order.id}, 'Cancelled')" title="Cancel Order">
+        <button class="btn btn-outline-danger btn-sm" onclick="HotelRestaurantDashboard.cancelOrder(${order.id})" title="Cancel Order">
           <i class="bi bi-x"></i>
         </button>
       `;
@@ -1151,6 +1151,89 @@ container.innerHTML = `
   /**
    * Advance order status (Workflow: Pending -> Confirmed -> Preparing -> Ready for Serving -> Served -> Completed / Cancelled)
    */
+  
+  /**
+   * Separate, explicit order cancellation function
+   */
+  async function cancelOrder(orderId) {
+    const order = cachedOrders.find(o => Number(o.id) === Number(orderId));
+    let reason = '';
+    if (window.Swal) {
+      const prompt = await window.Swal.fire({
+        title: 'Cancel Order?',
+        text: `Cancel order ${order?.order_code || '#' + orderId}? This will remove it from the active queue and exclude it from the guest bill.`,
+        input: 'text',
+        inputLabel: 'Reason for cancellation (optional):',
+        inputPlaceholder: 'e.g. Guest changed mind, item unavailable',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Cancel Order',
+        cancelButtonText: 'Keep Order',
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        reverseButtons: true
+      });
+      if (!prompt.isConfirmed) return;
+      reason = (prompt.value || '').trim();
+    } else {
+      if (!confirm(`Cancel order ${order?.order_code || '#' + orderId}?`)) return;
+      reason = prompt('Reason for cancellation (optional):') || '';
+    }
+
+    try {
+      const res = await api('restaurant_order_cancel', {
+        order_id: orderId,
+        reason: reason
+      }, 'POST');
+
+      if (order) {
+        order.order_status = 'Cancelled';
+        order.cancellation_reason = reason;
+      }
+
+      window.HotelDialogs?.toast({ title: res.message || 'Order cancelled successfully', icon: 'success' });
+      await refreshOrders();
+      const modalEl = document.getElementById('modal-view-order-details');
+      if (modalEl && bootstrap.Modal.getInstance(modalEl)) {
+        bootstrap.Modal.getInstance(modalEl).hide();
+      }
+    } catch (err) {
+      if (window.HotelDialogs?.error) {
+        await window.HotelDialogs.error({ title: 'Cancellation failed', text: err.message });
+      } else {
+        alert('Failed to cancel order: ' + err.message);
+      }
+    }
+  }
+
+  /**
+   * Increments or decrements order item quantity
+   */
+  async function changeItemQty(orderId, itemId, delta) {
+    try {
+      const res = await api('restaurant_order_item_quantity', {
+        order_id: orderId,
+        item_id: itemId,
+        delta: delta
+      }, 'POST');
+
+      window.HotelDialogs?.toast({ title: res.message || 'Quantity updated', icon: 'success' });
+      await refreshOrders();
+
+      // Refresh view details modal if open
+      const modalEl = document.getElementById('modal-view-order-details');
+      if (modalEl && modalEl.classList.contains('show')) {
+        viewOrderDetails(orderId);
+      }
+    } catch (err) {
+      if (window.HotelDialogs?.error) {
+        await window.HotelDialogs.error({ title: 'Quantity update failed', text: err.message });
+      } else {
+        alert(err.message || 'Failed to update quantity');
+      }
+    }
+  }
+
   async function updateOrderStatus(orderId, newStatus) {
     const order = cachedOrders.find(o => Number(o.id) === Number(orderId));
     if (newStatus === 'Confirmed' && window.Swal) {
@@ -1193,59 +1276,130 @@ container.innerHTML = `
       document.body.appendChild(modalEl);
     }
 
+    const isLocked = ['Cancelled', 'Completed', 'Served'].includes(order.order_status);
+    const canCancel = !['Cancelled', 'Completed'].includes(order.order_status);
+
+    const badgeCls = {
+      Pending: 'text-bg-warning',
+      Confirmed: 'text-bg-primary',
+      Preparing: 'text-bg-info text-dark',
+      'Ready for Serving': 'text-bg-teal text-white',
+      Served: 'text-bg-secondary',
+      Completed: 'text-bg-success',
+      Cancelled: 'text-bg-danger'
+    }[order.order_status] || 'text-bg-secondary';
+
+    const itemsRows = (order.items || []).map(i => {
+      const uPrice = Number(i.unit_price || 0);
+      const qty = Number(i.quantity || 1);
+      const sub = Number(i.subtotal || (uPrice * qty));
+      return `
+        <tr>
+          <td class="fw-semibold text-dark">
+            ${esc(i.item_name)}
+            <div><span class="badge text-bg-light border text-muted">${esc(i.category_name || 'General')}</span></div>
+          </td>
+          <td class="text-end text-muted">${php(uPrice)}</td>
+          <td class="text-center">
+            <div class="d-inline-flex align-items-center gap-1 border rounded px-1 py-0 bg-light">
+              <button type="button" class="btn btn-sm btn-link p-0 text-dark fw-bold text-decoration-none"
+                style="width:24px;height:24px;"
+                onclick="HotelRestaurantDashboard.changeItemQty(${order.id}, ${i.id}, -1)"
+                ${isLocked || qty <= 1 ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''}
+                title="Decrease quantity (−)">−</button>
+              <span class="fw-bold px-2">${qty}</span>
+              <button type="button" class="btn btn-sm btn-link p-0 text-dark fw-bold text-decoration-none"
+                style="width:24px;height:24px;"
+                onclick="HotelRestaurantDashboard.changeItemQty(${order.id}, ${i.id}, 1)"
+                ${isLocked ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''}
+                title="Increase quantity (+)">+</button>
+            </div>
+          </td>
+          <td class="text-end fw-bold text-dark">${php(sub)}</td>
+        </tr>
+      `;
+    }).join('');
+
     modalEl.innerHTML = `
       <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content border-0 shadow">
           <div class="modal-header">
             <div>
               <h6 class="modal-title fw-bold">Order Details · ${esc(order.order_code)}</h6>
-              <div class="small text-muted">${esc(order.created_at)}</div>
+              <div class="small text-muted"><i class="bi bi-clock me-1"></i>${esc(order.created_at)}</div>
             </div>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4">
-            <div class="mb-4">
-              <span class="small text-muted fw-semibold me-2">Status</span>
-              <span class="badge text-bg-primary">${esc(order.order_status)}</span>
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 p-3 bg-light rounded">
+              <div>
+                <span class="small text-muted fw-semibold me-2">Current Status:</span>
+                <span class="badge ${badgeCls} fs-6">${esc(order.order_status)}</span>
+                ${order.room_number ? `<span class="badge text-bg-secondary ms-2"><i class="bi bi-door-open me-1"></i>Room ${esc(order.room_number)}</span>` : ''}
+              </div>
+              <div class="text-end">
+                <div class="small text-muted">Total Amount</div>
+                <div class="fs-5 fw-bold text-success">${php(order.total_amount)}</div>
+              </div>
             </div>
 
-            ${order.notes ? `
-              <div class="alert alert-light border mb-4">
-                <strong class="text-danger small"><i class="bi bi-chat-left-dots me-1"></i>Special Instructions / Notes:</strong>
-                <div class="text-dark mt-1">${esc(order.notes)}</div>
+            ${order.cancelled_at ? `
+              <div class="alert alert-danger py-2 mb-3 small">
+                <i class="bi bi-x-circle-fill me-1"></i><strong>Order Cancelled:</strong>
+                ${esc(order.cancelled_at)} ${order.cancellation_reason ? `— Reason: ${esc(order.cancellation_reason)}` : ''}
+                ${order.cancelled_by ? ` (User ID: #${order.cancelled_by})` : ''}
               </div>
             ` : ''}
 
-            <h6 class="fw-bold mb-2">Order Items</h6>
+            ${order.notes ? `
+              <div class="alert alert-light border mb-3">
+                <strong class="text-primary small"><i class="bi bi-chat-left-dots me-1"></i>Special Instructions / Notes:</strong>
+                <div class="text-dark mt-1 small">${esc(order.notes)}</div>
+              </div>
+            ` : ''}
+
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h6 class="fw-bold mb-0">Order Items & Quantities</h6>
+              <span class="small text-muted">Use (+) / (−) to adjust item quantities</span>
+            </div>
+
             <div class="table-responsive border rounded-3 mb-3">
               <table class="table align-middle mb-0">
                 <thead class="table-light">
                   <tr>
                     <th>Item</th>
-                    <th>Category</th>
-                    <th class="text-center">Quantity</th>
+                    <th class="text-end">Unit Price</th>
+                    <th class="text-center" style="min-width:120px;">Quantity</th>
+                    <th class="text-end">Subtotal</th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${(order.items || []).map(i => `
-                    <tr>
-                      <td class="fw-semibold text-dark">${esc(i.item_name)}</td>
-                      <td><span class="badge text-bg-light border text-muted">${esc(i.category_name || '-')}</span></td>
-                      <td class="text-center">${i.quantity}</td>
-                    </tr>
-                  `).join('')}
+                  ${itemsRows || '<tr><td colspan="4" class="text-center py-3 text-muted">No items in this order.</td></tr>'}
                 </tbody>
+                <tfoot class="table-light">
+                  <tr>
+                    <th colspan="3" class="text-end fw-bold">Order Total:</th>
+                    <th class="text-end fw-bold text-success fs-6">${php(order.total_amount)}</th>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
-          <div class="modal-footer">
+          <div class="modal-footer d-flex justify-content-between">
+            <div>
+              ${canCancel ? `
+                <button type="button" class="btn btn-outline-danger btn-sm fw-semibold" onclick="HotelRestaurantDashboard.cancelOrder(${order.id})">
+                  <i class="bi bi-x-circle me-1"></i>Cancel Order
+                </button>
+              ` : ''}
+            </div>
             <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
           </div>
         </div>
       </div>
     `;
 
-    const modal = new bootstrap.Modal(modalEl);
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
   }
 
@@ -1537,6 +1691,8 @@ container.innerHTML = `
     openAddCategoryModal,
     toggleItemAvailability,
     updateOrderStatus,
+    cancelOrder,
+    changeItemQty,
     viewOrderDetails,
     openCreateOrderModal,
     refreshAll,

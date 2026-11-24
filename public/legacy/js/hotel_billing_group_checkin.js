@@ -151,13 +151,7 @@
   async function submitGroup(e) {
     e.preventDefault();
     if (loading) return;
-    let timePolicy;
-    try { timePolicy = await api('hotel_time_policy', {}, 'GET'); }
-    catch (err) { showAlert('Could not verify the hotel check-in time: ' + err.message, true); return; }
-    if (!timePolicy.checkin_open) {
-      showAlert(`Group check-in opens at 2:00 PM (${timePolicy.timezone}). Current hotel time: ${timePolicy.hotel_now}.`, true);
-      return;
-    }
+    let timePolicy; try { timePolicy = await api('hotel_time_policy', {}, 'GET'); } catch (_) {}
     const form = $('gci-form');
     if (!form.reportValidity()) return;
     const rows = [...$('gci-rooms-body').querySelectorAll('tr')];

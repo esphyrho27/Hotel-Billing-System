@@ -16,6 +16,17 @@ require_once __DIR__ . '/vat_service.php';
 
 $in = json_input();
 $action = (string)($in['action'] ?? $_GET['action'] ?? '');
+if (strpos($action, '?') !== false) {
+    [$cleanAction, $qs] = explode('?', $action, 2);
+    $action = $cleanAction;
+    parse_str($qs, $parsedQs);
+    $_GET = array_merge($_GET, $parsedQs);
+    foreach ($parsedQs as $k => $v) {
+        if (!isset($in[$k])) {
+            $in[$k] = $v;
+        }
+    }
+}
 
 // ============================================================================
 // SYSTEM CONFIGURATION & HELPER FUNCTIONS
@@ -358,7 +369,7 @@ $readActions = [
     'requests', 'request_history', 'early_checkout_policies', 'early_checkout_requests', 'stay_extension_requests', 'room_transfer_requests', 'damage_reports', 'damage_price_list',
     'chat_conversations', 'chat_messages',
     'discount_policy_admin_list', 'pending_discounts', 'discount_policies',
-    'vat_settings', 'reports', 'payment_history', 'receipt_details', 'report_transactions', 'audit_logs', 'users',
+    'vat_settings', 'reports', 'payment_history', 'receipt_details', 'report_transactions', 'audit_logs', 'audit_log_details', 'charge_categories_list', 'users',
     'permissions_get', 'my_permissions', 'checkin_payments', 'pending_checkins', 'customer_search',
     'inventory_list', 'menu_categories', 'department_reports',
     'restaurant_dashboard_stats', 'restaurant_menu_list', 'restaurant_orders_list'
@@ -734,33 +745,13 @@ if ($action === 'dashboard') {
                 // request is still pending. Computed server-side from hotel
                 // time, never the client clock.
                 $ncNow = hotel_local_now();
+                $ncNow = hotel_local_now();
                 $ncAllowed = true;
                 $ncBlockReason = '';
-                $ncPq = $pdo->prepare("SELECT status FROM early_checkout_requests WHERE stay_id=? AND status IN ('REQUESTED','APPROVED') ORDER BY created_at DESC LIMIT 1");
-                $ncPq->execute([(int)$ncRow['stay_id']]);
-                $ncPending = $ncPq->fetch();
-                if ($ncPending) {
+                $ncBlockers = htl_checkout_blockers($pdo, (int)$ncRow['stay_id']);
+                if ($ncBlockers) {
                     $ncAllowed = false;
-                    $ncBlockReason = $ncPending['status'] === 'REQUESTED'
-                        ? 'Early checkout request is waiting for manager approval.'
-                        : 'Early checkout request is approved but not yet finalized.';
-                } else {
-                    $ncCheckinAt = !empty($ncRow['checkin_at']) ? new DateTimeImmutable((string)$ncRow['checkin_at'], hotel_timezone()) : null;
-                    $ncScheduledAt = hotel_scheduled_checkout_at((string)$ncRow['planned_checkout']);
-                    $ncAllowed = hotel_checkout_is_allowed((string)$ncRow['planned_checkout'], $ncNow, $ncEarlyRow ?: null, $ncCheckinAt);
-                    if (!$ncAllowed) {
-                        if ($ncEarlyRow && !empty($ncEarlyRow['requested_departure_at']) && $ncNow < new DateTimeImmutable((string)$ncEarlyRow['requested_departure_at'], hotel_timezone())) {
-                            $ncBlockReason = 'Checkout is blocked until the manager-approved departure time of ' . $ncEarlyRow['requested_departure_at'] . '.';
-                        } else {
-                            $ncBlockReason = 'Checkout is available at 12:00 PM on the scheduled checkout date (' . $ncScheduledAt->format('Y-m-d H:i:s') . ') unless a finalized manager-approved early-checkout exception applies.';
-                        }
-                    } else {
-                        $ncBlockers = htl_checkout_blockers($pdo, (int)$ncRow['stay_id']);
-                        if ($ncBlockers) {
-                            $ncAllowed = false;
-                            $ncBlockReason = 'Checkout is blocked: ' . htl_checkout_block_reason($ncBlockers);
-                        }
-                    }
+                    $ncBlockReason = 'Checkout is blocked: ' . htl_checkout_block_reason($ncBlockers);
                 }
                 $nextCheckouts[] = [
                     'stay_id' => (int)$ncRow['stay_id'],
@@ -2438,14 +2429,17 @@ if ($action === 'demo_clock_reset') {
  * Retrieves all currently active stays with guest details, charges, and payment totals.
  */
 if ($action === 'hotel_time_policy') {
-    require_role(['admin', 'manager', 'frontdesk']);
+    require_role(['admin', 'manager', 'frontdesk', 'cashier']);
     $now = hotel_local_now();
-    $checkinOpens = $now->setTime(14, 0, 0);
+    $roomEntry = $now->setTime(14, 0, 0);
     out([
         'timezone' => hotel_timezone()->getName(),
         'hotel_now' => $now->format('Y-m-d H:i:s'),
-        'checkin_opens_at' => $checkinOpens->format('Y-m-d H:i:s'),
-        'checkin_open' => hotel_checkin_is_open($now),
+        'standard_checkin_time' => '2:00 PM',
+        'room_entry_time' => '2:00 PM',
+        'checkin_opens_at' => $roomEntry->format('Y-m-d H:i:s'),
+        'checkin_open' => true,
+        'room_entry_ready' => ($now >= $roomEntry),
     ]);
 }
 
@@ -2638,10 +2632,7 @@ if ($action === 'guest_portal_link') {
  */
 if ($action === 'group_checkin') {
     require_role(['admin', 'manager', 'frontdesk']);
-    $policyNow = hotel_local_now();
-    if (!hotel_checkin_is_open($policyNow)) {
-        out(['error' => 'Check-in is available only from 2:00 PM in the hotel’s local time zone.'], 400);
-    }
+    $policyNow = hotel_local_now(); // Check-in registration permitted 24/7. Standard room entry is 2:00 PM.
     hotel_ensure_actual_checkin_column($pdo);
     $roomItems = $in['rooms'] ?? [];
     if (!is_array($roomItems) || count($roomItems) < 2 || count($roomItems) > 20) {
@@ -2859,10 +2850,7 @@ if ($action === 'customer_search') {
 
 if ($action === 'checkin') {
     require_role(['admin', 'manager', 'frontdesk']);
-    $policyNow = hotel_local_now();
-    if (!hotel_checkin_is_open($policyNow)) {
-        out(['error' => 'Check-in is available only from 2:00 PM in the hotel’s local time zone.'], 400);
-    }
+    $policyNow = hotel_local_now(); // Check-in registration permitted 24/7. Standard room entry is 2:00 PM.
     hotel_ensure_actual_checkin_column($pdo);
     $room = (int)($in['room_id'] ?? 0);
     $guests = max(1, (int)($in['guests'] ?? 1));
@@ -4258,25 +4246,7 @@ if ($action === 'checkout') {
             throw new RuntimeException('Active stay not found.');
         }
 
-        $q = $pdo->prepare("SELECT id, status FROM early_checkout_requests WHERE stay_id=? AND status IN ('REQUESTED','APPROVED') ORDER BY created_at DESC LIMIT 1 FOR UPDATE");
-        $q->execute([$sid]);
-        $pendingEarly = $q->fetch();
-        if ($pendingEarly) {
-            $state = $pendingEarly['status'] === 'REQUESTED' ? 'waiting for manager approval' : 'approved but not yet finalized';
-            throw new RuntimeException('Checkout is blocked: an early checkout request is ' . $state . '. Open Early Checkout Approvals, resolve and finalize the request, then settle the folio before checkout.');
-        }
-
-        $checkinAt = new DateTimeImmutable($s['checkin_at'], hotel_timezone());
-        $scheduledCheckoutAt = hotel_scheduled_checkout_at((string)$s['planned_checkout']);
-        $exceptionQuery = $pdo->prepare("SELECT * FROM early_checkout_requests WHERE stay_id=? AND status='FINALIZED' AND request_type='EARLY_CHECKOUT' AND policy='MANAGER_EXCEPTION' ORDER BY approved_at DESC, id DESC LIMIT 1 FOR UPDATE");
-        $exceptionQuery->execute([$sid]);
-        $earlyCheckoutException = $exceptionQuery->fetch(PDO::FETCH_ASSOC) ?: null;
-        if (!hotel_checkout_is_allowed((string)$s['planned_checkout'], $actualDateTime, $earlyCheckoutException, $checkinAt)) {
-            if ($earlyCheckoutException && $actualDateTime < new DateTimeImmutable($earlyCheckoutException['requested_departure_at'], hotel_timezone())) {
-                throw new RuntimeException('Checkout is blocked until the manager-approved departure time of ' . $earlyCheckoutException['requested_departure_at'] . '.');
-            }
-            throw new RuntimeException('Checkout is available at 12:00 PM on the scheduled checkout date (' . $scheduledCheckoutAt->format('Y-m-d H:i:s') . ') unless a finalized manager-approved early-checkout exception applies.');
-        }
+        // Unified checkout: guests can check out at any time without early checkout restrictions
 
         $checkoutBlockers = htl_checkout_blockers($pdo, $sid);
         if ($checkoutBlockers) {
@@ -4511,6 +4481,9 @@ if ($action === 'add_charge') {
     // with 'Invalid charge details'. A bar charge is a food/beverage
     // charge for folio purposes, so normalize it instead of rejecting it.
     if ($cat === 'BAR') $cat = 'FOOD';
+    if ($cat === 'Damages') $cat = 'DAMAGE';
+    if ($cat === 'Additional Services') $cat = 'SERVICE';
+    if ($cat === 'Other Charges') $cat = 'OTHER';
     if ($itemId > 0) {
         $cq = $pdo->prepare("SELECT name, category, price FROM service_catalog WHERE id=? AND active=1 AND category <> 'FOOD_BEVERAGE'");
         $cq->execute([$itemId]);
@@ -4550,7 +4523,7 @@ if ($action === 'add_charge') {
     $q = $pdo->prepare('INSERT INTO charges(folio_id, category, description, quantity, unit_price, amount, created_by, idempotency_key) VALUES(?, ?, ?, ?, ?, ?, ?, ?)');
     $q->execute([$fid, $cat, $desc, $qty, $price, round($qty * $price, 2), $u['id'], $idem ?: null]);
 
-    audit($pdo, $u['id'], 'ADD_CHARGE', 'folio', $fid, ['category' => $cat, 'amount' => $qty * $price]);
+    audit($pdo, $u['id'], 'ADD_CHARGE', 'folio', $fid, ['category' => $cat, 'subcategory' => $subcat, 'description' => $desc, 'quantity' => $qty, 'unit_price' => $price, 'amount' => $qty * $price], null, null, 'billing');
 
     $stayQ = $pdo->prepare('SELECT s.stay_code FROM folios f JOIN stays s ON s.id=f.stay_id WHERE f.id=?');
     $stayQ->execute([$fid]);
@@ -6690,16 +6663,61 @@ if ($action === 'discount_status') {
  * and revenue breakdown by charge category.
  */
 if ($action === 'reports') {
-    require_role(['admin', 'manager', 'cashier']);
-    $q = $pdo->query("SELECT DATE(created_at) AS day, COUNT(*) AS payments_count, SUM(amount) AS revenue FROM payments WHERE created_at>=DATE_SUB(CURDATE(), INTERVAL 30 DAY) GROUP BY DATE(created_at) ORDER BY day DESC");
-    $daily = $q->fetchAll();
+    require_role(['admin', 'manager', 'cashier', 'frontdesk']);
 
-    $summary = [];
-    $summary['early_checkout_count'] = (int)$pdo->query("SELECT COUNT(*) FROM early_checkout_requests WHERE status='FINALIZED'")->fetchColumn();
-    $summary['early_checkout_charges'] = (float)$pdo->query("SELECT COALESCE(SUM(amount),0) FROM charges WHERE description LIKE 'EARLY CHECKOUT CHARGE %'")->fetchColumn();
-    $q = $pdo->query("SELECT c.category, COUNT(*) AS charges_count, SUM(c.amount) AS amount FROM charges c WHERE c.created_at>=DATE_SUB(CURDATE(), INTERVAL 30 DAY) GROUP BY c.category ORDER BY amount DESC");
-    $summary['additional_charges_by_category'] = $q->fetchAll();
+    $rangeType = strtolower(trim((string)($in['period'] ?? ($in['range_type'] ?? ($_GET['period'] ?? ($_GET['range_type'] ?? 'daily'))))));
+    $startDate = trim((string)($in['start_date'] ?? ($_GET['start_date'] ?? '')));
+    $endDate = trim((string)($in['end_date'] ?? ($_GET['end_date'] ?? '')));
 
+    $today = date('Y-m-d');
+
+    if ($rangeType === 'daily') {
+        $startDate = $startDate ?: $today;
+        $endDate = $startDate;
+    } elseif ($rangeType === 'weekly') {
+        $endDate = $endDate ?: $today;
+        $startDate = $startDate ?: date('Y-m-d', strtotime('-6 days', strtotime($endDate)));
+    } elseif ($rangeType === 'monthly') {
+        $endDate = $endDate ?: $today;
+        $startDate = $startDate ?: date('Y-m-d', strtotime('-29 days', strtotime($endDate)));
+    } elseif ($rangeType === 'custom') {
+        if ($startDate === '' || $endDate === '') {
+            $startDate = $startDate ?: date('Y-m-d', strtotime('-30 days'));
+            $endDate = $endDate ?: $today;
+        }
+    } else {
+        $rangeType = 'custom';
+        $startDate = $startDate ?: date('Y-m-d', strtotime('-30 days'));
+        $endDate = $endDate ?: $today;
+    }
+
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
+        out(['error' => 'Invalid date format. Use YYYY-MM-DD.'], 400);
+    }
+
+    if ($startDate > $endDate) {
+        out(['error' => 'Start Date cannot be later than End Date.'], 400);
+    }
+
+    // Filter payments in date range
+    $q = $pdo->prepare('SELECT DATE(created_at) AS day, COUNT(*) AS payments_count, SUM(amount) AS revenue FROM payments WHERE DATE(created_at) BETWEEN ? AND ? GROUP BY DATE(created_at) ORDER BY day DESC');
+    $q->execute([$startDate, $endDate]);
+    $daily = $q->fetchAll(PDO::FETCH_ASSOC);
+
+    $totalRevenue = array_sum(array_column($daily, 'revenue'));
+    $totalPaymentsCount = array_sum(array_column($daily, 'payments_count'));
+
+    // Additional charges by category in date range (excluding ROOM charges)
+    $q = $pdo->prepare("SELECT c.category, COUNT(*) AS charges_count, SUM(c.amount) AS amount FROM charges c WHERE c.category <> 'ROOM' AND DATE(c.created_at) BETWEEN ? AND ? GROUP BY c.category ORDER BY amount DESC");
+    $q->execute([$startDate, $endDate]);
+    $catCharges = $q->fetchAll(PDO::FETCH_ASSOC);
+
+    // Orders in date range (excluding Cancelled)
+    $orderQ = $pdo->prepare("SELECT COUNT(*) AS order_count, COALESCE(SUM(total_amount), 0) AS order_total FROM restaurant_orders WHERE order_status != 'Cancelled' AND DATE(created_at) BETWEEN ? AND ?");
+    $orderQ->execute([$startDate, $endDate]);
+    $orderStats = $orderQ->fetch(PDO::FETCH_ASSOC);
+
+    // Finalized checkouts & VAT in date range
     $vatSummary = [
         'vat_rate' => htl_vat_rate_percent($pdo),
         'vatable_sales' => 0,
@@ -6708,7 +6726,8 @@ if ($action === 'reports') {
         'total_amount' => 0,
     ];
     $dailyVat = [];
-    $checkoutQuery = $pdo->query("SELECT final_amount, vat_amount, vat_exempt_sales, DATE(actual_checkout_at) AS day FROM checkout_records WHERE actual_checkout_at>=DATE_SUB(CURDATE(), INTERVAL 30 DAY) ORDER BY actual_checkout_at, id");
+    $checkoutQuery = $pdo->prepare('SELECT final_amount, vat_amount, vat_exempt_sales, DATE(actual_checkout_at) AS day FROM checkout_records WHERE DATE(actual_checkout_at) BETWEEN ? AND ? ORDER BY actual_checkout_at, id');
+    $checkoutQuery->execute([$startDate, $endDate]);
     foreach ($checkoutQuery->fetchAll(PDO::FETCH_ASSOC) as $checkout) {
         $tax = htl_checkout_vat_snapshot($checkout);
         foreach (['vatable_sales', 'vat_amount', 'vat_exempt_sales', 'total_amount'] as $field) {
@@ -6728,7 +6747,33 @@ if ($action === 'reports') {
     }
     unset($tax);
 
-    out(['daily_payments' => $daily, 'billing_summary' => $summary, 'vat_summary' => $vatSummary, 'daily_vat' => array_values($dailyVat)]);
+    // Booking / check-in records in date range
+    $staysQ = $pdo->prepare('SELECT COUNT(*) AS stay_count, COALESCE(SUM(guest_count), 0) AS guest_total FROM stays WHERE DATE(checkin_at) BETWEEN ? AND ?');
+    $staysQ->execute([$startDate, $endDate]);
+    $stayStats = $staysQ->fetch(PDO::FETCH_ASSOC);
+
+    $summary = [
+        'period' => $rangeType,
+        'start_date' => $startDate,
+        'end_date' => $endDate,
+        'total_revenue' => money($totalRevenue),
+        'total_payments_count' => $totalPaymentsCount,
+        'stay_count' => (int)$stayStats['stay_count'],
+        'guest_total' => (int)$stayStats['guest_total'],
+        'order_count' => (int)$orderStats['order_count'],
+        'order_revenue' => money($orderStats['order_total']),
+        'additional_charges_by_category' => $catCharges,
+    ];
+
+    out([
+        'period' => $rangeType,
+        'start_date' => $startDate,
+        'end_date' => $endDate,
+        'daily_payments' => $daily,
+        'billing_summary' => $summary,
+        'vat_summary' => $vatSummary,
+        'daily_vat' => array_values($dailyVat),
+    ]);
 }
 
 if ($action === 'vat_settings') {
@@ -6950,8 +6995,8 @@ if ($action === 'receipt_details') {
  * Retrieves all payment transactions recorded on a specific calendar day.
  */
 if ($action === 'report_transactions') {
-    require_role(['admin', 'manager', 'cashier']);
-    $day = (string)($in['day'] ?? '');
+    require_role(['admin', 'manager', 'cashier', 'frontdesk']);
+    $day = (string)($in['day'] ?? ($_GET['day'] ?? ''));
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) {
         out(['error' => 'Invalid report date.'], 400);
     }
@@ -6964,14 +7009,362 @@ if ($action === 'report_transactions') {
  * Retrieves the system-wide security audit trail showing administrative and financial actions.
  */
 if ($action === 'audit_logs') {
-    require_role(['admin', 'manager']);
-    $q = $pdo->query('SELECT a.created_at, u.username, a.action, a.entity_type, a.entity_id, a.details FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.created_at DESC LIMIT 300');
-    out(['logs' => $q->fetchAll()]);
+    require_role(['admin', 'manager', 'frontdesk', 'cashier']);
+
+    $search = trim((string)($in['search'] ?? ($_GET['search'] ?? '')));
+    $userId = isset($in['user_id']) && $in['user_id'] !== '' ? (int)$in['user_id'] : (isset($_GET['user_id']) && $_GET['user_id'] !== '' ? (int)$_GET['user_id'] : null);
+    $role = trim((string)($in['role'] ?? ($_GET['role'] ?? '')));
+    $actionType = trim((string)($in['action_type'] ?? ($_GET['action_type'] ?? '')));
+    $module = trim((string)($in['module'] ?? ($_GET['module'] ?? '')));
+    $fromDate = trim((string)($in['from_date'] ?? ($_GET['from_date'] ?? '')));
+    $toDate = trim((string)($in['to_date'] ?? ($_GET['to_date'] ?? '')));
+    $page = max(1, (int)($in['page'] ?? ($_GET['page'] ?? 1)));
+    $limit = min(100, max(5, (int)($in['limit'] ?? ($_GET['limit'] ?? 20))));
+    $offset = ($page - 1) * $limit;
+
+    $conditions = ['1=1'];
+    $params = [];
+
+    if ($search !== '') {
+        $conditions[] = "(a.action LIKE ? OR COALESCE(a.user_name, u.username) LIKE ? OR COALESCE(a.module, a.entity_type) LIKE ? OR a.details LIKE ? OR a.ip_address LIKE ?)";
+        $wild = '%' . $search . '%';
+        $params[] = $wild;
+        $params[] = $wild;
+        $params[] = $wild;
+        $params[] = $wild;
+        $params[] = $wild;
+    }
+    if ($userId !== null && $userId >= 0) {
+        $conditions[] = 'a.user_id = ?';
+        $params[] = $userId;
+    }
+    if ($role !== '') {
+        $conditions[] = 'COALESCE(a.user_role, u.role) = ?';
+        $params[] = $role;
+    }
+    if ($actionType !== '') {
+        $conditions[] = 'a.action = ?';
+        $params[] = $actionType;
+    }
+    if ($module !== '') {
+        $conditions[] = 'COALESCE(a.module, a.entity_type) = ?';
+        $params[] = $module;
+    }
+    if ($fromDate !== '') {
+        $conditions[] = 'DATE(a.created_at) >= ?';
+        $params[] = $fromDate;
+    }
+    if ($toDate !== '') {
+        $conditions[] = 'DATE(a.created_at) <= ?';
+        $params[] = $toDate;
+    }
+
+    $whereSql = implode(' AND ', $conditions);
+
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id WHERE $whereSql");
+    $countStmt->execute($params);
+    $totalCount = (int)$countStmt->fetchColumn();
+
+    $querySql = "SELECT a.id, a.user_id, COALESCE(a.user_name, u.username, 'System') AS user_name, COALESCE(a.user_role, u.role, 'system') AS user_role, a.action, COALESCE(a.module, a.entity_type) AS module, a.entity_type, a.entity_id, a.details, a.old_value, a.new_value, a.ip_address, a.created_at FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id WHERE $whereSql ORDER BY a.created_at DESC, a.id DESC LIMIT $limit OFFSET $offset";
+    $queryStmt = $pdo->prepare($querySql);
+    $queryStmt->execute($params);
+    $logs = $queryStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $users = $pdo->query('SELECT id, username, role FROM users ORDER BY username ASC')->fetchAll(PDO::FETCH_ASSOC);
+    $roles = $pdo->query("SELECT DISTINCT COALESCE(user_role, 'system') AS role FROM audit_logs WHERE user_role IS NOT NULL UNION SELECT DISTINCT role FROM users ORDER BY role ASC")->fetchAll(PDO::FETCH_COLUMN);
+    $actions = $pdo->query('SELECT DISTINCT action FROM audit_logs ORDER BY action ASC')->fetchAll(PDO::FETCH_COLUMN);
+    $modules = $pdo->query('SELECT DISTINCT COALESCE(module, entity_type) AS module FROM audit_logs ORDER BY module ASC')->fetchAll(PDO::FETCH_COLUMN);
+
+    out([
+        'logs' => $logs,
+        'total' => $totalCount,
+        'page' => $page,
+        'limit' => $limit,
+        'total_pages' => max(1, (int)ceil($totalCount / $limit)),
+        'users' => $users,
+        'roles' => array_values(array_filter($roles)),
+        'actions' => array_values(array_filter($actions)),
+        'modules' => array_values(array_filter($modules)),
+    ]);
+}
+
+if ($action === 'audit_log_details') {
+    require_role(['admin', 'manager', 'frontdesk', 'cashier']);
+    $id = (int)($in['id'] ?? ($_GET['id'] ?? 0));
+    $stmt = $pdo->prepare("SELECT a.id, a.user_id, COALESCE(a.user_name, u.username, 'System') AS user_name, COALESCE(a.user_role, u.role, 'system') AS user_role, a.action, COALESCE(a.module, a.entity_type) AS module, a.entity_type, a.entity_id, a.details, a.old_value, a.new_value, a.ip_address, a.created_at FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id WHERE a.id=? LIMIT 1");
+    $stmt->execute([$id]);
+    $log = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$log) {
+        out(['error' => 'Audit log record not found.'], 404);
+    }
+    out(['log' => $log]);
 }
 
 /**
  * Allows the currently logged-in user to change their account password.
  */
+
+// ============================================================================
+// CHARGE CATEGORIES & SUBCATEGORIES MANAGEMENT
+// ============================================================================
+
+if ($action === 'charge_categories_list') {
+    require_role(['admin', 'manager', 'frontdesk', 'cashier']);
+    $categories = $pdo->query('SELECT * FROM charge_categories WHERE is_active=1 ORDER BY charge_category_id ASC')->fetchAll(PDO::FETCH_ASSOC);
+    $subcategories = $pdo->query('SELECT * FROM charge_subcategories WHERE is_active=1 ORDER BY category_id ASC, id ASC')->fetchAll(PDO::FETCH_ASSOC);
+
+    $grouped = [];
+    foreach ($categories as $cat) {
+        $cId = (int)$cat['charge_category_id'];
+        $cat['subcategories'] = [];
+        $grouped[$cId] = $cat;
+    }
+    foreach ($subcategories as $sub) {
+        $cId = (int)$sub['category_id'];
+        if (isset($grouped[$cId])) {
+            $grouped[$cId]['subcategories'][] = $sub;
+        }
+    }
+    out(['categories' => array_values($grouped)]);
+}
+
+if ($action === 'charge_category_save') {
+    require_role(['admin']);
+    $id = (int)($in['id'] ?? 0);
+    $name = trim((string)($in['category_name'] ?? ''));
+    $desc = trim((string)($in['description'] ?? ''));
+    $active = isset($in['is_active']) ? ((int)$in['is_active'] ? 1 : 0) : 1;
+
+    if ($name === '') {
+        out(['error' => 'Category name is required.'], 400);
+    }
+
+    if ($id > 0) {
+        $pdo->prepare('UPDATE charge_categories SET category_name=?, description=?, is_active=? WHERE charge_category_id=?')
+            ->execute([$name, $desc, $active, $id]);
+        audit($pdo, $u['id'], 'UPDATE_CHARGE_CATEGORY', 'charge_categories', $id, ['name' => $name]);
+    } else {
+        $pdo->prepare('INSERT INTO charge_categories (category_name, description, is_active) VALUES (?, ?, ?)')
+            ->execute([$name, $desc, $active]);
+        $id = (int)$pdo->lastInsertId();
+        audit($pdo, $u['id'], 'CREATE_CHARGE_CATEGORY', 'charge_categories', $id, ['name' => $name]);
+    }
+    out(['ok' => true, 'id' => $id, 'message' => 'Charge category saved successfully.']);
+}
+
+if ($action === 'charge_subcategory_save') {
+    require_role(['admin']);
+    $id = (int)($in['id'] ?? 0);
+    $catId = (int)($in['category_id'] ?? 0);
+    $name = trim((string)($in['subcategory_name'] ?? ''));
+    $price = round((float)($in['default_price'] ?? 0), 2);
+    $desc = trim((string)($in['description'] ?? ''));
+    $active = isset($in['is_active']) ? ((int)$in['is_active'] ? 1 : 0) : 1;
+
+    if ($catId <= 0 || $name === '' || $price < 0) {
+        out(['error' => 'Valid category, subcategory name, and non-negative price are required.'], 400);
+    }
+
+    if ($id > 0) {
+        $pdo->prepare('UPDATE charge_subcategories SET category_id=?, subcategory_name=?, default_price=?, description=?, is_active=? WHERE id=?')
+            ->execute([$catId, $name, $price, $desc, $active, $id]);
+        audit($pdo, $u['id'], 'UPDATE_CHARGE_SUBCATEGORY', 'charge_subcategories', $id, ['category_id' => $catId, 'name' => $name, 'price' => $price]);
+    } else {
+        $pdo->prepare('INSERT INTO charge_subcategories (category_id, subcategory_name, default_price, description, is_active) VALUES (?, ?, ?, ?, ?)')
+            ->execute([$catId, $name, $price, $desc, $active]);
+        $id = (int)$pdo->lastInsertId();
+        audit($pdo, $u['id'], 'CREATE_CHARGE_SUBCATEGORY', 'charge_subcategories', $id, ['category_id' => $catId, 'name' => $name, 'price' => $price]);
+    }
+    out(['ok' => true, 'id' => $id, 'message' => 'Charge subcategory saved successfully.']);
+}
+
+// ============================================================================
+// ORDER CANCELLATION & ITEM QUANTITY MANAGEMENT
+// ============================================================================
+
+if ($action === 'restaurant_order_cancel') {
+    $orderId = (int)($in['order_id'] ?? 0);
+    $reason = trim((string)($in['reason'] ?? ''));
+
+    if ($orderId <= 0) {
+        out(['error' => 'Order ID is required.'], 400);
+    }
+
+    $q = $pdo->prepare('SELECT o.*, s.stay_code FROM restaurant_orders o LEFT JOIN stays s ON s.id=o.stay_id WHERE o.id=?');
+    $q->execute([$orderId]);
+    $order = $q->fetch(PDO::FETCH_ASSOC);
+    if (!$order) {
+        out(['error' => 'Order not found.'], 404);
+    }
+
+    if ($order['order_status'] === 'Cancelled') {
+        out(['ok' => true, 'already_cancelled' => true, 'message' => 'This order is already cancelled.']);
+    }
+
+    if (in_array($order['order_status'], ['Served', 'Completed'], true)) {
+        out(['error' => "Order #{$order['order_code']} has already been {$order['order_status']} and cannot be cancelled."], 400);
+    }
+
+    $curRole = strtolower(trim((string)($u['role'] ?? '')));
+    $isCustomer = in_array($curRole, ['customer', 'guest', ''], true) || !empty($u['customer_id']);
+
+    if ($order['order_status'] !== 'Pending' && $isCustomer) {
+        out(['error' => 'This order has already been acknowledged and cannot be cancelled by guests. Contact Front Desk or Restaurant staff.'], 403);
+    }
+
+    $cancelTime = date('Y-m-d H:i:s');
+    $cancelledBy = (int)($u['id'] ?? 1);
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("UPDATE restaurant_orders SET order_status='Cancelled', cancelled_at=?, cancelled_by=?, cancellation_reason=? WHERE id=?")
+            ->execute([$cancelTime, $cancelledBy, $reason ?: 'Order cancelled', $orderId]);
+
+        $pdo->prepare("UPDATE service_requests SET status='CANCELLED' WHERE request_code=?")
+            ->execute([$order['order_code']]);
+
+        // If order had a folio charge, remove it so it is excluded from guest final bill and revenue
+        if (!empty($order['stay_id'])) {
+            $idemKey = 'order-charge-' . $order['order_code'];
+            $pdo->prepare('DELETE FROM charges WHERE idempotency_key=?')->execute([$idemKey]);
+        }
+
+        audit($pdo, $cancelledBy, 'CANCEL_ORDER', 'restaurant_orders', $orderId, [
+            'order_code' => $order['order_code'],
+            'room_number' => $order['room_number'],
+            'total_amount' => $order['total_amount'],
+            'previous_status' => $order['order_status'],
+            'reason' => $reason,
+            'cancelled_at' => $cancelTime
+        ], ['order_status' => $order['order_status']], ['order_status' => 'Cancelled'], 'orders');
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        out(['error' => 'Failed to cancel order: ' . $e->getMessage()], 500);
+    }
+
+    ws_broadcast('RESTAURANT_ORDER_STATUS_CHANGED', [
+        'id' => $orderId,
+        'order_code' => $order['order_code'],
+        'room_number' => $order['room_number'],
+        'order_status' => 'Cancelled',
+        'cancelled_at' => $cancelTime,
+        'reason' => $reason
+    ], null, null, $order['stay_code'] ?? null);
+
+    if (!empty($order['stay_id'])) {
+        ws_broadcast('FOLIO_UPDATED', ['stay_id' => (int)$order['stay_id'], 'type' => 'RESTAURANT_ORDER_CANCELLED', 'order_code' => $order['order_code']], null, 'frontdesk', $order['stay_code'] ?? null);
+    }
+
+    out(['ok' => true, 'order_id' => $orderId, 'order_status' => 'Cancelled', 'message' => "Order #{$order['order_code']} has been cancelled."]);
+}
+
+if ($action === 'restaurant_order_item_quantity') {
+    $orderId = (int)($in['order_id'] ?? 0);
+    $itemId = (int)($in['item_id'] ?? 0);
+    $delta = isset($in['delta']) ? (int)$in['delta'] : null;
+    $newQty = isset($in['quantity']) ? (int)$in['quantity'] : null;
+
+    if ($orderId <= 0 || $itemId <= 0) {
+        out(['error' => 'Order ID and Item ID are required.'], 400);
+    }
+
+    $q = $pdo->prepare('SELECT o.*, s.stay_code FROM restaurant_orders o LEFT JOIN stays s ON s.id=o.stay_id WHERE o.id=?');
+    $q->execute([$orderId]);
+    $order = $q->fetch(PDO::FETCH_ASSOC);
+    if (!$order) {
+        out(['error' => 'Order not found.'], 404);
+    }
+
+    if (in_array($order['order_status'], ['Cancelled', 'Completed', 'Served'], true)) {
+        out(['error' => "Cannot modify items for an order that is {$order['order_status']}."], 400);
+    }
+
+    $itemStmt = $pdo->prepare('SELECT * FROM restaurant_order_items WHERE id=? AND order_id=?');
+    $itemStmt->execute([$itemId, $orderId]);
+    $item = $itemStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$item) {
+        out(['error' => 'Order item not found.'], 404);
+    }
+
+    $currentQty = (int)$item['quantity'];
+    if ($delta !== null) {
+        $targetQty = $currentQty + $delta;
+    } elseif ($newQty !== null) {
+        $targetQty = $newQty;
+    } else {
+        out(['error' => 'Quantity change (delta or quantity) is required.'], 400);
+    }
+
+    if ($targetQty < 1) {
+        out(['error' => 'Quantity cannot be less than 1. Minimum quantity is 1.'], 400);
+    }
+
+    $unitPrice = (float)$item['unit_price'];
+    $newSubtotal = round($unitPrice * $targetQty, 2);
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('UPDATE restaurant_order_items SET quantity=?, subtotal=? WHERE id=?')
+            ->execute([$targetQty, $newSubtotal, $itemId]);
+
+        $sumStmt = $pdo->prepare('SELECT COALESCE(SUM(subtotal),0) FROM restaurant_order_items WHERE order_id=?');
+        $sumStmt->execute([$orderId]);
+        $newOrderTotal = round((float)$sumStmt->fetchColumn(), 2);
+
+        $pdo->prepare('UPDATE restaurant_orders SET total_amount=? WHERE id=?')
+            ->execute([$newOrderTotal, $orderId]);
+
+        // If order was billed to room folio, update folio charge automatically!
+        if (!empty($order['stay_id'])) {
+            $idemKey = 'order-charge-' . $order['order_code'];
+            $pdo->prepare('UPDATE charges SET unit_price=?, amount=? WHERE idempotency_key=?')
+                ->execute([$newOrderTotal, $newOrderTotal, $idemKey]);
+        }
+
+        audit($pdo, $u['id'], 'ORDER_ITEM_QUANTITY_UPDATED', 'restaurant_order_items', $itemId, [
+            'order_id' => $orderId,
+            'order_code' => $order['order_code'],
+            'item_name' => $item['item_name'],
+            'unit_price' => $unitPrice,
+            'previous_quantity' => $currentQty,
+            'new_quantity' => $targetQty,
+            'previous_subtotal' => $item['subtotal'],
+            'new_subtotal' => $newSubtotal,
+            'new_order_total' => $newOrderTotal
+        ], ['quantity' => $currentQty, 'subtotal' => $item['subtotal']], ['quantity' => $targetQty, 'subtotal' => $newSubtotal], 'orders');
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        out(['error' => 'Failed to update order item quantity: ' . $e->getMessage()], 500);
+    }
+
+    ws_broadcast('RESTAURANT_ORDER_UPDATED', [
+        'order_id' => $orderId,
+        'order_code' => $order['order_code'],
+        'item_id' => $itemId,
+        'quantity' => $targetQty,
+        'subtotal' => $newSubtotal,
+        'total_amount' => $newOrderTotal
+    ], null, null, $order['stay_code'] ?? null);
+
+    if (!empty($order['stay_id'])) {
+        ws_broadcast('FOLIO_UPDATED', ['stay_id' => (int)$order['stay_id'], 'type' => 'RESTAURANT_ORDER_CHARGED', 'order_code' => $order['order_code']], null, 'frontdesk', $order['stay_code'] ?? null);
+    }
+
+    out([
+        'ok' => true,
+        'order_id' => $orderId,
+        'item_id' => $itemId,
+        'quantity' => $targetQty,
+        'subtotal' => $newSubtotal,
+        'total_amount' => $newOrderTotal,
+        'message' => "Quantity updated to {$targetQty}. Subtotal: ₱" . number_format($newSubtotal, 2)
+    ]);
+}
+
 if ($action === 'change_password') {
     $old = (string)($in['old_password'] ?? '');
     $new = (string)($in['new_password'] ?? '');

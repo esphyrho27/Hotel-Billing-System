@@ -7,12 +7,10 @@
     ["active-stays", "people", "Active Stays", "Current in-house stays and folios"],
     ["checkout-history", "journal-check", "Checked-Out Guests", "Search completed guest stays and checkout records"],
     ["checkout", "box-arrow-right", "Check-Out", "Manage guest departures and check-out verification"],
-    ["early-checkout-requests", "clock-history", "Early Checkout Requests", "View and submit early departure requests"],
     ["rooms", "door-open", "Rooms & Availability", "Room inventory and housekeeping status"],
     ["catalog", "list-check", "Room Types & Service Menu", "Manage room rates and service prices"],
     ["payments", "cash-coin", "Payments", "Payment records and receipts"],
     ["discount-approvals", "check2-square", "Discount Approvals", "Review pending manager discounts"],
-    ["early-checkouts", "clipboard-check", "Early Checkout Approvals", "Review early checkout requests"],
     ["service-requests", "bell", "Guest Service Requests", "Review and update guest requests"],
     ["guest-chats", "chat-dots", "Guest Chats", "Guest messages to the front desk"],
     ["reports", "bar-chart", "Reports", "Authorized financial reports"],
@@ -47,7 +45,7 @@
       "rooms",
       "catalog",
       "payments",
-      "early-checkouts",
+      
       "service-requests",
       "reports",
       "dept-reports",
@@ -64,7 +62,7 @@
       "active-stays",
       "checkout-history",
       "checkout",
-      "early-checkout-requests",
+      
       "rooms",
       "guest-chats",
       
@@ -161,8 +159,8 @@
           : ["restaurant", "foodbeverage", "food"].includes(roleKey)
             ? [["Dining Operations", ["dashboard", "service-requests"]], ["Restaurant Menu", ["catalog"]], ["Account", ["settings"]]]
         : [
-            ["Operations", ["dashboard", "walkin-checkin", "group-checkin", "active-stays", "checkout-history", "checkout", "early-checkout-requests", "rooms", "service-requests", "guest-chats"]],
-            ["Billing", ["catalog", "payments", "discount-approvals", "early-checkouts", "reports"]],
+            ["Operations", ["dashboard", "walkin-checkin", "group-checkin", "active-stays", "checkout-history", "checkout",  "rooms", "service-requests", "guest-chats"]],
+            ["Billing", ["catalog", "payments", "discount-approvals",  "reports"]],
             ["Admin", ["audit-logs", "users", "settings"]],
           ];
       const byId = new Map(visible.map((v) => [v[0], v]));

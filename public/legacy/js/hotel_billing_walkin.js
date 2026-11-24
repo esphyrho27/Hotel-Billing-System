@@ -143,7 +143,7 @@
 
     activeModule=id;
 
-    const map={'dashboard':'panel-dashboard','walkin-checkin':'panel-walkin-checkin','active-stays':'panel-active-stays','checkout-history':'panel-checkout-history','checkout':'panel-checkout','early-checkout-requests':'panel-early-checkout-requests','rooms':'panel-rooms','catalog':'panel-catalog','transactions':'panel-transactions','billing':'panel-billing','payments':'panel-payments','service-requests':'panel-service-requests','early-checkouts':'panel-early-checkouts','guest-chats':'panel-guest-chats','reports':'panel-reports','audit-logs':'panel-audit-logs','users':'panel-users','discount-approvals':'panel-discount-approvals','settings':'panel-settings','dept-reports':'panel-dept-reports','dept-inventory':'panel-dept-inventory'};
+    const map={'dashboard':'panel-dashboard','walkin-checkin':'panel-walkin-checkin','active-stays':'panel-active-stays','checkout-history':'panel-checkout-history','checkout':'panel-checkout','rooms':'panel-rooms','catalog':'panel-catalog','transactions':'panel-transactions','billing':'panel-billing','payments':'panel-payments','service-requests':'panel-service-requests','guest-chats':'panel-guest-chats','reports':'panel-reports','audit-logs':'panel-audit-logs','users':'panel-users','discount-approvals':'panel-discount-approvals','settings':'panel-settings','dept-reports':'panel-dept-reports','dept-inventory':'panel-dept-inventory'};
 
     document.querySelectorAll('.panel-section').forEach(p=>p.classList.remove('active'));
 
@@ -2777,135 +2777,11 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
       </div>`;
 
     } else if (id==='reports') {
-
-      const d=await api('reports',{},'GET');
-
-      const rows=(d.daily_payments||[]).map(r=>`<tr><td><button class="btn btn-sm btn-link" onclick="HotelBilling.reportDetails('${esc(r.day)}')">${esc(r.day)}</button></td><td>${r.payments_count}</td><td>${php(r.revenue)}</td></tr>`).join('');
-
-      const b=d.billing_summary||{};
-
-      const catRows=(b.additional_charges_by_category||[]).map(c=>`<tr><td>${esc(c.category)}</td><td>${c.charges_count}</td><td>${php(c.amount)}</td></tr>`).join('');
-
-      const v=d.vat_summary||{};
-      const vatRows=(d.daily_vat||[]).map(t=>`<tr><td>${esc(t.day)}</td><td>${php(t.vatable_sales)}</td><td>${php(t.vat_amount)}</td><td>${php(t.vat_exempt_sales)}</td><td>${php(t.total_amount)}</td></tr>`).join('');
-
-
-
-      const mobileReportCards = (d.daily_payments||[]).map(r=>`
-
-        <div class="card border-0 shadow-sm p-3 mb-2">
-
-          <div class="d-flex justify-content-between align-items-center mb-1">
-
-            <button class="btn btn-link p-0 fw-bold fs-6 text-decoration-none" onclick="HotelBilling.reportDetails('${esc(r.day)}')">
-
-              <i class="bi bi-calendar3 me-1"></i>${esc(r.day)}
-
-            </button>
-
-            <span class="badge text-bg-success fs-6">${php(r.revenue)}</span>
-
-          </div>
-
-          <div class="small text-muted">Payments count: <strong class="text-dark">${r.payments_count}</strong></div>
-
-        </div>
-
-      `).join('') || '<div class="card border-0 shadow-sm p-3 text-center text-muted">No payment activity.</div>';
-
-
-
-      const mobileCategoryCards = (b.additional_charges_by_category||[]).map(c=>`
-
-        <div class="card border-0 shadow-sm p-3 mb-2">
-
-          <div class="d-flex justify-content-between align-items-center mb-1">
-
-            <span class="fw-bold fs-6">${esc(c.category)}</span>
-
-            <span class="text-dark fw-bold fs-6">${php(c.amount)}</span>
-
-          </div>
-
-          <div class="small text-muted">Count: <strong class="text-dark">${c.charges_count}</strong></div>
-
-        </div>
-
-      `).join('') || '<div class="card border-0 shadow-sm p-3 text-center text-muted">No additional charges in this period.</div>';
-
-
-
-      $('reports-content').innerHTML=`<div class="alert alert-light border"><strong>Shesh Dev Hotel</strong><br>Agora, Lapasan, Cagayan de Oro</div>
-
-      <div class="row g-2 g-sm-3 mb-3">${[['Finalized early checkouts',b.early_checkout_count||0],['Early-checkout charges',php(b.early_checkout_charges||0)]].map(x=>`<div class="col-6 col-lg-3"><div class="card border-0 shadow-sm h-100"><div class="card-body p-2 p-sm-3"><div class="small text-muted dashboard-stat-label">${x[0]}</div><div class="dashboard-stat-value ${String(x[1]).includes('₱')?'is-currency':''}">${x[1]}</div></div></div></div>`).join('')}</div>
-
-      <div class="card border-0 shadow-sm mb-3"><div class="card-body"><h6 class="fw-bold">Collections report · last 30 days</h6><p class="small text-muted">Click a date to inspect the underlying transactions.</p>
-
-        <div class="d-none d-md-block">${table(['Date','Payments','Collected'],rows,'No payment activity.')}</div>
-
-        <div class="d-md-none">${mobileReportCards}</div>
-
-      </div></div>
-
-        <div class="card border-0 shadow-sm mb-3"><div class="card-body"><h6 class="fw-bold">VAT report · finalized folios · last 30 days</h6><p class="small text-muted">Each folio is reported once at checkout. Partial payments do not duplicate VAT in this report.</p>
-          <div class="row g-2 mb-3">${[['VATable sales',v.vatable_sales],['VAT collected',v.vat_amount],['VAT-exempt sales',v.vat_exempt_sales],['Total billed',v.total_amount]].map(([label,value])=>`<div class="col-6 col-lg-3"><div class="p-3 bg-light rounded"><div class="small text-muted">${label}</div><strong>${php(value||0)}</strong></div></div>`).join('')}</div>
-          <div class="d-none d-md-block">${table(['Checkout date','VATable sales','VAT','VAT-exempt sales','Total'],vatRows,'No finalized folios in this period.')}</div>
-        </div></div>
-
-        <div class="card border-0 shadow-sm"><div class="card-body"><h6 class="fw-bold">Additional charges by category · last 30 days</h6>
-
-        <div class="d-none d-md-block">${table(['Category','Count','Amount'],catRows,'No additional charges in this period.')}</div>
-
-        <div class="d-md-none">${mobileCategoryCards}</div>
-
-      </div></div>`;
-
+      window._reportFilterState = window._reportFilterState || { period:'daily', start_date:'', end_date:'' };
+      await renderReportsModule(window._reportFilterState);
     } else if (id==='audit-logs') {
-
-      const d=await api('audit_logs',{},'GET');
-
-      const rows=(d.logs||[]).map(r=>`<tr><td>${esc(r.created_at)}</td><td>${esc(r.username||'System')}</td><td>${esc(r.action)}</td><td>${esc(r.entity_type)} ${esc(r.entity_id||'')}</td><td><code>${esc(r.details||'')}</code></td></tr>`).join('');
-
-      const mobileAuditCards = (d.logs||[]).map(r=>`
-
-        <div class="card border-0 shadow-sm p-3 mb-2">
-
-          <div class="d-flex justify-content-between align-items-start mb-2">
-
-            <div>
-
-              <span class="badge text-bg-light border text-dark fw-bold">${esc(r.action)}</span>
-
-              <div class="small text-muted mt-1"><i class="bi bi-clock me-1"></i>${esc(r.created_at)}</div>
-
-            </div>
-
-            <span class="badge text-bg-secondary">${esc(r.username||'System')}</span>
-
-          </div>
-
-          <div class="small text-muted mb-2">
-
-            Record: <strong class="text-dark">${esc(r.entity_type)} ${esc(r.entity_id||'')}</strong>
-
-          </div>
-
-          ${r.details ? `<div class="p-2 bg-light rounded small font-monospace text-break">${esc(r.details)}</div>` : ''}
-
-        </div>
-
-      `).join('') || '<div class="card border-0 shadow-sm p-3 text-center text-muted">No audit events found.</div>';
-
-
-
-      $('audit-logs-content').innerHTML=`
-
-        <div class="d-none d-md-block">${table(['Time','User','Action','Record','Details'],rows,'No audit events found.')}</div>
-
-        <div class="d-md-none">${mobileAuditCards}</div>
-
-      `;
-
+      window._auditFilterState = window._auditFilterState || { search:'', user_id:'', role:'', action_type:'', module:'', from_date:'', to_date:'', page:1, limit:20 };
+      await renderAuditLogsModule(window._auditFilterState);
     } else if (id==='discounts') {
 
       $('discounts-content').innerHTML=`<div id="discount-policy-admin"><div class="text-muted p-3">Loading discount policies…</div></div>`; await renderDiscountAdmin();
@@ -3514,9 +3390,6 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
   async function checkin(preselectedGuest = null) {
     try {
       const timePolicy = await api('hotel_time_policy', {}, 'GET');
-      if (!timePolicy.checkin_open) {
-        return notify(`Check-in opens at 2:00 PM (${timePolicy.timezone}). Current hotel time: ${timePolicy.hotel_now}.`, true);
-      }
       const d = await api('rooms', {}, 'GET');
       rooms = (d.rooms || []).filter(r => r.status === 'AVAILABLE');
       if (!rooms.length) return notify('No available rooms.', true);
@@ -3862,9 +3735,6 @@ ${s.guest_name ? (isCashier ? `<div class="fw-semibold text-primary mb-2" style=
 
         try {
           const timePolicy = await api('hotel_time_policy', {}, 'GET');
-          if (!timePolicy.checkin_open) {
-            throw new Error(`Check-in opens at 2:00 PM (${timePolicy.timezone}). Current hotel time: ${timePolicy.hotel_now}.`);
-          }
           const occupants = [];
           const guestCount = Number(f.guests);
           // Hidden section (plain solo check-in): submit no occupants —
@@ -7377,9 +7247,6 @@ async function transfer(id) {
 
         try {
           const timePolicy = await api('hotel_time_policy', {}, 'GET');
-          if (!timePolicy.checkin_open) {
-            throw new Error(`Check-in opens at 2:00 PM (${timePolicy.timezone}). Current hotel time: ${timePolicy.hotel_now}.`);
-          }
 
           const r = await api('checkin', {
 
@@ -7872,7 +7739,7 @@ async function transfer(id) {
         const exceptionMessage = d.early_checkout_exception
           ? ` The manager-approved departure time is ${esc(d.early_checkout_exception.requested_departure_at)}.`
           : '';
-        statusAlert += `<div class="alert alert-warning mt-3 mb-0"><strong>Checkout is not yet allowed.</strong> Standard checkout is at 12:00 PM on ${esc(d.stay.planned_checkout)} (${esc(d.hotel_timezone)}). Current hotel time: ${esc(d.hotel_now)}.${exceptionMessage}</div>`;
+        // Standard checkout allows departure at any time upon settling balance
       }
 
       const x=modal('Final checkout · Receipt review',`${checkoutReceiptHtml(d,false)}${statusAlert}<div class="d-flex justify-content-end gap-2 mt-3"><button type="button" class="btn btn-outline-secondary" id="cancel-checkout">Close</button><button type="button" class="btn btn-success" id="confirm-checkout" ${!canConfirm ? `disabled title="${disabledReason}"` : ''}><i class="bi bi-check2-circle me-1"></i>${confirmLabel}</button></div>`);
@@ -8403,7 +8270,7 @@ async function transfer(id) {
 
       const canCheckout = folioCan('stays.checkout', ['admin', 'frontdesk'].includes(curRole));
 
-      const canAddCharge = curRole !== 'frontdesk' && folioCan('charges.create', ['admin', 'manager', 'cashier'].includes(curRole));
+      const canAddCharge = folioCan('charges.create', ['admin', 'manager', 'frontdesk', 'cashier'].includes(curRole));
       const canReportDamage = folioCan('damage.report', ['admin', 'manager', 'frontdesk', 'cashier'].includes(curRole));
 
       const dateOnly=v=>String(v||'—').replace('T',' ').replace(/\s\d{2}:\d{2}:\d{2}.*/, '');
@@ -8858,7 +8725,562 @@ ${(d.damage_reports && d.damage_reports.length) ? `<section class="folio-section
     }
   }
 
-  window.HotelBilling={api,open,getActiveModule:()=>activeModule,notify,refreshRequestBadge,checkin,bookAdditionalRoom,guestDetails,approveCheckinPayment,approveGroupCheckinPayment,confirmCheckinPayment,activateCheckinPayment,activateGroupCheckin,cancelPendingCheckin,renderWalkinCheckin,renderCheckoutDashboard,renderEarlyCheckoutRequests,selectRoomForWalkin:(roomId)=>{const sel=document.getElementById('wkd-room-id');if(sel){sel.value=String(roomId);sel.dispatchEvent(new Event('change'));sel.scrollIntoView({behavior:'smooth',block:'center'});sel.focus();}},folio,addCharge,pay,earlyCheckout,decideEarlyCheckout,finalizeEarlyCheckout,decideStayExtension,decideRoomTransfer,reportDamage,decideDamage,postDamage,changeTransferDestination,editEarlyPolicy,editDiscountPolicy,deleteDiscountPolicy,transfer,checkout,roomStatus,requestStatus,assignRequest,handleRequestAction,viewHistory,addRoom,editRoom,addRoomType,editRoomType,addMenuItem,editMenuItem,toggleMenuItem,reportDetails,savedGuestLinks,showCheckinComplete,showStayQr,showReceiptModal,showCheckoutReceipts,viewCheckoutReceipt,downloadCheckoutReceipt,printOfficialReceipt,downloadOfficialReceipt,refreshChatBadge};
+
+  // ============================================================================
+  // AUDIT LOGS MODULE CONTROLLER
+  // ============================================================================
+  async function renderAuditLogsModule(filters = {}) {
+    const host = $('audit-logs-content');
+    if (!host) return;
+
+    host.innerHTML = `<div class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Loading audit logs...</div>`;
+
+    try {
+      const params = new URLSearchParams();
+      if (filters.search) params.append('search', filters.search);
+      if (filters.user_id) params.append('user_id', filters.user_id);
+      if (filters.role) params.append('role', filters.role);
+      if (filters.action_type) params.append('action_type', filters.action_type);
+      if (filters.module) params.append('module', filters.module);
+      if (filters.from_date) params.append('from_date', filters.from_date);
+      if (filters.to_date) params.append('to_date', filters.to_date);
+      params.append('page', filters.page || 1);
+      params.append('limit', filters.limit || 20);
+
+      const queryObj = {};
+      if (filters.search) queryObj.search = filters.search;
+      if (filters.user_id) queryObj.user_id = filters.user_id;
+      if (filters.role) queryObj.role = filters.role;
+      if (filters.action_type) queryObj.action_type = filters.action_type;
+      if (filters.module) queryObj.module = filters.module;
+      if (filters.from_date) queryObj.from_date = filters.from_date;
+      if (filters.to_date) queryObj.to_date = filters.to_date;
+      queryObj.page = filters.page || 1;
+      queryObj.limit = filters.limit || 20;
+
+      const d = await api('audit_logs', queryObj, 'GET');
+      const logs = d.logs || [];
+      const total = d.total || 0;
+      const page = d.page || 1;
+      const limit = d.limit || 20;
+      const totalPages = d.total_pages || 1;
+
+      const userOptions = (d.users || []).map(u => `<option value="${u.id}" ${String(filters.user_id) === String(u.id) ? 'selected' : ''}>${esc(u.username)} (${esc(u.role)})</option>`).join('');
+      const roleOptions = (d.roles || []).map(r => `<option value="${esc(r)}" ${filters.role === r ? 'selected' : ''}>${esc(r)}</option>`).join('');
+      const actionOptions = (d.actions || []).map(a => `<option value="${esc(a)}" ${filters.action_type === a ? 'selected' : ''}>${esc(a)}</option>`).join('');
+      const moduleOptions = (d.modules || []).map(m => `<option value="${esc(m)}" ${filters.module === m ? 'selected' : ''}>${esc(m)}</option>`).join('');
+
+      const tableRows = logs.map(r => {
+        let detailsSummary = '';
+        if (r.details) {
+          try {
+            const parsed = typeof r.details === 'string' ? JSON.parse(r.details) : r.details;
+            if (typeof parsed === 'object' && parsed !== null) {
+              const entries = Object.entries(parsed).slice(0, 3).map(([k, v]) => `${k}: ${v}`);
+              detailsSummary = entries.join(', ');
+              if (Object.keys(parsed).length > 3) detailsSummary += '...';
+            } else {
+              detailsSummary = String(r.details);
+            }
+          } catch (_) {
+            detailsSummary = String(r.details);
+          }
+        }
+        return `
+          <tr>
+            <td class="fw-bold text-muted">#${r.id}</td>
+            <td class="text-nowrap small"><i class="bi bi-clock me-1 text-muted"></i>${esc(r.created_at)}</td>
+            <td><strong>${esc(r.user_name || 'System')}</strong></td>
+            <td><span class="badge text-bg-secondary">${esc(r.user_role || 'system')}</span></td>
+            <td><span class="badge text-bg-light border text-dark fw-bold">${esc(r.action)}</span></td>
+            <td><span class="badge text-bg-info text-dark">${esc(r.module || r.entity_type || '-')}</span></td>
+            <td>${r.entity_id ? `<code>#${esc(r.entity_id)}</code>` : '<span class="text-muted">-</span>'}</td>
+            <td class="small text-truncate" style="max-width: 220px;" title="${esc(r.details || '')}">${esc(detailsSummary || '-')}</td>
+            <td class="small text-muted"><code>${esc(r.ip_address || '127.0.0.1')}</code></td>
+            <td class="text-end text-nowrap">
+              <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" onclick="HotelBilling.viewAuditDetails(${r.id})">
+                <i class="bi bi-eye me-1"></i>View
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      const mobileCards = logs.map(r => `
+        <div class="card border-0 shadow-sm p-3 mb-2">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="badge text-bg-light border text-dark fw-bold me-1">${esc(r.action)}</span>
+              <span class="badge text-bg-info text-dark">${esc(r.module || r.entity_type || '-')}</span>
+              <div class="small text-muted mt-1"><i class="bi bi-clock me-1"></i>${esc(r.created_at)}</div>
+            </div>
+            <div class="text-end">
+              <span class="badge text-bg-secondary">${esc(r.user_name || 'System')}</span>
+              <div class="small text-muted">Role: ${esc(r.user_role || 'system')}</div>
+            </div>
+          </div>
+          <div class="small text-muted mb-2">
+            Audit ID: <strong>#${r.id}</strong> · Record ID: <strong>${esc(r.entity_id || '-')}</strong>
+          </div>
+          ${r.details ? `<div class="p-2 bg-light rounded small font-monospace text-break mb-2">${esc(typeof r.details === 'string' ? r.details : JSON.stringify(r.details))}</div>` : ''}
+          <div class="d-flex justify-content-between align-items-center">
+            <small class="text-muted">IP: <code>${esc(r.ip_address || '127.0.0.1')}</code></small>
+            <button type="button" class="btn btn-sm btn-outline-primary py-0" onclick="HotelBilling.viewAuditDetails(${r.id})">
+              Details <i class="bi bi-chevron-right ms-1"></i>
+            </button>
+          </div>
+        </div>
+      `).join('') || '<div class="card border-0 shadow-sm p-4 text-center text-muted">No audit log records match the selected filters.</div>';
+
+      host.innerHTML = `
+        <div class="card border-0 shadow-sm mb-3">
+          <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+              <div>
+                <h5 class="fw-bold mb-1"><i class="bi bi-shield-check text-primary me-2"></i>Security & Activity Audit Logs</h5>
+                <p class="text-muted small mb-0">Immutable, read-only audit records of system activities, user actions, billing, and transactions.</p>
+              </div>
+              <span class="badge text-bg-primary fs-6 px-3 py-2">Total Records: ${total}</span>
+            </div>
+
+            <!-- Search and Filter Form -->
+            <form id="audit-filter-form" class="row g-2 p-3 bg-light rounded mb-3">
+              <div class="col-md-3">
+                <label class="form-label small fw-semibold">Search Keywords</label>
+                <input type="text" class="form-control form-control-sm" id="audit-search" placeholder="Search action, user, module..." value="${esc(filters.search || '')}">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small fw-semibold">Filter User</label>
+                <select class="form-select form-select-sm" id="audit-user">
+                  <option value="">-- All Users --</option>
+                  ${userOptions}
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small fw-semibold">Filter Role</label>
+                <select class="form-select form-select-sm" id="audit-role">
+                  <option value="">-- All Roles --</option>
+                  ${roleOptions}
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small fw-semibold">Action</label>
+                <select class="form-select form-select-sm" id="audit-action">
+                  <option value="">-- All Actions --</option>
+                  ${actionOptions}
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small fw-semibold">Module</label>
+                <select class="form-select form-select-sm" id="audit-module">
+                  <option value="">-- All Modules --</option>
+                  ${moduleOptions}
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small fw-semibold">From Date</label>
+                <input type="date" class="form-control form-control-sm" id="audit-from-date" value="${esc(filters.from_date || '')}">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small fw-semibold">To Date</label>
+                <input type="date" class="form-control form-control-sm" id="audit-to-date" value="${esc(filters.to_date || '')}">
+              </div>
+              <div class="col-md-6 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary btn-sm fw-semibold"><i class="bi bi-funnel me-1"></i>Apply Filters</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="audit-reset-btn"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset Filters</button>
+              </div>
+            </form>
+
+            <!-- Table View -->
+            <div class="d-none d-md-block table-responsive border rounded">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Log ID</th>
+                    <th>Date & Time</th>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Action</th>
+                    <th>Module</th>
+                    <th>Record ID</th>
+                    <th>Summary Details</th>
+                    <th>IP Address</th>
+                    <th class="text-end">Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${tableRows || '<tr><td colspan="10" class="text-center py-4 text-muted">No audit events match your filters.</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Mobile Card View -->
+            <div class="d-md-none mt-2">
+              ${mobileCards}
+            </div>
+
+            <!-- Pagination Bar -->
+            <div class="d-flex flex-wrap justify-content-between align-items-center mt-3 pt-3 border-top gap-2">
+              <div class="small text-muted">
+                Showing ${total === 0 ? 0 : (page - 1) * limit + 1} to ${Math.min(page * limit, total)} of ${total} audit entries
+              </div>
+              <div class="d-flex align-items-center gap-1">
+                <button class="btn btn-outline-secondary btn-sm" ${page <= 1 ? 'disabled' : ''} onclick="HotelBilling.auditGoPage(${page - 1})">
+                  <i class="bi bi-chevron-left me-1"></i>Prev
+                </button>
+                <span class="badge text-bg-light border px-3 py-2 small">Page ${page} of ${totalPages}</span>
+                <button class="btn btn-outline-secondary btn-sm" ${page >= totalPages ? 'disabled' : ''} onclick="HotelBilling.auditGoPage(${page + 1})">
+                  Next<i class="bi bi-chevron-right ms-1"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Event handlers for filters
+      const form = host.querySelector('#audit-filter-form');
+      form.onsubmit = (e) => {
+        e.preventDefault();
+        window._auditFilterState = {
+          search: host.querySelector('#audit-search').value.trim(),
+          user_id: host.querySelector('#audit-user').value,
+          role: host.querySelector('#audit-role').value,
+          action_type: host.querySelector('#audit-action').value,
+          module: host.querySelector('#audit-module').value,
+          from_date: host.querySelector('#audit-from-date').value,
+          to_date: host.querySelector('#audit-to-date').value,
+          page: 1,
+          limit: 20
+        };
+        renderAuditLogsModule(window._auditFilterState);
+      };
+
+      host.querySelector('#audit-reset-btn').onclick = () => {
+        window._auditFilterState = { search:'', user_id:'', role:'', action_type:'', module:'', from_date:'', to_date:'', page:1, limit:20 };
+        renderAuditLogsModule(window._auditFilterState);
+      };
+
+    } catch (err) {
+      host.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Failed to load audit logs: ${esc(err.message)}</div>`;
+    }
+  }
+
+  async function viewAuditDetails(logId) {
+    try {
+      const d = await api('audit_log_details', { id: logId }, 'GET');
+      const r = d.log;
+      if (!r) throw new Error('Audit record not found.');
+
+      let detailsPretty = '';
+      try {
+        const parsed = typeof r.details === 'string' ? JSON.parse(r.details) : r.details;
+        detailsPretty = JSON.stringify(parsed, null, 2);
+      } catch (_) {
+        detailsPretty = String(r.details || '');
+      }
+
+      modal(`Audit Log Entry #${r.id}`, `
+        <div class="p-2">
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <div class="p-2 bg-light rounded">
+                <div class="small text-muted">Audit Log ID</div>
+                <strong>#${r.id}</strong>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="p-2 bg-light rounded">
+                <div class="small text-muted">Timestamp (Date & Time)</div>
+                <strong>${esc(r.created_at)}</strong>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="p-2 bg-light rounded">
+                <div class="small text-muted">User ID & Name</div>
+                <strong>${esc(r.user_name || 'System')} ${r.user_id ? `(#${r.user_id})` : ''}</strong>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="p-2 bg-light rounded">
+                <div class="small text-muted">User Role</div>
+                <span class="badge text-bg-secondary">${esc(r.user_role || 'system')}</span>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="p-2 bg-light rounded">
+                <div class="small text-muted">Client IP Address</div>
+                <code>${esc(r.ip_address || '127.0.0.1')}</code>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="p-2 bg-light rounded">
+                <div class="small text-muted">Action Performed</div>
+                <span class="badge text-bg-primary fs-6">${esc(r.action)}</span>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="p-2 bg-light rounded">
+                <div class="small text-muted">Affected Module & Record ID</div>
+                <strong>${esc(r.module || r.entity_type || '-')} ${r.entity_id ? `(#${r.entity_id})` : ''}</strong>
+              </div>
+            </div>
+          </div>
+
+          ${r.old_value ? `
+            <div class="mb-3">
+              <label class="form-label fw-bold small text-danger"><i class="bi bi-arrow-left-circle me-1"></i>Previous Value (Before Action)</label>
+              <pre class="p-2 bg-danger-subtle rounded border border-danger-subtle small font-monospace mb-0 text-break"><code>${esc(typeof r.old_value === 'string' ? r.old_value : JSON.stringify(r.old_value, null, 2))}</code></pre>
+            </div>
+          ` : ''}
+
+          ${r.new_value ? `
+            <div class="mb-3">
+              <label class="form-label fw-bold small text-success"><i class="bi bi-arrow-right-circle me-1"></i>New Value (After Action)</label>
+              <pre class="p-2 bg-success-subtle rounded border border-success-subtle small font-monospace mb-0 text-break"><code>${esc(typeof r.new_value === 'string' ? r.new_value : JSON.stringify(r.new_value, null, 2))}</code></pre>
+            </div>
+          ` : ''}
+
+          <div>
+            <label class="form-label fw-bold small text-dark"><i class="bi bi-file-earmark-code me-1"></i>Complete Details & Context</label>
+            <pre class="p-3 bg-light rounded border small font-monospace mb-0 text-break" style="max-height: 250px; overflow-y: auto;"><code>${esc(detailsPretty || 'No additional details recorded.')}</code></pre>
+          </div>
+        </div>
+      `);
+    } catch (err) {
+      notify('Failed to load audit entry: ' + err.message, true);
+    }
+  }
+
+  // ============================================================================
+  // REPORTS MODULE CONTROLLER WITH DATE RANGE MANAGEMENT
+  // ============================================================================
+  async function renderReportsModule(state = { period: 'daily', start_date: '', end_date: '' }) {
+    const host = $('reports-content');
+    if (!host) return;
+
+    host.innerHTML = `<div class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Generating report data...</div>`;
+
+    try {
+      const params = new URLSearchParams();
+      params.append('period', state.period || 'daily');
+      if (state.start_date) params.append('start_date', state.start_date);
+      if (state.end_date) params.append('end_date', state.end_date);
+
+      const queryObj = {
+        period: state.period || 'daily'
+      };
+      if (state.start_date) queryObj.start_date = state.start_date;
+      if (state.end_date) queryObj.end_date = state.end_date;
+
+      const d = await api('reports', queryObj, 'GET');
+      const b = d.billing_summary || {};
+      const v = d.vat_summary || {};
+      const dailyPayments = d.daily_payments || [];
+      const dailyVat = d.daily_vat || [];
+      const catCharges = b.additional_charges_by_category || [];
+
+      const rows = dailyPayments.map(r => `<tr><td><button class="btn btn-sm btn-link p-0 text-decoration-none fw-semibold" onclick="HotelBilling.reportDetails('${esc(r.day)}')"><i class="bi bi-calendar-event me-1"></i>${esc(r.day)}</button></td><td class="text-center">${r.payments_count}</td><td class="text-end fw-bold text-success">${php(r.revenue)}</td></tr>`).join('');
+
+      const vatRows = dailyVat.map(t => `<tr><td>${esc(t.day)}</td><td class="text-end">${php(t.vatable_sales)}</td><td class="text-end text-primary">${php(t.vat_amount)}</td><td class="text-end">${php(t.vat_exempt_sales)}</td><td class="text-end fw-bold">${php(t.total_amount)}</td></tr>`).join('');
+
+      const catRows = catCharges.map(c => `<tr><td class="fw-semibold">${esc(c.category)}</td><td class="text-center">${c.charges_count}</td><td class="text-end fw-bold">${php(c.amount)}</td></tr>`).join('');
+
+      const isDaily = state.period === 'daily';
+      const isWeekly = state.period === 'weekly';
+      const isMonthly = state.period === 'monthly';
+      const isCustom = state.period === 'custom';
+
+      const periodLabel = isDaily ? 'Daily Report' : (isWeekly ? 'Weekly Report (Last 7 Days)' : (isMonthly ? 'Monthly Report (Last 30 Days)' : 'Custom Date Range Report'));
+
+      host.innerHTML = `
+        <div class="alert alert-light border shadow-sm mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <div>
+            <h5 class="fw-bold mb-1"><i class="bi bi-bar-chart-line-fill text-primary me-2"></i>Shesh Dev Hotel · Financial Reports</h5>
+            <div class="small text-muted">Agora, Lapasan, Cagayan de Oro · Operations & Revenue Management</div>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Print Report</button>
+          </div>
+        </div>
+
+        <!-- Period Selectors & Custom Date Range Toolbar -->
+        <div class="card border-0 shadow-sm mb-3">
+          <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+              <div class="btn-group" role="group">
+                <button type="button" class="btn ${isDaily ? 'btn-primary' : 'btn-outline-primary'}" onclick="HotelBilling.setReportPeriod('daily')"><i class="bi bi-calendar-day me-1"></i>Daily</button>
+                <button type="button" class="btn ${isWeekly ? 'btn-primary' : 'btn-outline-primary'}" onclick="HotelBilling.setReportPeriod('weekly')"><i class="bi bi-calendar-week me-1"></i>Weekly</button>
+                <button type="button" class="btn ${isMonthly ? 'btn-primary' : 'btn-outline-primary'}" onclick="HotelBilling.setReportPeriod('monthly')"><i class="bi bi-calendar-month me-1"></i>Monthly</button>
+                <button type="button" class="btn ${isCustom ? 'btn-primary' : 'btn-outline-primary'}" onclick="HotelBilling.setReportPeriod('custom')"><i class="bi bi-calendar-range me-1"></i>Custom Date Range</button>
+              </div>
+
+              <div class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 px-3 py-2">
+                <i class="bi bi-clock-history me-1"></i>${periodLabel}: ${esc(b.start_date || '')} to ${esc(b.end_date || '')}
+              </div>
+            </div>
+
+            <!-- Custom Date Range Form -->
+            <form id="report-filter-form" class="row g-2 align-items-end p-3 bg-light rounded">
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Start Date <span class="text-danger">*</span></label>
+                <input type="date" class="form-control form-control-sm" id="report-start-date" value="${esc(b.start_date || '')}" required>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">End Date <span class="text-danger">*</span></label>
+                <input type="date" class="form-control form-control-sm" id="report-end-date" value="${esc(b.end_date || '')}" required>
+              </div>
+              <div class="col-md-4 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm flex-grow-1"><i class="bi bi-check-circle me-1"></i>Generate Report</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="report-reset-btn"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset Filter</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Metric Summary Cards -->
+        <div class="row g-2 g-sm-3 mb-3">
+          <div class="col-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body p-3">
+                <div class="small text-muted">Total Collections</div>
+                <div class="fs-4 fw-bold text-success">₱${b.total_revenue || '0.00'}</div>
+                <div class="small text-muted mt-1">${b.total_payments_count || 0} transaction(s)</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body p-3">
+                <div class="small text-muted">Guest Stays / Bookings</div>
+                <div class="fs-4 fw-bold text-dark">${b.stay_count || 0}</div>
+                <div class="small text-muted mt-1">${b.guest_total || 0} total guest(s)</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body p-3">
+                <div class="small text-muted">F&B Order Sales</div>
+                <div class="fs-4 fw-bold text-primary">₱${b.order_revenue || '0.00'}</div>
+                <div class="small text-muted mt-1">${b.order_count || 0} active order(s)</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body p-3">
+                <div class="small text-muted">VAT Collected (${v.vat_rate || 12}%)</div>
+                <div class="fs-4 fw-bold text-info">₱${v.vat_amount || '0.00'}</div>
+                <div class="small text-muted mt-1">From ₱${v.vatable_sales || '0.00'} vatable sales</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Collections Breakdown -->
+        <div class="card border-0 shadow-sm mb-3">
+          <div class="card-body">
+            <h6 class="fw-bold mb-1"><i class="bi bi-cash-stack me-2 text-success"></i>Collections by Date (${periodLabel})</h6>
+            <p class="small text-muted mb-3">Click a date to inspect individual underlying payment transactions.</p>
+            <div class="table-responsive border rounded">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Date</th>
+                    <th class="text-center">Payments Count</th>
+                    <th class="text-end">Collected Revenue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows || '<tr><td colspan="3" class="text-center py-3 text-muted">No payment collections in this period.</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Additional Charges Breakdown -->
+        <div class="card border-0 shadow-sm mb-3">
+          <div class="card-body">
+            <h6 class="fw-bold mb-1"><i class="bi bi-tag-fill me-2 text-warning"></i>Additional Charges by Category (${periodLabel})</h6>
+            <p class="small text-muted mb-3">Summary of incidental charges, services, amenities, and approved damages.</p>
+            <div class="table-responsive border rounded">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Charge Category</th>
+                    <th class="text-center">Count</th>
+                    <th class="text-end">Total Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${catRows || '<tr><td colspan="3" class="text-center py-3 text-muted">No additional charges recorded in this period.</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- VAT Breakdown -->
+        <div class="card border-0 shadow-sm">
+          <div class="card-body">
+            <h6 class="fw-bold mb-1"><i class="bi bi-receipt me-2 text-primary"></i>VAT Report · Finalized Folios (${periodLabel})</h6>
+            <p class="small text-muted mb-3">Each finalized stay folio is reported once at check-out; avoids duplicate tax counting.</p>
+            <div class="table-responsive border rounded">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Checkout Date</th>
+                    <th class="text-end">VATable Sales</th>
+                    <th class="text-end">VAT (${v.vat_rate || 12}%)</th>
+                    <th class="text-end">VAT-Exempt Sales</th>
+                    <th class="text-end">Total Billed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${vatRows || '<tr><td colspan="5" class="text-center py-3 text-muted">No finalized checkouts in this period.</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Event handlers
+      const form = host.querySelector('#report-filter-form');
+      form.onsubmit = (e) => {
+        e.preventDefault();
+        const start = host.querySelector('#report-start-date').value;
+        const end = host.querySelector('#report-end-date').value;
+        if (start > end) {
+          notify('Start Date cannot be later than End Date.', true);
+          return;
+        }
+        window._reportFilterState = {
+          period: 'custom',
+          start_date: start,
+          end_date: end
+        };
+        renderReportsModule(window._reportFilterState);
+      };
+
+      host.querySelector('#report-reset-btn').onclick = () => {
+        window._reportFilterState = { period: 'daily', start_date: '', end_date: '' };
+        renderReportsModule(window._reportFilterState);
+      };
+
+    } catch (err) {
+      host.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Failed to generate report: ${esc(err.message)}</div>`;
+    }
+  }
+
+  window.HotelBilling={api,open,getActiveModule:()=>activeModule,notify,refreshRequestBadge,checkin,bookAdditionalRoom,guestDetails,approveCheckinPayment,approveGroupCheckinPayment,confirmCheckinPayment,activateCheckinPayment,activateGroupCheckin,cancelPendingCheckin,renderWalkinCheckin,renderCheckoutDashboard,renderEarlyCheckoutRequests,selectRoomForWalkin:(roomId)=>{const sel=document.getElementById('wkd-room-id');if(sel){sel.value=String(roomId);sel.dispatchEvent(new Event('change'));sel.scrollIntoView({behavior:'smooth',block:'center'});sel.focus();}},folio,addCharge,pay,earlyCheckout,decideEarlyCheckout,finalizeEarlyCheckout,decideStayExtension,decideRoomTransfer,reportDamage,decideDamage,postDamage,changeTransferDestination,editEarlyPolicy,editDiscountPolicy,deleteDiscountPolicy,transfer,checkout,roomStatus,requestStatus,assignRequest,handleRequestAction,viewHistory,addRoom,editRoom,addRoomType,editRoomType,addMenuItem,editMenuItem,toggleMenuItem,reportDetails,
+    renderAuditLogsModule,
+    viewAuditDetails,
+    auditGoPage: (pg) => { window._auditFilterState = window._auditFilterState || {}; window._auditFilterState.page = pg; renderAuditLogsModule(window._auditFilterState); },
+    renderReportsModule,
+    setReportPeriod: (p) => { window._reportFilterState = { period: p, start_date: '', end_date: '' }; renderReportsModule(window._reportFilterState); },savedGuestLinks,showCheckinComplete,showStayQr,showReceiptModal,showCheckoutReceipts,viewCheckoutReceipt,downloadCheckoutReceipt,printOfficialReceipt,downloadOfficialReceipt,refreshChatBadge};
 
   document.addEventListener('hotel:authenticated',(event)=>{
 
